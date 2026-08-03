@@ -7,6 +7,7 @@ using ASM_gen.ViewModels;
 using Compiller.Emulation;
 using Kernel.BiosSystem;
 using Kernel.ControllersData;
+using Kernel.ProcessorSystem;
 using Kernel.RamSystem;
 using System.Windows;
 using System.Windows.Controls;
@@ -48,38 +49,51 @@ public partial class IDEPage : Page
 
     private void DebugCompile()
     {
-        if (_analizator.TryCompile(out string text))
+        try
         {
-            _emulator.Reset();
-            _emulator.CreateDevice([], RamSize.Size1MB, 0); // сектор 0
-            _emulator.CompileLoadAndRun(text, disassemble: SnowAssemler);
+            if (_analizator.TryCompile(out string text))
+            {
+                _emulator.Reset();
+                _emulator.CreateDevice([], RamSize.Size1MB, 0);
+                _emulator.CompileLoadAndDebug(text);
+            }
+        }
+        catch (Exception ex)
+        {
+            DeviceHelpers.LogFromSystem("Compile", ex.ToString(), NotificationType.Error);
         }
     }
 
+    private void Compile()
+    {
+        try
+        {
+            if (_analizator.TryCompile(out string text))
+            {
+                _emulator.Reset();
+                _emulator.CreateDevice([], RamSize.Size1MB, 0);
+                _emulator.CompileLoadAndRun(text, 
+                    disassemble: SnowAssemler,
+                    isDebug: IsDebugMode,
+                    delayThread: _delayDeviceThred,
+                    snowTimer: SnowTimer);
+            }
+        }
+        catch (Exception ex)
+        {
+            DeviceHelpers.LogFromSystem("Compile", ex.ToString(), NotificationType.Error);
+        }
+    }
     private void BtnCompileAndLaunch(object sender, RoutedEventArgs e)
     {
         IDEConsoleManager.InitConsole(UseConsole);
 
-        if (_analizator.TryCompile(out string text))
-        {
-            _emulator.Reset();
-            _emulator.CreateDevice([], RamSize.Size1MB, 0);
-            _emulator.CompileLoadAndRun(text,
-                disassemble: SnowAssemler,
-                isDebug: IsDebugMode,
-                delayThread: _delayDeviceThred,
-                snowTimer: SnowTimer);
-        }
+        Compile();
     }
 
     private void BtnBreakPointerModeOne(object sender, RoutedEventArgs e)
     {
-        if (_analizator.TryCompile(out string text))
-        {
-            _emulator.Reset();
-            _emulator.CreateDevice([], RamSize.Size1MB, 0);
-            _emulator.CompileLoadAndDebug(text);
-        }
+        DebugCompile();
     }
 
     private void BtnBreakPointerOne(object sender, RoutedEventArgs e)

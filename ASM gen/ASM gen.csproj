@@ -30,6 +30,12 @@
 	<ProjectReference Include="..\Controllers\Kernel.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="CodeForTest_C.md">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 	<PropertyGroup>
 		<!-- Включаем перемещение сборок в подпапку -->
 		<IncludeNativeLibrariesInSubdirectory>true</IncludeNativeLibrariesInSubdirectory>

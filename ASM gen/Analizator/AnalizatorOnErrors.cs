@@ -169,7 +169,7 @@ int main() {
 
     public bool TryCompile(out string text)
     {
-        text = _projectManager.GetAllText();
+        text = _projectManager.GetCurrentEditorText();
         List<int> errors = CheckTextForErrors(text);
         return !UpdateErrors(errors);
     }

@@ -75,10 +75,15 @@ public class WpfLogger(RichTextBox outputBox) : ILogger
         if (_dispatcher.CheckAccess())
         {
             _outputBox.Document.Blocks.Clear();
+            _paragraph.Inlines.Clear();   // <-- очищаем Inlines, чтобы старый текст не возвращался
         }
         else
         {
-            _dispatcher.Invoke(_outputBox.Document.Blocks.Clear);
+            _dispatcher.Invoke(() =>
+            {
+                _outputBox.Document.Blocks.Clear();
+                _paragraph.Inlines.Clear();
+            });
         }
     }
 }
