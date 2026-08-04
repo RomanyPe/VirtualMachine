@@ -13,7 +13,7 @@ namespace ASM_gen
 
         public static void DisableCloseButton()
         {
-            
+
             IntPtr hwnd = GetConsoleWindow();
             if (hwnd != IntPtr.Zero)
             {

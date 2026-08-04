@@ -1,10 +1,11 @@
-﻿using System.IO;
+﻿using ASM_gen.ProjectManage.Data;
+using Compiller.Emulation;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Controls;
 
-namespace ASM_gen.StartWindow;
+namespace ASM_gen.ProjectManage.Managers.Static;
 
 public readonly struct FileReadResult(string fileName, string finalFilePath, ErrorFile errorFile = ErrorFile.None)
 {
@@ -13,97 +14,97 @@ public readonly struct FileReadResult(string fileName, string finalFilePath, Err
     public ErrorFile Error { get; } = errorFile;
 }
 
-public enum ErrorFile
-{
-    None = 0,               // Ошибок нет, операция успешна
-    UnknownError,           // Непредвиденная или неклассифицированная ошибка
-
-    // --- Ошибки существования и путей ---
-    FileNotFound,           // Файл проекта (.vmproj) не найден
-    FileNotFoundInProject,  // Файл есть на диске, но не находится в проекте
-    DirectoryNotFound,      // Папка с проектами или метаданными удалена или отсутствует
-    AlreadyExists,          // Файл или папка с таким именем уже существуют (при создании нового)
-    InvalidPathCharacters,  // Путь содержит запрещенные операционной системой символы
-
-    // --- Ошибки доступа и прав ---
-    AccessDenied,           // Нет прав администратора на запись/чтение (например, в C:\Program Files)
-    FileLocked,             // Файл занят другим процессом (открыт в блокноте, другой IDE или антивирусом)
-
-    // --- Ошибки структуры и парсинга (Специфика IDE) ---
-    EmptyFile,              // Файл проекта пустой (нечего читать)
-    CorruptedData,          // Нарушена структура метаданных (битый JSON/XML или неверный формат)
-    InvalidVersion,         // Версия файла проекта (.vmproj) не поддерживается текущей версией IDE
-
-    // --- Ошибки ограничений ОС ---
-    PathTooLong,            // Путь к файлу превышает лимит Windows (обычно 260 символов)
-    DiskFull                // На диске закончилось свободное место при попытке сохранения
-}
-
 public static class DirectoryManager
 {
-    private const string ExtensionProj = "*.vmproj";
 
-    private const string BinPath = "bin";
-    private const string SysDataPath = "sysData";
-    private const string TemplatesPath = "templates";
-    private const string LocalDataPath = "localData";
-    private const string MetaDataPath = "metaData";
-    private const string ProjectsDataPath = "projectsData";
-    private const string UserProjectsPath = "userProjects";
-
-    /// <summary> Базовая директория приложения </summary>
-    private readonly static string CurrentDir = AppDomain.CurrentDomain.BaseDirectory;
-
-    public readonly static string CurrentBinPath = Path.Combine(CurrentDir, BinPath);
-
-    public readonly static string CurrentSysDataPath = Path.Combine(CurrentDir, SysDataPath);
-    public readonly static string CurrentTemplatesPath = Path.Combine(CurrentSysDataPath, TemplatesPath);
-
-    public readonly static string CurrentLocalDataPath = Path.Combine(CurrentDir, LocalDataPath);
-    public readonly static string CurrentMetaDataPath = Path.Combine(CurrentLocalDataPath, MetaDataPath);
-    public readonly static string CurrentProjectsDataPath = Path.Combine(CurrentMetaDataPath, ProjectsDataPath);
-
-    public readonly static string CurrentUserProjectsPath = Path.Combine(CurrentDir, UserProjectsPath);
 
     /// <summary>
     /// Создает всю необходимую структуру папок для работы IDE при старте.
     /// </summary>
     public static void InitializeDirectories()
     {
-        CreateDir(CurrentTemplatesPath);
-        CreateDir(CurrentProjectsDataPath);
-        CreateDir(CurrentUserProjectsPath);
+        CreateDir(AppPaths.CurrentTemplatesPath);
+        CreateDir(AppPaths.CurrentProjectsDataPath);
+        CreateDir(AppPaths.CurrentUserProjectsPath);
+        CreateDir(AppPaths.SharedIncludePath);
     }
+
+    public static void NewFile(this IDEPage page, string projectPath, ProjectService projectService)
+    {
+        var dialog = new NewFileDialog
+        {
+            Owner = Window.GetWindow(page)
+        };
+        if (dialog.ShowDialog() == true && dialog.Result != null)
+        {
+            string ext = dialog.Result.Value.language == SourceLanguage.C ? ".c" : ".asm";
+            string fileName = dialog.Result.Value.fileName + ext;
+            string filePath = Path.Combine(projectPath, fileName);
+
+            // Создаём файл на диске с базовым шаблоном
+            string template = dialog.Result.Value.language == SourceLanguage.C
+                ? "int main() {\n    return 0;\n}\n"
+                : "; Программа на ассемблере\nLDI r0, 0\nHALT\n";
+            File.WriteAllText(filePath, template);
+
+            // Добавляем в FileService и открываем вкладку
+            projectService.AddFile(filePath);
+            projectService.OpenFile(fileName);
+        }
+    }
+
 
     public static async Task<Dictionary<string, FileReadResult>> SearchProjects()
     {
         return await Task.Run(GetProjectFilesHeader);
     }
 
-
     private static Dictionary<string, FileReadResult> GetProjectFilesHeader()
     {
-        CreateDir(CurrentProjectsDataPath);
-
-        string[] filePaths = Directory.GetFiles(CurrentProjectsDataPath, ExtensionProj);
-
-        Dictionary<string, FileReadResult> projectData = new(filePaths.Length);
-
-        foreach (string path in filePaths)
+        CreateDir(AppPaths.CurrentUserProjectsPath);
+        var results = new Dictionary<string, FileReadResult>();
+        var projFiles = Directory.GetFiles(
+            AppPaths.CurrentUserProjectsPath, AppPaths.ExtensionProj, SearchOption.AllDirectories);
+        foreach (string projFile in projFiles)
         {
-            string projectName = Path.GetFileNameWithoutExtension(path);
-            using var reader = new StreamReader(path);
-            string firstLine = reader.ReadLine() ?? string.Empty;
-
-            if (string.IsNullOrWhiteSpace(projectName))
-            {
-                projectName = Path.GetFileName(path);
-            }
-
-            projectData[path] = new(projectName, firstLine);
+            string projectName = Path.GetFileNameWithoutExtension(projFile);
+            string firstLine = File.ReadLines(projFile).FirstOrDefault() ?? string.Empty;
+            results[projFile] = new FileReadResult(projectName, firstLine);
         }
+        // Также можно добавить старую папку, если нужно
+        return results;
+    }
 
-        return projectData;
+    public static string CreateNewProject(string projectName, bool useAsm)
+    {
+        string projectDir = Path.Combine(AppPaths.CurrentUserProjectsPath, projectName);
+        if (Directory.Exists(projectDir))
+            throw new InvalidOperationException("Проект с таким именем уже существует.");
+
+        Directory.CreateDirectory(projectDir);
+
+        // Создаём файл проекта (.vmproj) – простой текстовый контейнер с метаинформацией
+        string projFilePath = Path.Combine(projectDir, $"{projectName}.vmproj");
+        File.WriteAllLines(projFilePath, [
+            $"ProjectName:{projectName}",
+        "Version:1.0",
+        "Language:" + (useAsm ? "ASM" : "C"),
+        "Files:"
+        ]);
+
+        // Создаём начальный исходный файл
+        string ext = useAsm ? ".asm" : ".c";
+        string sourceFileName = "main" + ext;
+        string sourceFilePath = Path.Combine(projectDir, sourceFileName);
+
+        string template = useAsm
+            ? "; main.asm\nLDI r0, 0\nHALT\n"
+            : "int main() {\n    return 0;\n}\n";
+
+        File.WriteAllText(sourceFilePath, template);
+
+        // Возвращаем путь к файлу .vmproj (или к папке проекта, решай сам)
+        return projFilePath;
     }
 
     public static ErrorFile TryLoadProjectFirstLine(string path, out string firstLine)
@@ -174,12 +175,6 @@ public static class DirectoryManager
         }
         return 0;
     }
-
-    private static void OpenScripts(string path, ProjectManager projectManager)
-    {
-        
-    }
-
 
     public static bool TryOpenFile(string path, out ErrorFile error, out string pathProj)
     {
@@ -293,8 +288,6 @@ public static class DirectoryManager
         public readonly int Build = build;
         public readonly int Revision = revision;
     }
-
-    public static bool IsCompilted(this ErrorFile error) => error == ErrorFile.None;
 
     public static string ErrorFileMessage(this ErrorFile error) => error switch
     {

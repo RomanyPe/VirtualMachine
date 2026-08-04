@@ -11,14 +11,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-	<ApplicationDefinition Remove="App.xaml" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Remove=".gitignore" />
-  </ItemGroup>
-
-  <ItemGroup>
 	<PackageReference Include="AvalonEdit" Version="6.3.1.120" />
 	<PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4078.44" />
 	<PackageReference Include="Serilog.Sinks.Async" Version="2.1.0" />
@@ -40,6 +32,7 @@
 		<!-- Включаем перемещение сборок в подпапку -->
 		<IncludeNativeLibrariesInSubdirectory>true</IncludeNativeLibrariesInSubdirectory>
 		<CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+		<EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
 
 		<!-- Задаем имя папки, куда уйдут все DLL (в данном случае "bin") -->
 		<AssemblyNameSubdirectory>bin</AssemblyNameSubdirectory>

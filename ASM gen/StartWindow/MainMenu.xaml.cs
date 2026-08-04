@@ -1,4 +1,7 @@
-﻿using System.Windows;
+﻿using ASM_gen.NewProjectManage;
+using ASM_gen.ProjectManage.Data;
+using ASM_gen.ProjectManage.Managers.Static;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Navigation;
 
@@ -26,12 +29,9 @@ namespace ASM_gen.StartWindow
         {
             if (sender is Button clickedButton)
             {
-                // Извлекаем путь к файлу (это наш Key из словаря)
                 string? filePath = clickedButton.Tag as string;
-
                 if (!string.IsNullOrEmpty(filePath) && _projects.TryGetValue(filePath, out FileReadResult result))
                 {
-                    // Проверяем, не было ли ошибки при сканировании этого файла
                     if (result.Error != ErrorFile.None)
                     {
                         MessageBox.Show($"Невозможно открыть проект: {result.FileName}\nПричина: {result.Error}",
@@ -39,26 +39,20 @@ namespace ASM_gen.StartWindow
                         return;
                     }
 
-                    // Если ошибок нет — запускаем логику открытия
-                    MessageBox.Show($"Открываем валидный проект!\nИмя: {result.FileName}\nПуть: {result.FinalFilePath}",
-                                    "Успех");
-
-                    // TODO: Ваша логика перехода в рабочую область IDE
-                    // OpenProjectWorkspace(result);
+                    string projectFolder = System.IO.Path.GetDirectoryName(filePath)!;
+                    NavigationService.Navigate(new IDEPage(projectFolder));
                 }
             }
         }
-        private void BtnNewProj_Click(object sender, RoutedEventArgs e)
+        private async void BtnNewProj_Click(object sender, RoutedEventArgs e)
         {
-            //Dictionary<string, FileReadResult> files = DirectoryManager.SearchProjects().Result;
-
-            //// Добавляем найденные пути в список
-            //foreach (string file in files.Keys)
-            //{
-            //    LstFiles.Items.Add(file);
-            //}
-            // Навигация на новую страницу по её типу
-            NavigationService.Navigate(new IDEPage());
+            var dialog = new NewProjectDialog { Owner = Window.GetWindow(this) };
+            if (dialog.ShowDialog() == true && dialog.CreatedProjectPath != null)
+            {
+                // Обновляем список проектов
+                _projects = await DirectoryManager.SearchProjects();
+                LstFiles.ItemsSource = _projects;
+            }
         }
     }
 }

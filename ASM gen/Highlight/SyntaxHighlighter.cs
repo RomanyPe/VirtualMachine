@@ -1,11 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 
 namespace ASM_gen.Highlight
 {
-    public partial class SyntaxHighlighter
+    public static partial class SyntaxHighlighter
     {
         // Однострочный комментарий // ...
         [GeneratedRegex(@"//.*")]

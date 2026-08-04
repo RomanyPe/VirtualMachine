@@ -25,17 +25,23 @@
         </Grid.ColumnDefinitions>
 
         <!-- ВЕРХНЯЯ ПАНЕЛЬ УПРАВЛЕНИЯ -->
-        <ToolBar Grid.Row="0" Grid.ColumnSpan="2" Background="#F0F0F0">
-            <Button Content="Файл" Margin="2"/>
-            <Button Content="Настройки" Margin="2"/>
-            <Separator />
-            <Button Content="Помощь" Margin="2"/>
-        </ToolBar>
+        <Menu Grid.Row="0" Grid.ColumnSpan="2" Background="#F0F0F0">
+            <MenuItem Header="Файл">
+                <MenuItem Header="Новый файл..." Click="NewFile_Click"/>
+                <Separator/>
+                <MenuItem Header="Сохранить все" Click="SaveAll_Click"/>
+                <MenuItem Header="Выход" Click="Exit_Click"/>
+            </MenuItem>
+            <MenuItem Header="Настройки"/>
+            <MenuItem Header="Помощь"/>
+        </Menu>
 
         <!-- ЛЕВАЯ ПАНЕЛЬ КНОПОК (Перенесена в Grid.Row="1") -->
         <StackPanel Grid.Row="1" Grid.Column="0" Margin="10,10,10,10">
-
-            <Button x:Name="CompileAndLaunch" Click="BtnCompileAndLaunch" Content="Compile And Start" Margin="5,5,5,0" Height="20"/>
+            <Button x:Name="BtnSaveBinary" Content="Сохранить .bin" Margin="5,5,5,0" Height="20"
+        Click="BtnSaveBinary_Click"/>
+            <Button x:Name="CompileAndLaunch" Click="BtnCompileAndLaunch" Content="Start" Margin="5,5,5,0" Height="20"/>
+            <Button x:Name="StopDevice" Click="BtnStopDevices" Content="Stop all device" Margin="5,5,5,0" Height="20"/>
             <Button x:Name="BreakPointerLaunch" Click="BtnBreakPointerModeOne" Content="BreakPointer Mode" Margin="5,5,5,0" Height="20"/>
             <Button x:Name="BreakPointerOne" Click="BtnBreakPointerOne" Content="BreakPointer 1" Margin="5,5,5,0" Height="20"/>
             <Button x:Name="BreakPointerMulti" Click="BtnBreakPointerMulti" Content="BreakPointer multy" Margin="5,5,5,0" Height="20"/>
@@ -67,25 +73,16 @@
             <Button x:Name="ClearOutput" Click="BtnClearOutput" 
             Content="Очистить вывод" Margin="5,5,5,0" Height="20"/>
 
-            <Button x:Name="CreateStateWindow" Click="BtnCreateStateWindow" 
-            Content="Создать IW" Margin="5,5,5,0" Height="20" 
-                    ToolTipService.InitialShowDelay="1" 
-                    ToolTip="Создать IW - Information Window, позволяет видеть в реальном времени за изменением данных у устройства"/>
-            <Button x:Name="BtnCreateDevice" Click="BtnCreateDevice_Click" 
-                    Content="Создать устройство" Margin="5,5,5,0" Height="20"/>
+            <Button x:Name="BtnDeviceManager" Content="Device Manager" Margin="5,5,5,0" Height="20"
+            Click="BtnDeviceManager_Click" ToolTipService.InitialShowDelay="1" 
+                    ToolTip= "Просмотр всех устройств"/>
+            
+            <TextBlock x:Name="TxtCurrentDevice" Margin="5,5,5,0" Foreground="Gray" FontSize="11" Text=""/>
         </StackPanel>
 
         <!-- РЕДАКТОР КОДА (Перенесен в Grid.Row="1") -->
         <TabControl x:Name="tabEditor" Grid.Row="1" Grid.Column="1" Margin="12,10,10,4">
-            <!-- Первая вкладка -->
-            <TabItem Header="main.asm">
-                <avalonEdit:TextEditor 
-                    Name="textEditor"
-                    FontFamily="Consolas"
-                    FontSize="10pt"
-                    ShowLineNumbers="True" 
-                    RenderTransformOrigin="0.5,0.5"/>
-            </TabItem>
+
         </TabControl>
 
         <!-- НИЖНЕЕ ОКНО ВЫВОДА (Перенесено в Grid.Row="3") -->

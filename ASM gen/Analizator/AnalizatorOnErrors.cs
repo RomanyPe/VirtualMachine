@@ -1,4 +1,4 @@
-﻿using ASM_gen.StartWindow;
+﻿using ASM_gen.ProjectManage;
 using Compiller.C;
 using ICSharpCode.AvalonEdit.Highlighting;
 using Kernel.BiosSystem;
@@ -10,36 +10,9 @@ namespace ASM_gen.Analizator;
 
 public class AnalizatorOnErrors : IDisposable
 {
-    private const string code = @"
-int a = 3;
-int b = 4;
-int result;
-
-int sum(int x, int y) {
-    int s = 0;
-    int i = 0;
-
-    while (i < x) {
-        s = s + y;
-        i = i + 1;
-    }
-    return s;
-}
-
-void m(){
-    a = 90;
-}
-
-int main() {
-    a = a + 1;
-    m();
-    result = sum(a, b);
-    return result;
-}
-";
     private const string _nameSystem = "Analizator On Errors";
 
-    private readonly ProjectManager _projectManager;
+    private readonly ProjectService _projectManager;
     private readonly ErrorLineColorizer _errorColorizer = new();
     private bool _haveError;
     private CancellationTokenSource? _cts;
@@ -50,7 +23,7 @@ int main() {
     public ErrorLineColorizer ErrorColorizer => _errorColorizer;
     public string Code => _projectManager.GetCurrentEditorText();
 
-    public AnalizatorOnErrors(ProjectManager editor)
+    public AnalizatorOnErrors(ProjectService editor)
     {
         _projectManager = editor;
         InitializeEditor();

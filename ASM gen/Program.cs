@@ -1,4 +1,5 @@
-﻿using ASM_gen.StartWindow;
+﻿using ASM_gen.ProjectManage.Managers.Static;
+using ASM_gen.StartWindow;
 using Serilog;
 
 namespace ASM_gen;
@@ -9,9 +10,8 @@ internal static class Program
     public static void Main()
     {
         // 1. Инициализируем Serilog
-        Log.Logger = new LoggerConfiguration()
-            .WriteTo.File("logs/app-log.txt")
-            .CreateLogger();
+        Log.Logger = new LoggerConfiguration().WriteTo.File("logs/app-log.txt").CreateLogger();
+        DirectoryManager.InitializeDirectories();
 
         try
         {

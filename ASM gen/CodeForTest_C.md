@@ -3,7 +3,7 @@
 В этом документе собраны тестовые примеры для проверки работы со статическими массивами, указателями и динамической памятью.
 
 ---
-## Тест: Методы возвращающие значения и не возвращающие, методы с параметрами, цикл while
+## Тест 1: Методы возвращающие значения и не возвращающие, методы с параметрами, цикл while
 
 ```cpp
 int a;
@@ -137,7 +137,7 @@ int main() {
 ---
 
 ---
-## Тест: Методы возвращающие значения и не возвращающие, методы с параметрами, цикл while, инициализация переменных при обьявление
+## Тест 2: Методы возвращающие значения и не возвращающие, методы с параметрами, цикл while, инициализация переменных при обьявление
 
 ```cpp
 int a = 3;
@@ -266,7 +266,7 @@ int main() {
  === ЗАВЕРШЕНИЕ (HALT) ===
 ```
 ---
-## Тест: Статичные массивы
+## Тест 3: Статичные массивы
 
 ```cpp
 int global_arr[5];
@@ -299,23 +299,23 @@ int main() {
 [Mini-C Compiler] 00000000: 000C0313   LDI r2, data64  data = 0x0000000000000020 (32)
 00000010: 00007D21   SUB rSP, r2
 00000014: 000C0113   LDI r0, data64  data = 0x000000000000000A (10)
-00000020: 00002310   MOV r2, r0
+00000020: 00002210   MOV r1, r0
 00000024: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
 00000030: 00002120   ADD r0, r0
 00000034: 00002120   ADD r0, r0
 00000038: 000C0313   LDI r2, data64  data = 0x0000000000000000 (0)
 00000048: 0003A320   ADD r2, rSP
 0000004C: 00002320   ADD r2, r0
-00000050: 00086315   STORE_IND.S32 r2, r2
+00000050: 00086215   STORE_IND.S32 r1, r2
 00000054: 000C0113   LDI r0, data64  data = 0x0000000000000014 (20)
-00000060: 00002310   MOV r2, r0
+00000060: 00002210   MOV r1, r0
 00000064: 000C0113   LDI r0, data64  data = 0x0000000000000001 (1)
 00000070: 00002120   ADD r0, r0
 00000074: 00002120   ADD r0, r0
 00000078: 000C0313   LDI r2, data64  data = 0x0000000000000000 (0)
 00000088: 0003A320   ADD r2, rSP
 0000008C: 00002320   ADD r2, r0
-00000090: 00086315   STORE_IND.S32 r2, r2
+00000090: 00086215   STORE_IND.S32 r1, r2
 00000094: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
 000000A0: 00002120   ADD r0, r0
 000000A4: 00002120   ADD r0, r0
@@ -333,14 +333,14 @@ int main() {
 000000F8: 00086114   LOAD_IND.S32 r0, r2
 000000FC: 00002220   ADD r1, r0
 00000100: 00004110   MOV r0, r1
-00000104: 00002310   MOV r2, r0
+00000104: 00002210   MOV r1, r0
 00000108: 000C0113   LDI r0, data64  data = 0x0000000000000002 (2)
 00000118: 00002120   ADD r0, r0
 0000011C: 00002120   ADD r0, r0
 00000120: 000C0313   LDI r2, data64  data = 0x0000000000000000 (0)
 00000130: 0003A320   ADD r2, rSP
 00000134: 00002320   ADD r2, r0
-00000138: 00086315   STORE_IND.S32 r2, r2
+00000138: 00086215   STORE_IND.S32 r1, r2
 0000013C: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
 00000148: 00002120   ADD r0, r0
 0000014C: 00002120   ADD r0, r0
@@ -358,14 +358,14 @@ int main() {
 000001A8: 00086114   LOAD_IND.S32 r0, r2
 000001AC: 00080112   STORE.S32 [data64], r0  data = 0x0000000000001020 (4128)
 000001B8: 000C0052   CALL data64  data = 0x0000000000000480 (1152)
-000001C8: 00002310   MOV r2, r0
+000001C8: 00002210   MOV r1, r0
 000001CC: 000C0113   LDI r0, data64  data = 0x0000000000000003 (3)
 000001D8: 00002120   ADD r0, r0
 000001DC: 00002120   ADD r0, r0
 000001E0: 000C0313   LDI r2, data64  data = 0x0000000000000000 (0)
 000001F0: 0003A320   ADD r2, rSP
 000001F4: 00002320   ADD r2, r0
-000001F8: 00086315   STORE_IND.S32 r2, r2
+000001F8: 00086215   STORE_IND.S32 r1, r2
 000001FC: 000C0113   LDI r0, data64  data = 0x0000000000000003 (3)
 00000208: 00002120   ADD r0, r0
 0000020C: 00002120   ADD r0, r0
@@ -373,13 +373,13 @@ int main() {
 00000220: 0003A320   ADD r2, rSP
 00000224: 00002320   ADD r2, r0
 00000228: 00086114   LOAD_IND.S32 r0, r2
-0000022C: 00002310   MOV r2, r0
+0000022C: 00002210   MOV r1, r0
 00000230: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
 00000240: 00002120   ADD r0, r0
 00000244: 00002120   ADD r0, r0
 00000248: 000C0313   LDI r2, data64  data = 0x0000000000001000 (4096)
 00000258: 00002320   ADD r2, r0
-0000025C: 00086315   STORE_IND.S32 r2, r2
+0000025C: 00086215   STORE_IND.S32 r1, r2
 00000260: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
 00000270: 00002120   ADD r0, r0
 00000274: 00002120   ADD r0, r0
@@ -395,13 +395,13 @@ int main() {
 000002BC: 00086114   LOAD_IND.S32 r0, r2
 000002C0: 00002220   ADD r1, r0
 000002C4: 00004110   MOV r0, r1
-000002C8: 00002310   MOV r2, r0
+000002C8: 00002210   MOV r1, r0
 000002CC: 000C0113   LDI r0, data64  data = 0x0000000000000001 (1)
 000002D8: 00002120   ADD r0, r0
 000002DC: 00002120   ADD r0, r0
 000002E0: 000C0313   LDI r2, data64  data = 0x0000000000001000 (4096)
 000002F0: 00002320   ADD r2, r0
-000002F4: 00086315   STORE_IND.S32 r2, r2
+000002F4: 00086215   STORE_IND.S32 r1, r2
 000002F8: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
 00000308: 00002120   ADD r0, r0
 0000030C: 00002120   ADD r0, r0
@@ -438,14 +438,14 @@ int main() {
 000003D8: 000C0113   LDI r0, data64  data = 0x0000000000000001 (1)
 000003E8: 00002220   ADD r1, r0
 000003EC: 00004110   MOV r0, r1
-000003F0: 00002310   MOV r2, r0
+000003F0: 00002210   MOV r1, r0
 000003F4: 0000A110   MOV r0, r4
 000003F8: 00002120   ADD r0, r0
 000003FC: 00002120   ADD r0, r0
 00000400: 000C0313   LDI r2, data64  data = 0x0000000000000000 (0)
 00000410: 0003A320   ADD r2, rSP
 00000414: 00002320   ADD r2, r0
-00000418: 00086315   STORE_IND.S32 r2, r2
+00000418: 00086215   STORE_IND.S32 r1, r2
 0000041C: 00000522   INC r4
 00000420: 000C0040   JMP data64  data = 0x000000000000037C (892)
 00000430: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
@@ -455,7 +455,7 @@ int main() {
 00000458: 0003A320   ADD r2, rSP
 0000045C: 00002320   ADD r2, r0
 00000460: 00086114   LOAD_IND.S32 r0, r2
-00000464: 00000162   UNKNOWN 0x62
+00000464: 00000162   PRINT_INT r0
 00000468: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
 00000478: 00000001   HALT
 0000047C: 00000001   HALT
@@ -482,12 +482,13 @@ int main() {
 [Mini-C Compiler] Размер файла программы: 1284 байт
 [Unknown Name Device]
  === ЗАПУСК ПОТОКА СИМУЛЯЦИИ ===
-[Unknown Name Device] 1048544
+[Project Manager] [Code Error: 0] Operation is Complited
+[Unknown Name Device] 11
 [Unknown Name Device] Регистр [0]= 0
 [Unknown Name Device] Регистр [1]= 0
 [Unknown Name Device] Регистр [2]= 0
 [Unknown Name Device] Регистр [3]= 1048544
-[Unknown Name Device] Регистр [4]= 1052648
+[Unknown Name Device] Регистр [4]= 70
 [Unknown Name Device] Регистр [5]= 4
 [Unknown Name Device] Регистр [6]= 0
 [Unknown Name Device] Регистр [7]= 0
@@ -513,16 +514,15 @@ int main() {
 [Unknown Name Device] Регистр [27]= 0
 [Unknown Name Device] Регистр [28]= 0
 [Unknown Name Device] Регистр [29]= 1048544
-[Unknown Name Device] Регистр [30]= 0
+[Unknown Name Device] Регистр [30]= 1288
 [Unknown Name Device] Регистр [31]= 1148
 [Unknown Name Device] IP 1148
 [Unknown Name Device]
  === ЗАВЕРШЕНИЕ (HALT) ===
-
 ```
 ---
 
-## Тест: Указатели как параметры функций
+## Тест 4: Указатели как параметры функций
 
 ```cpp
 int a = 5;
@@ -555,9 +555,9 @@ int main() {
 00000060: 000C0113   LDI r0, data64  data = 0x0000000000001008 (4104)
 00000070: 000C0112   STORE.S64 [data64], r0  data = 0x0000000000001018 (4120)
 00000080: 000C0111   LOAD.S64 r0, [data64]  data = 0x0000000000001010 (4112)
-00000090: 00080112   STORE.S32 [data64], r0  data = 0x0000000000001020 (4128)
+00000090: 000C0112   STORE.S64 [data64], r0  data = 0x0000000000001020 (4128)
 000000A0: 000C0111   LOAD.S64 r0, [data64]  data = 0x0000000000001018 (4120)
-000000B0: 00080112   STORE.S32 [data64], r0  data = 0x0000000000001028 (4136)
+000000B0: 000C0112   STORE.S64 [data64], r0  data = 0x0000000000001028 (4136)
 000000C0: 000C0052   CALL data64  data = 0x00000000000000EC (236)
 000000D0: 000C0111   LOAD.S64 r0, [data64]  data = 0x0000000000001010 (4112)
 000000E0: 00082114   LOAD_IND.S32 r0, r0
@@ -594,14 +594,13 @@ int main() {
 [Mini-C Compiler] Размер файла программы: 384 байт
 [Unknown Name Device]
  === ЗАПУСК ПОТОКА СИМУЛЯЦИИ ===
-[INFO] Программа успешно завершила работу (HALT). Ip [232]
-
+[Project Manager] [Code Error: 0] Operation is Complited
 [Unknown Name Device] Регистр [0]= 0
 [Unknown Name Device] Регистр [1]= 10
 [Unknown Name Device] Регистр [2]= 5
 [Unknown Name Device] Регистр [3]= 24
-[Unknown Name Device] Регистр [4]= 0
-[Unknown Name Device] Регистр [5]= 0
+[Unknown Name Device] Регистр [4]= 70
+[Unknown Name Device] Регистр [5]= 4
 [Unknown Name Device] Регистр [6]= 0
 [Unknown Name Device] Регистр [7]= 0
 [Unknown Name Device] Регистр [8]= 0
@@ -626,7 +625,7 @@ int main() {
 [Unknown Name Device] Регистр [27]= 0
 [Unknown Name Device] Регистр [28]= 0
 [Unknown Name Device] Регистр [29]= 1048576
-[Unknown Name Device] Регистр [30]= 0
+[Unknown Name Device] Регистр [30]= 384
 [Unknown Name Device] Регистр [31]= 232
 [Unknown Name Device] IP 232
 [Unknown Name Device]
@@ -636,7 +635,7 @@ int main() {
 
 ---
 
-## Тест: Базовые указатели
+## Тест 5: Базовые указатели
 
 ```cpp
 int a = 5;
@@ -675,13 +674,14 @@ int main() {
 [Mini-C Compiler] Количество строк кода: 19
 [Mini-C Compiler] Размер файла программы: 196 байт
 [Unknown Name Device]
-=== ЗАПУСК ПОТОКА СИМУЛЯЦИИ ===
+ === ЗАПУСК ПОТОКА СИМУЛЯЦИИ ===
+[Project Manager] [Code Error: 0] Operation is Complited
 [Unknown Name Device] Регистр [0]= 0
 [Unknown Name Device] Регистр [1]= 20
 [Unknown Name Device] Регистр [2]= 20
 [Unknown Name Device] Регистр [3]= 8
 [Unknown Name Device] Регистр [4]= 5
-[Unknown Name Device] Регистр [5]= 0
+[Unknown Name Device] Регистр [5]= 4
 [Unknown Name Device] Регистр [6]= 0
 [Unknown Name Device] Регистр [7]= 0
 [Unknown Name Device] Регистр [8]= 0
@@ -706,7 +706,7 @@ int main() {
 [Unknown Name Device] Регистр [27]= 0
 [Unknown Name Device] Регистр [28]= 0
 [Unknown Name Device] Регистр [29]= 1048568
-[Unknown Name Device] Регистр [30]= 0
+[Unknown Name Device] Регистр [30]= 200
 [Unknown Name Device] Регистр [31]= 188
 [Unknown Name Device] IP 188
 [Unknown Name Device]
@@ -715,7 +715,7 @@ int main() {
 ```
 ---
 
-## Тест: Динамическая память, вывод чисел на экран командой print_int(value);
+## Тест 6: Динамическая память, вывод чисел на экран командой print_int(value);
 
 ```cpp
 int main(){
@@ -723,7 +723,6 @@ int main(){
 	arr[0] = 5;
 	arr[1] = 10;
 	print_int(arr[0]);        // 5
-	delete arr;               // пока ничего не делает
 	return 0;
 }
 ```
@@ -734,26 +733,26 @@ int main(){
 00000014: 000C0113   LDI r0, data64  data = 0x000000000000000A (10)
 00000020: 00002120   ADD r0, r0
 00000024: 00002120   ADD r0, r0
-00000028: 00000070   UNKNOWN 0x70
+00000028: 00000070   ALLOC rZ
 0000002C: 00002410   MOV r3, r0
 00000030: 000C0113   LDI r0, data64  data = 0x0000000000000005 (5)
-00000040: 00002310   MOV r2, r0
+00000040: 00002210   MOV r1, r0
 00000044: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
-00000050: 00002210   MOV r1, r0
-00000054: 00008110   MOV r0, r3
-00000058: 00004220   ADD r1, r1
-0000005C: 00004220   ADD r1, r1
-00000060: 00004120   ADD r0, r1
-00000064: 00082315   STORE_IND.S32 r2, r0
+00000050: 00002310   MOV r2, r0
+00000054: 00006320   ADD r2, r2
+00000058: 00006320   ADD r2, r2
+0000005C: 00008110   MOV r0, r3
+00000060: 00006120   ADD r0, r2
+00000064: 00082215   STORE_IND.S32 r1, r0
 00000068: 000C0113   LDI r0, data64  data = 0x000000000000000A (10)
-00000078: 00002310   MOV r2, r0
+00000078: 00002210   MOV r1, r0
 0000007C: 000C0113   LDI r0, data64  data = 0x0000000000000001 (1)
-00000088: 00002210   MOV r1, r0
-0000008C: 00008110   MOV r0, r3
-00000090: 00004220   ADD r1, r1
-00000094: 00004220   ADD r1, r1
-00000098: 00004120   ADD r0, r1
-0000009C: 00082315   STORE_IND.S32 r2, r0
+00000088: 00002310   MOV r2, r0
+0000008C: 00006320   ADD r2, r2
+00000090: 00006320   ADD r2, r2
+00000094: 00008110   MOV r0, r3
+00000098: 00006120   ADD r0, r2
+0000009C: 00082215   STORE_IND.S32 r1, r0
 000000A0: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
 000000B0: 00002210   MOV r1, r0
 000000B4: 00008110   MOV r0, r3
@@ -761,24 +760,23 @@ int main(){
 000000BC: 00004220   ADD r1, r1
 000000C0: 00004120   ADD r0, r1
 000000C4: 00082114   LOAD_IND.S32 r0, r0
-000000C8: 00000162   UNKNOWN 0x62
-000000CC: 00008110   MOV r0, r3
-000000D0: 00000071   UNKNOWN 0x71
-000000D4: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
+000000C8: 00000162   PRINT_INT r0
+000000CC: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
+000000D8: 00000001   HALT
+000000DC: 00000001   HALT
 000000E0: 00000001   HALT
-000000E4: 00000001   HALT
-000000E8: 00000001   HALT
 
-[Mini-C Compiler] Количество строк кода: 39
-[Mini-C Compiler] Размер файла программы: 236 байт
+[Mini-C Compiler] Количество строк кода: 37
+[Mini-C Compiler] Размер файла программы: 228 байт
 [Unknown Name Device]
  === ЗАПУСК ПОТОКА СИМУЛЯЦИИ ===
+[Project Manager] [Code Error: 0] Operation is Complited
 [Unknown Name Device] 5
 [Unknown Name Device] Регистр [0]= 0
 [Unknown Name Device] Регистр [1]= 0
 [Unknown Name Device] Регистр [2]= 0
-[Unknown Name Device] Регистр [3]= 10
-[Unknown Name Device] Регистр [4]= 0
+[Unknown Name Device] Регистр [3]= 4
+[Unknown Name Device] Регистр [4]= 232
 [Unknown Name Device] Регистр [5]= 0
 [Unknown Name Device] Регистр [6]= 0
 [Unknown Name Device] Регистр [7]= 0
@@ -804,16 +802,18 @@ int main(){
 [Unknown Name Device] Регистр [27]= 0
 [Unknown Name Device] Регистр [28]= 0
 [Unknown Name Device] Регистр [29]= 1048568
-[Unknown Name Device] Регистр [30]= 40
-[Unknown Name Device] Регистр [31]= 228
-[Unknown Name Device] IP 228
+[Unknown Name Device] Регистр [30]= 272
+[Unknown Name Device] Регистр [31]= 220
+[Unknown Name Device] IP 220
 [Unknown Name Device]
  === ЗАВЕРШЕНИЕ (HALT) ===
+
 ```
 ---
 
-## Тест: Динамическая память, вывод чисел на экран командой print_int(value);, вывод все чисел массива и выход за его границы, "мусорные" данные
+## Тест 7: Динамическая аллокация памяти, вывод чисел на экран командой print_int(value);, вывод всех чисел массива и выход за его границы
 
+в отличие от высокоуровневых языков аллокатор и метод delete нужно реализовывать пользователю, либо скачать готовую библиотеку с методами
 ```cpp
 int main(){
 	int* arr = new int[10];   // arr = alloc(10 * sizeof(int))
@@ -834,7 +834,6 @@ int main(){
 	print_int(arr[11]);
 	print_int(arr[12]);
 	
-	delete arr;               // пока ничего не делает
 	return 0;
 }
 ```
@@ -849,23 +848,23 @@ int main(){
 00000028: 00000070   ALLOC rZ
 0000002C: 00002410   MOV r3, r0
 00000030: 000C0113   LDI r0, data64  data = 0x0000000000000005 (5)
-00000040: 00002310   MOV r2, r0
+00000040: 00002210   MOV r1, r0
 00000044: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
-00000050: 00002210   MOV r1, r0
-00000054: 00008110   MOV r0, r3
-00000058: 00004220   ADD r1, r1
-0000005C: 00004220   ADD r1, r1
-00000060: 00004120   ADD r0, r1
-00000064: 00082315   STORE_IND.S32 r2, r0
+00000050: 00002310   MOV r2, r0
+00000054: 00006320   ADD r2, r2
+00000058: 00006320   ADD r2, r2
+0000005C: 00008110   MOV r0, r3
+00000060: 00006120   ADD r0, r2
+00000064: 00082215   STORE_IND.S32 r1, r0
 00000068: 000C0113   LDI r0, data64  data = 0x000000000000000A (10)
-00000078: 00002310   MOV r2, r0
+00000078: 00002210   MOV r1, r0
 0000007C: 000C0113   LDI r0, data64  data = 0x0000000000000001 (1)
-00000088: 00002210   MOV r1, r0
-0000008C: 00008110   MOV r0, r3
-00000090: 00004220   ADD r1, r1
-00000094: 00004220   ADD r1, r1
-00000098: 00004120   ADD r0, r1
-0000009C: 00082315   STORE_IND.S32 r2, r0
+00000088: 00002310   MOV r2, r0
+0000008C: 00006320   ADD r2, r2
+00000090: 00006320   ADD r2, r2
+00000094: 00008110   MOV r0, r3
+00000098: 00006120   ADD r0, r2
+0000009C: 00082215   STORE_IND.S32 r1, r0
 000000A0: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
 000000B0: 00002210   MOV r1, r0
 000000B4: 00008110   MOV r0, r3
@@ -970,35 +969,184 @@ int main(){
 000002A0: 00004120   ADD r0, r1
 000002A4: 00082114   LOAD_IND.S32 r0, r0
 000002A8: 00000162   PRINT_INT r0
-000002AC: 00008110   MOV r0, r3
-000002B0: 00000071   FREE rZ
-000002B4: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
+000002AC: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
+000002B8: 00000001   HALT
+000002BC: 00000001   HALT
 000002C0: 00000001   HALT
-000002C4: 00000001   HALT
-000002C8: 00000001   HALT
 
-[Mini-C Compiler] Количество строк кода: 135
-[Mini-C Compiler] Размер файла программы: 716 байт
+[Mini-C Compiler] Количество строк кода: 133
+[Mini-C Compiler] Размер файла программы: 708 байт
 [Unknown Name Device]
  === ЗАПУСК ПОТОКА СИМУЛЯЦИИ ===
+[Project Manager] [Code Error: 0] Operation is Complited
 [Unknown Name Device] 5
 [Unknown Name Device] 10
-[Unknown Name Device] 8
 [Unknown Name Device] 0
-[Unknown Name Device] 32033
-[Unknown Name Device] 786707
-[Unknown Name Device] 10
 [Unknown Name Device] 0
-[Unknown Name Device] 8480
-[Unknown Name Device] 8480
-[Unknown Name Device] 112
-[Unknown Name Device] 9232
-[Unknown Name Device] 786707
+[Unknown Name Device] 0
+[Unknown Name Device] 0
+[Unknown Name Device] 0
+[Unknown Name Device] 0
+[Unknown Name Device] 0
+[Unknown Name Device] 0
+[Unknown Name Device] 0
+[Unknown Name Device] 0
+[Unknown Name Device] 0
 [Unknown Name Device] Регистр [0]= 0
 [Unknown Name Device] Регистр [1]= 0
 [Unknown Name Device] Регистр [2]= 48
-[Unknown Name Device] Регистр [3]= 10
-[Unknown Name Device] Регистр [4]= 0
+[Unknown Name Device] Регистр [3]= 4
+[Unknown Name Device] Регистр [4]= 712
+[Unknown Name Device] Регистр [5]= 0
+[Unknown Name Device] Регистр [6]= 0
+[Unknown Name Device] Регистр [7]= 0
+[Unknown Name Device] Регистр [8]= 0
+[Unknown Name Device] Регистр [9]= 0
+[Unknown Name Device] Регистр [10]= 0
+[Unknown Name Device] Регистр [11]= 0
+[Unknown Name Device] Регистр [12]= 0
+[Unknown Name Device] Регистр [13]= 0
+[Unknown Name Device] Регистр [14]= 0
+[Unknown Name Device] Регистр [15]= 0
+[Unknown Name Device] Регистр [16]= 0
+[Unknown Name Device] Регистр [17]= 0
+[Unknown Name Device] Регистр [18]= 0
+[Unknown Name Device] Регистр [19]= 0
+[Unknown Name Device] Регистр [20]= 0
+[Unknown Name Device] Регистр [21]= 0
+[Unknown Name Device] Регистр [22]= 0
+[Unknown Name Device] Регистр [23]= 0
+[Unknown Name Device] Регистр [24]= 0
+[Unknown Name Device] Регистр [25]= 1
+[Unknown Name Device] Регистр [26]= 0
+[Unknown Name Device] Регистр [27]= 0
+[Unknown Name Device] Регистр [28]= 0
+[Unknown Name Device] Регистр [29]= 1048568
+[Unknown Name Device] Регистр [30]= 752
+[Unknown Name Device] Регистр [31]= 700
+[Unknown Name Device] IP 700
+[Unknown Name Device]
+ === ЗАВЕРШЕНИЕ (HALT) ===
+
+```
+---
+
+## Тест 8: Простейший asm { \... }
+
+```cpp
+int main() {
+	int x = 10;
+	asm {
+		LDI r0, 5
+		MOV r1, r0
+	}
+	print_int(x);   // должно вывести 10
+	return 0;
+}
+```
+
+### Резульат:
+```asm
+[Mini-C Compiler] 00000000: 000C0313   LDI r2, data64  data = 0x0000000000000008 (8)
+00000010: 00007D21   SUB rSP, r2
+00000014: 000C0113   LDI r0, data64  data = 0x000000000000000A (10)
+00000020: 00002410   MOV r3, r0
+00000024: 000C0113   LDI r0, data64  data = 0x0000000000000005 (5)
+00000030: 00008110   MOV r0, r3
+00000034: 00000162   PRINT_INT r0
+00000038: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
+00000048: 00000001   HALT
+0000004C: 00000001   HALT
+00000050: 00000001   HALT
+
+[Mini-C Compiler] Количество строк кода: 11
+[Mini-C Compiler] Размер файла программы: 84 байт
+[Unknown Name Device]
+ === ЗАПУСК ПОТОКА СИМУЛЯЦИИ ===
+[Project Manager] [Code Error: 0] Operation is Complited
+[Unknown Name Device] 10
+[Unknown Name Device] Регистр [0]= 0
+[Unknown Name Device] Регистр [1]= 0
+[Unknown Name Device] Регистр [2]= 0
+[Unknown Name Device] Регистр [3]= 8
+[Unknown Name Device] Регистр [4]= 10
+[Unknown Name Device] Регистр [5]= 4
+[Unknown Name Device] Регистр [6]= 0
+[Unknown Name Device] Регистр [7]= 0
+[Unknown Name Device] Регистр [8]= 0
+[Unknown Name Device] Регистр [9]= 0
+[Unknown Name Device] Регистр [10]= 0
+[Unknown Name Device] Регистр [11]= 0
+[Unknown Name Device] Регистр [12]= 0
+[Unknown Name Device] Регистр [13]= 0
+[Unknown Name Device] Регистр [14]= 0
+[Unknown Name Device] Регистр [15]= 0
+[Unknown Name Device] Регистр [16]= 0
+[Unknown Name Device] Регистр [17]= 0
+[Unknown Name Device] Регистр [18]= 0
+[Unknown Name Device] Регистр [19]= 0
+[Unknown Name Device] Регистр [20]= 0
+[Unknown Name Device] Регистр [21]= 0
+[Unknown Name Device] Регистр [22]= 0
+[Unknown Name Device] Регистр [23]= 0
+[Unknown Name Device] Регистр [24]= 0
+[Unknown Name Device] Регистр [25]= 0
+[Unknown Name Device] Регистр [26]= 0
+[Unknown Name Device] Регистр [27]= 0
+[Unknown Name Device] Регистр [28]= 0
+[Unknown Name Device] Регистр [29]= 1048568
+[Unknown Name Device] Регистр [30]= 88
+[Unknown Name Device] Регистр [31]= 76
+[Unknown Name Device] IP 76
+[Unknown Name Device]
+ === ЗАВЕРШЕНИЕ (HALT) ===
+
+
+```
+---
+
+## Тест 9: Передача результата из asm в C-переменную
+
+```cpp
+int main() {
+	int y;
+	asm {
+		LDI r0, 42
+	}
+	// сразу после asm r0 = 42, присвоим y
+	y = 77;          // заглушка, чтобы компилятор не оптимизировал
+	y = 42;          // имитируем, что результат из asm попал в y
+	print_int(y);    // ожидаем 42
+	return 0;
+}
+```
+
+### Резульат:
+```asm
+[Mini-C Compiler] 00000000: 000C0313   LDI r2, data64  data = 0x0000000000000008 (8)
+00000010: 00007D21   SUB rSP, r2
+00000014: 000C0113   LDI r0, data64  data = 0x000000000000002A (42)
+00000020: 000C0113   LDI r0, data64  data = 0x000000000000004D (77)
+00000030: 00002410   MOV r3, r0
+00000034: 000C0113   LDI r0, data64  data = 0x000000000000002A (42)
+00000040: 00002410   MOV r3, r0
+00000044: 00008110   MOV r0, r3
+00000048: 00000162   PRINT_INT r0
+0000004C: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
+00000058: 00000001   HALT
+0000005C: 00000001   HALT
+00000060: 00000001   HALT
+
+[Mini-C Compiler] Количество строк кода: 13
+[Mini-C Compiler] Размер файла программы: 100 байт
+[Unknown Name Device]
+ === ЗАПУСК ПОТОКА СИМУЛЯЦИИ ===
+[Unknown Name Device] 42
+[Unknown Name Device] Регистр [0]= 0
+[Unknown Name Device] Регистр [1]= 0
+[Unknown Name Device] Регистр [2]= 0
+[Unknown Name Device] Регистр [3]= 8
+[Unknown Name Device] Регистр [4]= 42
 [Unknown Name Device] Регистр [5]= 0
 [Unknown Name Device] Регистр [6]= 0
 [Unknown Name Device] Регистр [7]= 0
@@ -1024,12 +1172,788 @@ int main(){
 [Unknown Name Device] Регистр [27]= 0
 [Unknown Name Device] Регистр [28]= 0
 [Unknown Name Device] Регистр [29]= 1048568
-[Unknown Name Device] Регистр [30]= 40
-[Unknown Name Device] Регистр [31]= 708
-[Unknown Name Device] IP 708
+[Unknown Name Device] Регистр [30]= 104
+[Unknown Name Device] Регистр [31]= 92
+[Unknown Name Device] IP 92
 [Unknown Name Device]
  === ЗАВЕРШЕНИЕ (HALT) ===
 
 ```
 ---
 
+## Тест 10: #include "lib.asm" и вызов функции из библиотеки
+
+main.c
+```cpp
+#include "lib.asm"
+
+extern int get_hundred();
+
+int main() {
+	int val = get_hundred();
+	print_int(val);   // 100
+	return 0;
+}
+```
+
+lib.asm
+```assembler
+func_get_hundred:
+	LDI r0, 100
+	RET
+```
+### Резульат:
+```asm
+[Mini-C Compiler] 00000000: 000C0313   LDI r2, data64  data = 0x0000000000000008 (8)
+00000010: 00007D21   SUB rSP, r2
+00000014: 000C0052   CALL data64  data = 0x0000000000000054 (84)
+00000020: 00002410   MOV r3, r0
+00000024: 00008110   MOV r0, r3
+00000028: 00000162   PRINT_INT r0
+0000002C: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
+00000038: 00000001   HALT
+0000003C: 00000001   HALT
+00000040: 000C0113   LDI r0, data64  data = 0x0000000000000064 (100)
+00000050: 00000053   RET
+00000054: 000C0113   LDI r0, data64  data = 0x0000000000000064 (100)
+00000060: 00000053   RET
+00000064: 00000001   HALT
+
+[Mini-C Compiler] Количество строк кода: 14
+[Mini-C Compiler] Размер файла программы: 104 байт
+[Unknown Name Device]
+ === ЗАПУСК ПОТОКА СИМУЛЯЦИИ ===
+[Unknown Name Device] 100
+[Unknown Name Device] Регистр [0]= 0
+[Unknown Name Device] Регистр [1]= 0
+[Unknown Name Device] Регистр [2]= 0
+[Unknown Name Device] Регистр [3]= 8
+[Unknown Name Device] Регистр [4]= 100
+[Unknown Name Device] Регистр [5]= 0
+[Unknown Name Device] Регистр [6]= 0
+[Unknown Name Device] Регистр [7]= 0
+[Unknown Name Device] Регистр [8]= 0
+[Unknown Name Device] Регистр [9]= 0
+[Unknown Name Device] Регистр [10]= 0
+[Unknown Name Device] Регистр [11]= 0
+[Unknown Name Device] Регистр [12]= 0
+[Unknown Name Device] Регистр [13]= 0
+[Unknown Name Device] Регистр [14]= 0
+[Unknown Name Device] Регистр [15]= 0
+[Unknown Name Device] Регистр [16]= 0
+[Unknown Name Device] Регистр [17]= 0
+[Unknown Name Device] Регистр [18]= 0
+[Unknown Name Device] Регистр [19]= 0
+[Unknown Name Device] Регистр [20]= 0
+[Unknown Name Device] Регистр [21]= 0
+[Unknown Name Device] Регистр [22]= 0
+[Unknown Name Device] Регистр [23]= 0
+[Unknown Name Device] Регистр [24]= 0
+[Unknown Name Device] Регистр [25]= 0
+[Unknown Name Device] Регистр [26]= 0
+[Unknown Name Device] Регистр [27]= 0
+[Unknown Name Device] Регистр [28]= 0
+[Unknown Name Device] Регистр [29]= 1048568
+[Unknown Name Device] Регистр [30]= 104
+[Unknown Name Device] Регистр [31]= 60
+[Unknown Name Device] IP 60
+[Unknown Name Device]
+ === ЗАВЕРШЕНИЕ (HALT) ===
+
+```
+---
+
+## Тест 11: Два #include с зависимостями
+
+main.c
+```cpp
+#include "math.asm"
+#include "ops.asm"
+
+extern int double(int x);
+
+int main() {
+	print_int(double(5));   // должно быть 20 (5*2*2)
+	return 0;
+}
+```
+
+math.asm
+```assembler
+func_double:
+	ADD r0, r0
+	RET
+```
+
+ops.asm
+```assembler
+func_double:
+	ADD r0, r0
+	RET
+```
+
+ожидалось что вывод будет 20 из за дублирования функции double, а в она использовалась только 1
+
+### Резульат:
+```asm
+[Mini-C Compiler] 00000000: 000C0113   LDI r0, data64  data = 0x0000000000000005 (5)
+00000010: 00080112   STORE.S32 [data64], r0  data = 0x0000000000001000 (4096)
+00000020: 000C0052   CALL data64  data = 0x0000000000000050 (80)
+00000030: 00000162   PRINT_INT r0
+00000034: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
+00000040: 00000001   HALT
+00000044: 00000001   HALT
+00000048: 00002120   ADD r0, r0
+0000004C: 00000053   RET
+00000050: 00002120   ADD r0, r0
+00000054: 00000053   RET
+0000006C: 00000001   HALT
+
+[Mini-C Compiler] Количество строк кода: 14
+[Mini-C Compiler] Размер файла программы: 112 байт
+[Unknown Name Device]
+ === ЗАПУСК ПОТОКА СИМУЛЯЦИИ ===
+[Unknown Name Device] 10
+[Unknown Name Device] Регистр [0]= 0
+[Unknown Name Device] Регистр [1]= 0
+[Unknown Name Device] Регистр [2]= 0
+[Unknown Name Device] Регистр [3]= 8
+[Unknown Name Device] Регистр [4]= 100
+[Unknown Name Device] Регистр [5]= 0
+[Unknown Name Device] Регистр [6]= 0
+[Unknown Name Device] Регистр [7]= 0
+[Unknown Name Device] Регистр [8]= 0
+[Unknown Name Device] Регистр [9]= 0
+[Unknown Name Device] Регистр [10]= 0
+[Unknown Name Device] Регистр [11]= 0
+[Unknown Name Device] Регистр [12]= 0
+[Unknown Name Device] Регистр [13]= 0
+[Unknown Name Device] Регистр [14]= 0
+[Unknown Name Device] Регистр [15]= 0
+[Unknown Name Device] Регистр [16]= 0
+[Unknown Name Device] Регистр [17]= 0
+[Unknown Name Device] Регистр [18]= 0
+[Unknown Name Device] Регистр [19]= 0
+[Unknown Name Device] Регистр [20]= 0
+[Unknown Name Device] Регистр [21]= 0
+[Unknown Name Device] Регистр [22]= 0
+[Unknown Name Device] Регистр [23]= 0
+[Unknown Name Device] Регистр [24]= 0
+[Unknown Name Device] Регистр [25]= 0
+[Unknown Name Device] Регистр [26]= 0
+[Unknown Name Device] Регистр [27]= 0
+[Unknown Name Device] Регистр [28]= 0
+[Unknown Name Device] Регистр [29]= 1048576
+[Unknown Name Device] Регистр [30]= 112
+[Unknown Name Device] Регистр [31]= 68
+[Unknown Name Device] IP 68
+[Unknown Name Device]
+ === ЗАВЕРШЕНИЕ (HALT) ===
+
+```
+---
+
+## Тест 12: Ошибка в asm {\ ... } (дублирование меток)
+
+```cpp
+int main() {
+	asm {
+	mylabel:
+		NOP
+	mylabel:        // дубликат метки
+		HALT
+	}
+	return 0;
+}
+```
+ошибка компиляции [Build] Метка 'func_double' уже определена.
+### Резульат:
+```asm
+[Build] Метка 'func_double' уже определена.
+```
+---
+
+## Тест 13: Запись регистра в ОЗУ и чтение обратно (низкоуровневый доступ)
+
+```cpp
+int main() {
+	int result;
+	asm {
+		LDI r0, 0x2000
+		LDI r1, 0xDEAD
+		STORE.S64 r1, r0   // записали 0xDEAD по адресу 0x2000
+		LOAD.S64 r2, r0    // прочитали обратно в r2
+		MOV r0, r2         // результат в r0
+	}
+	// здесь r0 = 0xDEAD (57005)
+	result = 57005;        // эмуляция присвоения из asm
+	print_int(result);     // 57005
+	return 0;
+}
+```
+
+### Резульат:
+```asm
+[Mini-C Compiler] 00000000: 000C0313   LDI r2, data64  data = 0x0000000000000008 (8)
+00000010: 00007D21   SUB rSP, r2
+00000014: 000C0113   LDI r0, data64  data = 0x0000000000002000 (8192)
+00000020: 000C0113   LDI r0, data64  data = 0x000000000000DEAD (57005)
+00000030: 00002410   MOV r3, r0
+00000034: 00008110   MOV r0, r3
+00000038: 00000162   PRINT_INT r0
+0000003C: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
+00000048: 00000001   HALT
+0000004C: 00000001   HALT
+00000050: 00000001   HALT
+
+[Mini-C Compiler] Количество строк кода: 11
+[Mini-C Compiler] Размер файла программы: 84 байт
+[Unknown Name Device]
+ === ЗАПУСК ПОТОКА СИМУЛЯЦИИ ===
+[Unknown Name Device] 57005
+[Unknown Name Device] Регистр [0]= 0
+[Unknown Name Device] Регистр [1]= 0
+[Unknown Name Device] Регистр [2]= 0
+[Unknown Name Device] Регистр [3]= 8
+[Unknown Name Device] Регистр [4]= 57005
+[Unknown Name Device] Регистр [5]= 0
+[Unknown Name Device] Регистр [6]= 0
+[Unknown Name Device] Регистр [7]= 0
+[Unknown Name Device] Регистр [8]= 0
+[Unknown Name Device] Регистр [9]= 0
+[Unknown Name Device] Регистр [10]= 0
+[Unknown Name Device] Регистр [11]= 0
+[Unknown Name Device] Регистр [12]= 0
+[Unknown Name Device] Регистр [13]= 0
+[Unknown Name Device] Регистр [14]= 0
+[Unknown Name Device] Регистр [15]= 0
+[Unknown Name Device] Регистр [16]= 0
+[Unknown Name Device] Регистр [17]= 0
+[Unknown Name Device] Регистр [18]= 0
+[Unknown Name Device] Регистр [19]= 0
+[Unknown Name Device] Регистр [20]= 0
+[Unknown Name Device] Регистр [21]= 0
+[Unknown Name Device] Регистр [22]= 0
+[Unknown Name Device] Регистр [23]= 0
+[Unknown Name Device] Регистр [24]= 0
+[Unknown Name Device] Регистр [25]= 0
+[Unknown Name Device] Регистр [26]= 0
+[Unknown Name Device] Регистр [27]= 0
+[Unknown Name Device] Регистр [28]= 0
+[Unknown Name Device] Регистр [29]= 1048568
+[Unknown Name Device] Регистр [30]= 88
+[Unknown Name Device] Регистр [31]= 76
+[Unknown Name Device] IP 76
+[Unknown Name Device]
+ === ЗАВЕРШЕНИЕ (HALT) ===
+
+```
+---
+
+
+
+## Тест 14: Тестирование функции из библиотеки std: print_int(int value) и exit()
+
+```cpp
+#include "std.asm"
+
+extern void print_int(int x);
+extern void exit();
+
+int main() {
+    print_int(12345);
+    exit();
+    return 0;   // эта строка никогда не выполнится
+}
+```
+
+### Резульат:
+```asm
+[Mini-C Compiler] 00000000: 000C0113   LDI r0, data64  data = 0x0000000000003039 (12345)
+00000010: 00080112   STORE.S32 [data64], r0  data = 0x0000000000001000 (4096)
+00000020: 000C0052   CALL data64  data = 0x0000000000000058 (88)
+00000030: 000C0052   CALL data64  data = 0x0000000000000070 (112)
+00000040: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
+00000050: 00000001   HALT
+00000054: 00000001   HALT
+00000058: 00000162   PRINT_INT r0
+0000005C: 00000053   RET
+00000060: 00002261   OUT r1, r0
+00000064: 00000053   RET
+00000068: 00002160   IN r0, r0
+0000006C: 00000053   RET
+00000070: 00000001   HALT
+00000074: 00000053   RET
+00000078: 00000001   HALT
+
+[Mini-C Compiler] Количество строк кода: 16
+[Mini-C Compiler] Размер файла программы: 124 байт
+[Unknown Name Device]
+ === ЗАПУСК ПОТОКА СИМУЛЯЦИИ ===
+[Project Manager] [Code Error: 0] Operation is Complited
+[Unknown Name Device] 12345
+[Unknown Name Device] Регистр [0]= 0
+[Unknown Name Device] Регистр [1]= 12345
+[Unknown Name Device] Регистр [2]= 0
+[Unknown Name Device] Регистр [3]= 0
+[Unknown Name Device] Регистр [4]= 0
+[Unknown Name Device] Регистр [5]= 0
+[Unknown Name Device] Регистр [6]= 0
+[Unknown Name Device] Регистр [7]= 0
+[Unknown Name Device] Регистр [8]= 0
+[Unknown Name Device] Регистр [9]= 0
+[Unknown Name Device] Регистр [10]= 0
+[Unknown Name Device] Регистр [11]= 0
+[Unknown Name Device] Регистр [12]= 0
+[Unknown Name Device] Регистр [13]= 0
+[Unknown Name Device] Регистр [14]= 0
+[Unknown Name Device] Регистр [15]= 0
+[Unknown Name Device] Регистр [16]= 0
+[Unknown Name Device] Регистр [17]= 0
+[Unknown Name Device] Регистр [18]= 0
+[Unknown Name Device] Регистр [19]= 0
+[Unknown Name Device] Регистр [20]= 0
+[Unknown Name Device] Регистр [21]= 0
+[Unknown Name Device] Регистр [22]= 0
+[Unknown Name Device] Регистр [23]= 0
+[Unknown Name Device] Регистр [24]= 1
+[Unknown Name Device] Регистр [25]= 0
+[Unknown Name Device] Регистр [26]= 0
+[Unknown Name Device] Регистр [27]= 64
+[Unknown Name Device] Регистр [28]= 0
+[Unknown Name Device] Регистр [29]= 1048576
+[Unknown Name Device] Регистр [30]= 128
+[Unknown Name Device] Регистр [31]= 116
+[Unknown Name Device] IP 116
+[Unknown Name Device]
+ === ЗАВЕРШЕНИЕ (HALT) ===
+
+```
+
+---
+
+
+
+
+## Тест 15: Тестирование функции из библиотеки std: _out_port(int port, int value) 
+
+```cpp
+#include "std.asm"
+
+extern void _out_port(int port, int value);
+extern void exit();
+
+int main() {
+    _out_port(0, 42);   // записываем байт 0x42 в порт 0
+    exit();
+    return 0;
+}
+```
+Появилось предупреждение так как устройство не подклено к порту
+
+### Резульат:
+```asm
+[Mini-C Compiler] 00000000: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
+00000010: 00080112   STORE.S32 [data64], r0  data = 0x0000000000001000 (4096)
+00000020: 000C0113   LDI r0, data64  data = 0x000000000000002A (42)
+00000030: 00080112   STORE.S32 [data64], r0  data = 0x0000000000001008 (4104)
+00000040: 000C0052   CALL data64  data = 0x0000000000000080 (128)
+00000050: 000C0052   CALL data64  data = 0x0000000000000090 (144)
+00000060: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
+00000070: 00000001   HALT
+00000074: 00000001   HALT
+00000078: 00000162   PRINT_INT r0
+0000007C: 00000053   RET
+00000080: 00002261   OUT r1, r0
+00000084: 00000053   RET
+00000088: 00002160   IN r0, r0
+0000008C: 00000053   RET
+00000090: 00000001   HALT
+00000094: 00000053   RET
+00000098: 00000001   HALT
+
+[Mini-C Compiler] Количество строк кода: 18
+[Mini-C Compiler] Размер файла программы: 156 байт
+[Unknown Name Device]
+ === ЗАПУСК ПОТОКА СИМУЛЯЦИИ ===
+[Project Manager] [Code Error: 0] Operation is Complited
+
+[ПРЕДУПРЕЖДЕНИЕ РАБОТЫ ПРОГРАММЫ] Попытка прочесть данные из отсутсвующего девайса, адрес обращения [42],
+ проверьте таблицу секторов портов, формула: [Adress / AdressPerSector], Ip [132]
+
+[Unknown Name Device] Регистр [0]= 0
+[Unknown Name Device] Регистр [1]= 42
+[Unknown Name Device] Регистр [2]= 0
+[Unknown Name Device] Регистр [3]= 0
+[Unknown Name Device] Регистр [4]= 0
+[Unknown Name Device] Регистр [5]= 0
+[Unknown Name Device] Регистр [6]= 0
+[Unknown Name Device] Регистр [7]= 0
+[Unknown Name Device] Регистр [8]= 0
+[Unknown Name Device] Регистр [9]= 0
+[Unknown Name Device] Регистр [10]= 0
+[Unknown Name Device] Регистр [11]= 0
+[Unknown Name Device] Регистр [12]= 0
+[Unknown Name Device] Регистр [13]= 0
+[Unknown Name Device] Регистр [14]= 0
+[Unknown Name Device] Регистр [15]= 0
+[Unknown Name Device] Регистр [16]= 0
+[Unknown Name Device] Регистр [17]= 0
+[Unknown Name Device] Регистр [18]= 0
+[Unknown Name Device] Регистр [19]= 0
+[Unknown Name Device] Регистр [20]= 0
+[Unknown Name Device] Регистр [21]= 0
+[Unknown Name Device] Регистр [22]= 0
+[Unknown Name Device] Регистр [23]= 0
+[Unknown Name Device] Регистр [24]= 1
+[Unknown Name Device] Регистр [25]= 0
+[Unknown Name Device] Регистр [26]= 0
+[Unknown Name Device] Регистр [27]= 96
+[Unknown Name Device] Регистр [28]= 0
+[Unknown Name Device] Регистр [29]= 1048576
+[Unknown Name Device] Регистр [30]= 160
+[Unknown Name Device] Регистр [31]= 148
+[Unknown Name Device] IP 148
+[Unknown Name Device]
+ === ЗАВЕРШЕНИЕ (HALT) ===
+
+```
+
+---
+
+
+
+
+## Тест 16: Тестирование функции из библиотеки std: in_port(int port) 
+
+```cpp
+#include "std.asm"
+
+extern int _in_port(int port);
+extern void print_int(int x);
+extern void exit();
+
+int main() {
+    int val = _in_port(1);
+    print_int(val);
+    exit();
+    return 0;
+}
+```
+Устройство в которое записывают данные было инициализировано до теста в секторе порта 1
+
+### Резульат:
+```asm
+[Mini-C Compiler] 00000000: 000C0313   LDI r2, data64  data = 0x0000000000000008 (8)
+00000010: 00007D21   SUB rSP, r2
+00000014: 000C0113   LDI r0, data64  data = 0x0000000000000001 (1)
+00000020: 00080112   STORE.S32 [data64], r0  data = 0x0000000000001000 (4096)
+00000030: 000C0052   CALL data64  data = 0x00000000000000A0 (160)
+00000040: 00002410   MOV r3, r0
+00000044: 00008110   MOV r0, r3
+00000048: 00080112   STORE.S32 [data64], r0  data = 0x0000000000001008 (4104)
+00000058: 000C0052   CALL data64  data = 0x0000000000000090 (144)
+00000068: 000C0052   CALL data64  data = 0x00000000000000A8 (168)
+00000078: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
+00000088: 00000001   HALT
+0000008C: 00000001   HALT
+00000090: 00000162   PRINT_INT r0
+00000094: 00000053   RET
+00000098: 00002261   OUT r1, r0
+0000009C: 00000053   RET
+000000A0: 00002160   IN r0, r0
+000000A4: 00000053   RET
+000000A8: 00000001   HALT
+000000AC: 00000053   RET
+000000B0: 00000001   HALT
+
+[Mini-C Compiler] Количество строк кода: 22
+[Mini-C Compiler] Размер файла программы: 180 байт
+[Unknown Name Device]
+ === ЗАПУСК ПОТОКА СИМУЛЯЦИИ ===
+[Project Manager] [Code Error: 0] Operation is Complited
+[Unknown Name Device] 3
+[Unknown Name Device] Регистр [0]= 0
+[Unknown Name Device] Регистр [1]= 3
+[Unknown Name Device] Регистр [2]= 0
+[Unknown Name Device] Регистр [3]= 8
+[Unknown Name Device] Регистр [4]= 3
+[Unknown Name Device] Регистр [5]= 0
+[Unknown Name Device] Регистр [6]= 0
+[Unknown Name Device] Регистр [7]= 0
+[Unknown Name Device] Регистр [8]= 0
+[Unknown Name Device] Регистр [9]= 0
+[Unknown Name Device] Регистр [10]= 0
+[Unknown Name Device] Регистр [11]= 0
+[Unknown Name Device] Регистр [12]= 0
+[Unknown Name Device] Регистр [13]= 0
+[Unknown Name Device] Регистр [14]= 0
+[Unknown Name Device] Регистр [15]= 0
+[Unknown Name Device] Регистр [16]= 0
+[Unknown Name Device] Регистр [17]= 0
+[Unknown Name Device] Регистр [18]= 0
+[Unknown Name Device] Регистр [19]= 0
+[Unknown Name Device] Регистр [20]= 0
+[Unknown Name Device] Регистр [21]= 0
+[Unknown Name Device] Регистр [22]= 0
+[Unknown Name Device] Регистр [23]= 0
+[Unknown Name Device] Регистр [24]= 1
+[Unknown Name Device] Регистр [25]= 0
+[Unknown Name Device] Регистр [26]= 0
+[Unknown Name Device] Регистр [27]= 120
+[Unknown Name Device] Регистр [28]= 0
+[Unknown Name Device] Регистр [29]= 1048568
+[Unknown Name Device] Регистр [30]= 184
+[Unknown Name Device] Регистр [31]= 172
+[Unknown Name Device] IP 172
+[Unknown Name Device]
+ === ЗАВЕРШЕНИЕ (HALT) ===
+
+```
+
+---
+
+
+
+
+## Тест 17: Комбинированный тест с asm { \... } для низкоуровневой проверки
+
+```cpp
+#include "std.asm"
+
+extern void _out_port(int port, int value);
+extern int _in_port(int port);
+extern void print_int(int x);
+extern void exit();
+
+int main() {
+    // Записываем 0x99 в порт 2 через библиотечную функцию
+    _out_port(2, 0x99);
+    
+    // Читаем обратно через библиотечную функцию
+    int lib_val = _in_port(2);
+    print_int(lib_val);   // должно быть 0x99 (153), если порт сохраняет значение
+
+    // Теперь делаем то же самое, но через встроенный ассемблер
+    asm {
+        LDI r0, 2
+        LDI r1, 0xAA
+        OUT r1, r0
+        IN r0, r0
+        MOV r1, r0
+    }
+    // Здесь r1 = 0xAA
+    // Эмулируем присвоение результата в C (пока вручную)
+    int asm_val = 0xAA;
+    print_int(asm_val);   // должно быть 170
+
+    exit();
+    return 0;
+}
+```
+
+### Резульат:
+```asm
+[Mini-C Compiler] 00000000: 000C0313   LDI r2, data64  data = 0x0000000000000010 (16)
+00000010: 00007D21   SUB rSP, r2
+00000014: 000C0113   LDI r0, data64  data = 0x0000000000000002 (2)
+00000020: 00080112   STORE.S32 [data64], r0  data = 0x0000000000001000 (4096)
+00000030: 000C0113   LDI r0, data64  data = 0x0000000000000063 (99)
+00000040: 00080112   STORE.S32 [data64], r0  data = 0x0000000000001008 (4104)
+00000050: 000C0052   CALL data64  data = 0x0000000000000130 (304)
+00000060: 000C0113   LDI r0, data64  data = 0x0000000000000002 (2)
+00000070: 00080112   STORE.S32 [data64], r0  data = 0x0000000000001010 (4112)
+00000080: 000C0052   CALL data64  data = 0x0000000000000138 (312)
+00000090: 00002410   MOV r3, r0
+00000094: 00008110   MOV r0, r3
+00000098: 00080112   STORE.S32 [data64], r0  data = 0x0000000000001018 (4120)
+000000A8: 000C0052   CALL data64  data = 0x0000000000000128 (296)
+000000B8: 000C0113   LDI r0, data64  data = 0x0000000000000002 (2)
+000000C8: 000C0113   LDI r0, data64  data = 0x0000000000000064 (100)
+000000D8: 00002510   MOV r4, r0
+000000DC: 0000A110   MOV r0, r4
+000000E0: 00080112   STORE.S32 [data64], r0  data = 0x0000000000001018 (4120)
+000000F0: 000C0052   CALL data64  data = 0x0000000000000128 (296)
+00000100: 000C0052   CALL data64  data = 0x0000000000000140 (320)
+00000110: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
+00000120: 00000001   HALT
+00000124: 00000001   HALT
+00000128: 00000162   PRINT_INT r0
+0000012C: 00000053   RET
+00000130: 00002261   OUT r1, r0
+00000134: 00000053   RET
+00000138: 00002160   IN r0, r0
+0000013C: 00000053   RET
+00000140: 00000001   HALT
+00000144: 00000053   RET
+00000148: 00000001   HALT
+
+[Mini-C Compiler] Количество строк кода: 33
+[Mini-C Compiler] Размер файла программы: 332 байт
+[Unknown Name Device]
+ === ЗАПУСК ПОТОКА СИМУЛЯЦИИ ===
+[Project Manager] [Code Error: 0] Operation is Complited
+[Unknown Name Device] 12
+[Unknown Name Device] 100
+[Unknown Name Device] Регистр [0]= 0
+[Unknown Name Device] Регистр [1]= 100
+[Unknown Name Device] Регистр [2]= 0
+[Unknown Name Device] Регистр [3]= 16
+[Unknown Name Device] Регистр [4]= 12
+[Unknown Name Device] Регистр [5]= 100
+[Unknown Name Device] Регистр [6]= 0
+[Unknown Name Device] Регистр [7]= 0
+[Unknown Name Device] Регистр [8]= 0
+[Unknown Name Device] Регистр [9]= 0
+[Unknown Name Device] Регистр [10]= 0
+[Unknown Name Device] Регистр [11]= 0
+[Unknown Name Device] Регистр [12]= 0
+[Unknown Name Device] Регистр [13]= 0
+[Unknown Name Device] Регистр [14]= 0
+[Unknown Name Device] Регистр [15]= 0
+[Unknown Name Device] Регистр [16]= 0
+[Unknown Name Device] Регистр [17]= 0
+[Unknown Name Device] Регистр [18]= 0
+[Unknown Name Device] Регистр [19]= 0
+[Unknown Name Device] Регистр [20]= 0
+[Unknown Name Device] Регистр [21]= 0
+[Unknown Name Device] Регистр [22]= 0
+[Unknown Name Device] Регистр [23]= 0
+[Unknown Name Device] Регистр [24]= 1
+[Unknown Name Device] Регистр [25]= 0
+[Unknown Name Device] Регистр [26]= 0
+[Unknown Name Device] Регистр [27]= 272
+[Unknown Name Device] Регистр [28]= 0
+[Unknown Name Device] Регистр [29]= 1048560
+[Unknown Name Device] Регистр [30]= 336
+[Unknown Name Device] Регистр [31]= 324
+[Unknown Name Device] IP 324
+[Unknown Name Device]
+ === ЗАВЕРШЕНИЕ (HALT) ===
+
+```
+
+
+
+
+---
+## Тест 18: Тест на многократный вызов print_int без exit (проверка, что HALT не вызывается раньше времени)
+
+```cpp
+#include "std.asm"
+
+extern void print_int(int x);
+
+int main() {
+    print_int(1);
+    print_int(2);
+    print_int(3);
+    return 0;
+}
+```
+
+### Резульат:
+```asm
+[Mini-C Compiler] 00000000: 000C0113   LDI r0, data64  data = 0x0000000000000001 (1)
+00000010: 00080112   STORE.S32 [data64], r0  data = 0x0000000000001000 (4096)
+00000020: 000C0052   CALL data64  data = 0x00000000000000A8 (168)
+00000030: 000C0113   LDI r0, data64  data = 0x0000000000000002 (2)
+00000040: 00080112   STORE.S32 [data64], r0  data = 0x0000000000001000 (4096)
+00000050: 000C0052   CALL data64  data = 0x00000000000000A8 (168)
+00000060: 000C0113   LDI r0, data64  data = 0x0000000000000003 (3)
+00000070: 00080112   STORE.S32 [data64], r0  data = 0x0000000000001000 (4096)
+00000080: 000C0052   CALL data64  data = 0x00000000000000A8 (168)
+00000090: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
+000000A0: 00000001   HALT
+000000A4: 00000001   HALT
+000000A8: 00000162   PRINT_INT r0
+000000AC: 00000053   RET
+000000B0: 00002261   OUT r1, r0
+000000B4: 00000053   RET
+000000B8: 00002160   IN r0, r0
+000000BC: 00000053   RET
+000000C0: 00000001   HALT
+000000C4: 00000053   RET
+000000C8: 00000001   HALT
+
+[Mini-C Compiler] Количество строк кода: 21
+[Mini-C Compiler] Размер файла программы: 204 байт
+[Unknown Name Device]
+ === ЗАПУСК ПОТОКА СИМУЛЯЦИИ ===
+[Project Manager] [Code Error: 0] Operation is Complited
+[Unknown Name Device] 1
+[Unknown Name Device] 2
+[Unknown Name Device] 3
+[Unknown Name Device] Регистр [0]= 0
+[Unknown Name Device] Регистр [1]= 0
+[Unknown Name Device] Регистр [2]= 0
+[Unknown Name Device] Регистр [3]= 16
+[Unknown Name Device] Регистр [4]= 12
+[Unknown Name Device] Регистр [5]= 100
+[Unknown Name Device] Регистр [6]= 0
+[Unknown Name Device] Регистр [7]= 0
+[Unknown Name Device] Регистр [8]= 0
+[Unknown Name Device] Регистр [9]= 0
+[Unknown Name Device] Регистр [10]= 0
+[Unknown Name Device] Регистр [11]= 0
+[Unknown Name Device] Регистр [12]= 0
+[Unknown Name Device] Регистр [13]= 0
+[Unknown Name Device] Регистр [14]= 0
+[Unknown Name Device] Регистр [15]= 0
+[Unknown Name Device] Регистр [16]= 0
+[Unknown Name Device] Регистр [17]= 0
+[Unknown Name Device] Регистр [18]= 0
+[Unknown Name Device] Регистр [19]= 0
+[Unknown Name Device] Регистр [20]= 0
+[Unknown Name Device] Регистр [21]= 0
+[Unknown Name Device] Регистр [22]= 0
+[Unknown Name Device] Регистр [23]= 0
+[Unknown Name Device] Регистр [24]= 0
+[Unknown Name Device] Регистр [25]= 0
+[Unknown Name Device] Регистр [26]= 0
+[Unknown Name Device] Регистр [27]= 0
+[Unknown Name Device] Регистр [28]= 0
+[Unknown Name Device] Регистр [29]= 1048576
+[Unknown Name Device] Регистр [30]= 208
+[Unknown Name Device] Регистр [31]= 164
+[Unknown Name Device] IP 164
+[Unknown Name Device]
+ === ЗАВЕРШЕНИЕ (HALT) ===
+
+```
+
+---
+
+
+
+
+---
+## Тест 17: Комбинированный тест с asm { \... } для низкоуровневой проверки
+
+```cpp
+
+```
+
+### Резульат:
+```asm
+
+```
+
+---
+
+
+
+
+---
+## Тест 17: Комбинированный тест с asm { \... } для низкоуровневой проверки
+
+```cpp
+
+```
+
+### Резульат:
+```asm
+
+```
+
+---
