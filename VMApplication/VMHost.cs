@@ -10,8 +10,6 @@ namespace VMApplication;
 
 public sealed class VMHost
 {
-    public const uint StartLoadProgramm = 0x200;
-
     private readonly IProjectService _projectService;
     private string? _projectPath;
     private readonly Emulator _emulator;
@@ -50,7 +48,7 @@ public sealed class VMHost
         _outputView.Append($"Проект {projectPath} открыт.", LogLevel.Log);
     }
 
-    public CompilationResult Compile(ulong baseAddress = StartLoadProgramm)
+    public CompilationResult Compile(ulong baseAddress = ProjectBuilder.BaseAdressProgramm)
     {
         if (!IsProjectOpened || _projectPath == null)
             return new CompilationResult(null, 0, ["Проект не открыт."]);
@@ -59,7 +57,7 @@ public sealed class VMHost
         {
             byte[] program = ProjectBuilder.BuildProject(
                 _projectService.FileService,
-                _projectService.EditorService, _projectPaths,baseAddress);
+                _projectService.EditorService, _projectPaths, baseAddress);
             return new CompilationResult(program,baseAddress, null);
         }
         catch (Exception ex)
@@ -150,7 +148,7 @@ public sealed class VMHost
 /*
  public sealed class VMHost(SizePort sizePort = SizePort.Size16KB, SizePortOnDev sizePortOn = SizePortOnDev.Size16B)
 {
-    public const uint StartLoadProgramm = 0x200;
+    public const uint ProjectBuilder.BaseAdressProgramm = 0x200;
 
     private IProjectService? _projectService;
     private readonly Emulator _emulator = new(sizePort.ConvertToKernelEnum(), sizePortOn.ConvertToKernelEnum());
@@ -211,7 +209,7 @@ public sealed class VMHost
         _outputView?.Append($"Проект {projectPath} открыт.", LogLevel.Log);
     }
 
-    public CompilationResult Compile(ulong baseAddress = StartLoadProgramm)
+    public CompilationResult Compile(ulong baseAddress = ProjectBuilder.BaseAdressProgramm)
     {
         if (!IsProjectOpened || _projectPaths == null)
             return new CompilationResult(null, ["Проект не открыт."]);
@@ -393,7 +391,7 @@ public class DeviceData : IDisposable
 
     public void Stop() => _device.StopDevice();
 
-    public LaunchModeDevice LoadProgram(byte[] program, ulong loadAddress = VMHost.StartLoadProgramm)
+    public LaunchModeDevice LoadProgram(byte[] program, ulong loadAddress = ProjectBuilder.BaseAdressProgramm)
     {
         _device.LoadProgram(program, loadAddress);
         return new LaunchModeDevice(_device);
@@ -446,7 +444,7 @@ public class LaunchModeDevice
 
     public void SetHeapAddress(ulong hp) => _device.InitHeap(hp);
 
-    public void LaunchDevice(ulong startAddress = VMHost.StartLoadProgramm,
+    public void LaunchDevice(ulong startAddress = ProjectBuilder.BaseAdressProgramm,
                              bool debug = false,
                              int delayMs = 0,
                              bool showTimer = false,
@@ -461,7 +459,7 @@ public class LaunchModeDevice
         return new DeviceData(_device);
     }
 
-    public DeviceStepMode StepMode(ulong startAddress = VMHost.StartLoadProgramm)
+    public DeviceStepMode StepMode(ulong startAddress = ProjectBuilder.BaseAdressProgramm)
     {
         _device.BreakPointerLaunchDevice(startAddress);
         return new DeviceStepMode(_device);

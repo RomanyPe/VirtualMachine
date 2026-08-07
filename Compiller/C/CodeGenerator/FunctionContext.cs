@@ -57,7 +57,7 @@ public class FunctionContext
             int myOffset = stackOffset;          // начало текущей переменной
             stackOffset += varSize;              // сдвигаем для следующей
 
-            if (nextReg <= 22 && !isArray)
+            if (nextReg <= 21 && !isArray)
             {
                 varMap[name] = new VarLocation
                 {

@@ -15,7 +15,7 @@ public partial class IDEPage : Page
 {
     private readonly VMHost _vmHost;
     private readonly AnalizatorOnErrors _analizator;
-    private readonly IOutputView _outputView;
+    private readonly WpfOutputView _outputView;
     private readonly ProjectService _projectManager;
     private readonly string _projectPath;
     private readonly IProjectPaths _projectPaths;

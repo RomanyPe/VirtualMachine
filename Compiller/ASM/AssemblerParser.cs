@@ -41,7 +41,7 @@ public class AssemblerParser
         { "r19", RegType.r19 },
         { "r20", RegType.r20 },
         { "r21", RegType.r21 },
-        { "r22", RegType.r22 },
+        { "rTB", RegType.rTB },
         { "rCD", RegType.rCD },
         { "rFL", RegType.rFL },
         { "rLP", RegType.rLP },

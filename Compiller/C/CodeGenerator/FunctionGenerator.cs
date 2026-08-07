@@ -141,16 +141,26 @@ public class FunctionGenerator(Assembler asm)
     {
         foreach (var stmt in block.Statements)
         {
-            if (stmt is VariableNode varNode)
-                map[varNode.Name] = varNode;
-            else if (stmt is BlockNode nested) CollectLocalVars(nested, map);
-            else if (stmt is IfNode ifn) { CollectLocalVars(ifn.ThenBlock, map); if (ifn.ElseBlock != null) CollectLocalVars(ifn.ElseBlock, map); }
-            else if (stmt is WhileNode wh) CollectLocalVars(wh.Body, map);
-            else if (stmt is ForNode fr)
+            switch (stmt)
             {
-                if (fr.Init is VariableNode forVar)
-                    map[forVar.Name] = forVar;
-                CollectLocalVars(fr.Body, map);
+                case VariableNode varNode:
+                    map[varNode.Name] = varNode;
+                    break;
+                case BlockNode nested:
+                    CollectLocalVars(nested, map);
+                    break;
+                case IfNode ifn:
+                    CollectLocalVars(ifn.ThenBlock, map); if (ifn.ElseBlock != null) CollectLocalVars(ifn.ElseBlock, map); break;
+                case WhileNode wh:
+                    CollectLocalVars(wh.Body, map);
+                    break;
+                case ForNode fr:
+                    {
+                        if (fr.Init is VariableNode forVar)
+                            map[forVar.Name] = forVar;
+                        CollectLocalVars(fr.Body, map);
+                        break;
+                    }
             }
         }
     }

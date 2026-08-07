@@ -25,7 +25,7 @@ public class WpfOutputView : IOutputView, ILogger   // ILogger оставлен 
     }
 
     // Реализация IOutputView
-    public void Append(string message, LogLevel level)
+    public void Append(string message, LogLevel level = LogLevel.Log)
     {
         Color color = level switch
         {

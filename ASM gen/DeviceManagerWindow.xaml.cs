@@ -86,7 +86,7 @@ public partial class DeviceManagerWindow : Window
         {
             int deviceId = selected.Value.Id;
             byte[] program = System.IO.File.ReadAllBytes(dialog.FileName);
-            LaunchModeDevice d = _device.LoadProgram(program, ProjectBuilder.BaseAdressProgramm);
+            LaunchModeDevice d = _device.LoadProgram(program);
             CurrentDevice.Invoke(_device);
             CurrenLaunchModel.Invoke(d);
             _outputView?.Append($" {NameSystem} Программа загружена в устройство {deviceId}.");

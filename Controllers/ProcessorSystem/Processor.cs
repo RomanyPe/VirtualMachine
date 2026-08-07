@@ -88,7 +88,7 @@ public class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus p
         SetRegValue(RegType.rCL, 0);
         SetRegValue(RegType.rCD, 0);
         SetRegValue(RegType.rFL, 0);
-
+        SetRegValue(RegType.rTB, 0);
         // Инициализируем стек на самый конец RAM, выравнивая по границе 8 байт
         ulong stackTop = _ram.RamSize;
 
@@ -154,7 +154,8 @@ public class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus p
         r5, r6, r7, r8, r9,
         r10, r11, r12, r13, r14,
         r15, r16, r17, r18, r19,
-        r20, r21, r22,
+        r20, r21, 
+        rTB = 0x17,
         rCD = 0x18,
         rFL = 0x19,
         rLP = 0x1A,
@@ -346,7 +347,7 @@ public class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus p
     private ResultInstruction InstructionINT(RegType reg)
     {
         uint vector = (uint)GetRegValue(reg) & 0x1F; // 32 вектора
-        ulong tableBase = 0x0;
+        ulong tableBase = GetRegValue(RegType.rTB);
         ulong handlerAddr;
         RAMResultInt64 readResult = _ram.ReadInt64LE(tableBase + (ulong)vector * 8);
         if (!readResult.IsSuccess)

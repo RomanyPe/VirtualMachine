@@ -258,7 +258,7 @@ public static class InstructionEncoder
         RegType.r19 => "r19",
         RegType.r20 => "r20",
         RegType.r21 => "r21",
-        RegType.r22 => "r22",
+        RegType.rTB => "rTB",
         RegType.rCD => "rCD",
         RegType.rFL => "rFL",
         RegType.rLP => "rLP",

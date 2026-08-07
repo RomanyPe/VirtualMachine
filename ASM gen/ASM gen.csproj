@@ -22,7 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
-	<None Update="CodeForTest_C.md">
+	<None Update="Tests.md">
 	  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
 	</None>
   </ItemGroup>

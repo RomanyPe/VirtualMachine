@@ -16,10 +16,10 @@ public static class CodeGenUtils
 
     public static OpCodeSize GetSizeForType(string? type) => type switch
     {
-        "byte" => OpCodeSize.S8,
+        "byte" or "char" => OpCodeSize.S8,
         "ushort" => OpCodeSize.S16,
         "ulong" => OpCodeSize.S64,
-        "int" or "char" => OpCodeSize.S32,
+        "int"  => OpCodeSize.S32,
         _ => throw new Exception($"Unknown type '{type}' for memory size")
     };
 

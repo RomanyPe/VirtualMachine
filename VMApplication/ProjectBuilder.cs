@@ -7,8 +7,9 @@ namespace VMApplication;
 
 public static class ProjectBuilder
 {
-    public const int BaseAdressProgramm = 0x200;
-    public static byte[] Build(IEnumerable<SourceFile> files, IProjectPaths path, ulong baseAddress = BaseAdressProgramm)
+    public const int BaseAdressProgramm = 0x0;
+
+    public static byte[] Build(IEnumerable<SourceFile> files, IProjectPaths path, ulong baseAddress)
     {
         var assembler = new Assembler(baseAddress: baseAddress);
         var asmParser = new AssemblerParser();
@@ -90,7 +91,7 @@ public static class ProjectBuilder
         return assembler.Build();
     }
 
-    public static byte[] BuildProject(IFileService fileService, IEditorService editorService,IProjectPaths paths, ulong baseAddress = BaseAdressProgramm)
+    public static byte[] BuildProject(IFileService fileService, IEditorService editorService,IProjectPaths paths, ulong baseAddress)
     {
         var files = new List<SourceFile>();
 
