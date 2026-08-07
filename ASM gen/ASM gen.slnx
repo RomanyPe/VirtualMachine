@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="../Compiller/Compiller.csproj" Id="75871bb8-1afc-4dbd-a928-24eef852977b" />
   <Project Path="../Controllers/Kernel.csproj" Id="9d1173c7-0c5f-402c-a10c-a5f7752b4b31" />
+  <Project Path="../VMApplication/VMApplication.csproj" />
   <Project Path="ASM gen.csproj" />
 </Solution>

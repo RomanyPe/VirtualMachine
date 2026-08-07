@@ -9,6 +9,7 @@ public class ProgramNode : ASTNode
 {
     public List<FunctionNode> Functions { get; } = [];
     public List<VariableNode> Globals { get; } = [];
+    public List<string> Includes { get; } = [];   // <-- новое
 }
 
 public class FunctionNode(string name, string returnType, BlockNode body) : ASTNode
@@ -18,11 +19,15 @@ public class FunctionNode(string name, string returnType, BlockNode body) : ASTN
     public List<ParameterNode> Parameters { get; set; } = [];
     public BlockNode Body { get; } = body;
     public int LocalSize { get; set; }
+    public bool IsExternal { get; set; } = false;  // новое поле
 }
 
 public class ParameterNode(string type, string name) : ASTNode
 {
-    public string Type { get; } = type; public string Name { get; } = name;
+    public string Type { get; } = type;
+    public string Name { get; } = name;
+    public bool IsPointer { get; set; }
+    public string? PointedType { get; set; }
 }
 
 public class BlockNode : ASTNode
@@ -35,15 +40,19 @@ public class VariableNode(string type, string name, ASTNode? initializer = null)
     public string Type { get; } = type;
     public string Name { get; } = name;
     public ASTNode? Initializer { get; } = initializer;
+    public bool IsPointer { get; set; } = false;
+    public string? PointedType { get; set; } // например "int"
     public bool IsArray { get; set; } = false;
     public int ArraySize { get; set; } = 0;   // количество элементов
 }
 
-public class AssignmentNode(string name, ASTNode value) : ASTNode
+public class AssignmentNode(string name, ASTNode value, ASTNode? indexExpr = null) : ASTNode
 {
-    public string Name { get; } = name; public ASTNode Value { get; } = value;
+    public string Name = name;
+    public ASTNode Value = value;
+    public ASTNode? IndexExpr = indexExpr; // null если присваивание скаляру, иначе индекс для массива
+    public ASTNode? LValue { get; set; }
 }
-
 public class BinaryOpNode(string op, ASTNode left, ASTNode right) : ASTNode
 {
     public string Operator { get; } = op;
@@ -97,22 +106,31 @@ public class FunctionCallNode(string name) : ASTNode
     public List<ASTNode> Arguments { get; } = [];
 }
 
-// Входной порт: _in_port(порт, переменная_назначения)
-public class InPortNode(ASTNode port, IdentifierNode dataVar) : ASTNode
-{
-    public ASTNode Port { get; } = port;
-    public IdentifierNode DataVar { get; } = dataVar;
-}
-
-// Выходной порт: _out_port(порт, значение)
-public class OutPortNode(ASTNode port, ASTNode value) : ASTNode
-{
-    public ASTNode Port { get; } = port;
-    public ASTNode Value { get; } = value;
-}
-
 public class ArrayAccessNode(string name, ASTNode index) : ASTNode
 {
     public string ArrayName = name;       // имя переменной-массива
     public ASTNode Index = index;          // выражение для индекса
+}
+
+// Узел взятия адреса: &expr
+public class AddressOfNode(ASTNode operand) : ASTNode
+{
+    public ASTNode Operand = operand;
+}
+
+// Узел разыменования: *expr
+public class DereferenceNode(ASTNode operand) : ASTNode
+{
+    public ASTNode Operand = operand;
+}
+
+public class NewArrayNode(string type, ASTNode size) : ASTNode
+{
+    public string Type = type;      // "int", "byte" и т.д.
+    public ASTNode Size = size;     // выражение, задающее количество элементов
+}
+
+public class InlineAsmNode(string asmCode) : ASTNode
+{
+    public string AsmCode = asmCode;   // текст между { и }
 }

@@ -1,0 +1,14 @@
+﻿namespace Compiller.C.CodeGenerator;
+
+public struct GlobalInfo(ulong address,
+                         string type,
+                         bool isArray = false,
+                         bool isPointer = false,
+                         string? pointedType = null)
+{
+    public ulong Address = address;
+    public string Type = type;
+    public bool IsArray = isArray;
+    public bool IsPointer = isPointer;
+    public string? PointedType = pointedType;
+}

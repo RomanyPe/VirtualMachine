@@ -1,52 +1,37 @@
-﻿using ASM_gen.ProjectManage;
-using Compiller.C;
-using ICSharpCode.AvalonEdit.Highlighting;
-using Kernel.BiosSystem;
-using Kernel.ProcessorSystem;
-using System.Windows.Media;
-using System.Windows.Threading;
+﻿using VMApplication;
 
 namespace ASM_gen.Analizator;
 
 public class AnalizatorOnErrors : IDisposable
 {
     private const string _nameSystem = "Analizator On Errors";
+    private readonly IEditorService _editorService;
+    private readonly IOutputView _outputView;
 
-    private readonly ProjectService _projectManager;
-    private readonly ErrorLineColorizer _errorColorizer = new();
     private bool _haveError;
     private CancellationTokenSource? _cts;
-    private readonly TimeSpan _validationDelay = TimeSpan.FromMilliseconds(500); // можно настроить
+    private readonly TimeSpan _validationDelay = TimeSpan.FromMilliseconds(500);
     private readonly Lock _lock = new();
 
     public bool HaveError => _haveError;
-    public ErrorLineColorizer ErrorColorizer => _errorColorizer;
-    public string Code => _projectManager.GetCurrentEditorText();
 
-    public AnalizatorOnErrors(ProjectService editor)
+    public AnalizatorOnErrors(IEditorService editorService, IOutputView outputView)
     {
-        _projectManager = editor;
-        InitializeEditor();
-        _projectManager.AddForAllTab(TextEditor_TextChanged!);
+        _editorService = editorService;
+        _outputView = outputView;
+        _editorService.TextChanged += OnTextChanged;
     }
 
     public void Dispose()
     {
-
-        _projectManager.RemoveForAllTab(TextEditor_TextChanged!);
+        _editorService.TextChanged -= OnTextChanged;
         CancelPendingValidation();
         _cts?.Dispose();
         GC.SuppressFinalize(this);
     }
 
-    private void InitializeEditor()
+    private void OnTextChanged(object? sender, EventArgs e)
     {
-        _projectManager.InitVisualTextEditors(ErrorColorizer, HighlightingManager.Instance.GetDefinition("C++"), Brushes.White);
-    }
-
-    private void TextEditor_TextChanged(object sender, EventArgs e)
-    {
-        // При изменении текста отменяем текущую проверку и запускаем новую с задержкой
         CancelPendingValidation();
         ScheduleValidation();
     }
@@ -71,25 +56,24 @@ public class AnalizatorOnErrors : IDisposable
             _cts = cts;
         }
 
-        // Читаем текст в UI-потоке (здесь он вызывается из TextChanged, т.е. уже в UI)
-        string textToCheck = _projectManager.GetCurrentEditorText();
+        // Берём текст активной вкладки (вызывается из UI-потока, т.к. событие TextChanged в UI)
+        string textToCheck = _editorService.GetCurrentText();
 
         Task.Delay(_validationDelay, cts.Token).ContinueWith(async _ =>
         {
             if (cts.Token.IsCancellationRequested) return;
-            // Используем заранее сохранённую копию текста
             var errorLines = await Task.Run(() => CheckTextForErrors(textToCheck), cts.Token);
-            var editor = _projectManager.GetCurrentTextEditor();
-            if (editor != null)
+
+            // Применяем подсветку в UI-потоке
+            if (!cts.Token.IsCancellationRequested)
             {
-                await editor.Dispatcher.InvokeAsync(() =>
-                {
-                    _haveError = UpdateErrors(errorLines);
-                }, DispatcherPriority.Background, cts.Token);
+                _editorService.ClearHighlights();
+                if (errorLines.Count > 0)
+                    _editorService.HighlightErrors(errorLines);
+                _haveError = errorLines.Count > 0;
             }
         }, cts.Token, TaskContinuationOptions.NotOnCanceled, TaskScheduler.Default);
     }
-
 
     private static int ExtractLineFromException(Exception ex)
     {
@@ -104,46 +88,22 @@ public class AnalizatorOnErrors : IDisposable
         }
         return 0;
     }
-    private static List<int> CheckTextForErrors(string text)
+
+    private List<int> CheckTextForErrors(string text)
     {
-        // Удаляем BOM, если есть
         if (text.StartsWith('\uFEFF'))
             text = text[1..];
         var errorLines = new List<int>();
         try
         {
-            var lexer = new Lexer(text);
-            var tokens = lexer.Tokenize();
-            var parser = new Parser(tokens);
-            parser.Parse();
+            VMHostHelper.LaunchUnsafeParse(text);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // Извлекаем номер строки из сообщения (после добавления "at ..." в Expect)
-            DeviceHelpers.ClearLog();
-            DeviceHelpers.LogFromSystem(_nameSystem, ex.Message, NotificationType.Error);
+            _outputView.Append($"[{_nameSystem}] {ex.Message}", LogLevel.Error);
             int line = ExtractLineFromException(ex);
             if (line > 0) errorLines.Add(line);
         }
         return errorLines;
-    }
-
-
-    private bool UpdateErrors(List<int> newErrorLines)
-    {
-        _errorColorizer.ErrorLines.Clear();
-        foreach (int line in newErrorLines)
-            _errorColorizer.ErrorLines.Add(line);
-        var editor = _projectManager.GetCurrentTextEditor();
-        if (editor == null) return false;
-        editor.TextArea.TextView.Redraw();
-        return newErrorLines.Count > 0;
-    }
-
-    public bool TryCompile(out string text)
-    {
-        text = _projectManager.GetCurrentEditorText();
-        List<int> errors = CheckTextForErrors(text);
-        return !UpdateErrors(errors);
     }
 }

@@ -1,20 +1,12 @@
-﻿using ASM_gen.ProjectManage.Data;
-using Compiller.Emulation;
-using System.IO;
+﻿using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows;
+using VMApplication;
 
 namespace ASM_gen.ProjectManage.Managers.Static;
 
-public readonly struct FileReadResult(string fileName, string finalFilePath, ErrorFile errorFile = ErrorFile.None)
-{
-    public string FileName { get; } = fileName;
-    public string FinalFilePath { get; } = finalFilePath;
-    public ErrorFile Error { get; } = errorFile;
-}
-
-public static class DirectoryManager
+public static class DirManager
 {
 
 
@@ -29,7 +21,7 @@ public static class DirectoryManager
         CreateDir(AppPaths.SharedIncludePath);
     }
 
-    public static void NewFile(this IDEPage page, string projectPath, ProjectService projectService)
+    public static void NewFile(this IDEPage page, string projectPath, IProjectService projectService)
     {
         var dialog = new NewFileDialog
         {
@@ -44,12 +36,13 @@ public static class DirectoryManager
             // Создаём файл на диске с базовым шаблоном
             string template = dialog.Result.Value.language == SourceLanguage.C
                 ? "int main() {\n    return 0;\n}\n"
-                : "; Программа на ассемблере\nLDI r0, 0\nHALT\n";
+                : "// Программа на ассемблере\nLDI r0, 0\nHALT\n";
             File.WriteAllText(filePath, template);
 
             // Добавляем в FileService и открываем вкладку
-            projectService.AddFile(filePath);
-            projectService.OpenFile(fileName);
+            string? result = projectService.EditorService.GetText(fileName);
+            string content = result ?? string.Empty;
+            projectService.EditorService.OpenTab(fileName, content);
         }
     }
 
@@ -144,23 +137,6 @@ public static class DirectoryManager
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static void CreateDir(string path) => Directory.CreateDirectory(path);
 
-    public static void OpenFileProjMetadata(string path)
-    {
-        if (!TryOpenFile(path, out ErrorFile error, out string pathProj))
-        {
-            string errorMes = ErrorFileMessage(error);
-
-            // Формируем детальное описание путей, красиво разбивая на строки
-            string details = pathProj is null
-                ? $"Path: {path}"
-                : $"Path: {path}\nProject Path: {pathProj}";
-
-            MessageBox.Show($"{errorMes}\n\n{details}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            return;
-        }
-
-        OpenFile(pathProj);
-    }
     private static void OpenFile(string path)
     {
         using var reader = new StreamReader(path);
@@ -281,7 +257,7 @@ public static class DirectoryManager
         return true;
     }
 
-    private readonly ref struct VersionData(int major, int minor, int build = 0, int revision = 0)
+    public readonly ref struct VersionData(int major, int minor, int build = 0, int revision = 0)
     {
         public readonly int Major = major;
         public readonly int Minor = minor;

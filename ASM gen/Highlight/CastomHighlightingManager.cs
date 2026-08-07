@@ -26,16 +26,20 @@ public static partial class CastomHighlightingManager
         public IEnumerable<HighlightingColor> NamedHighlightingColors => null!;
     }
 
-    public static void ChoseLang(LanguageType lang, TextEditor textEditor)
+    extension(TextEditor textEditor)
     {
-        if (textEditor == null) return;
-        textEditor.SyntaxHighlighting = lang switch
+        public void ChoseLang(LanguageType lang)
         {
-            LanguageType.ASM => ApplyASMHighlighting(),
-            LanguageType.C => ApplyCHighlighting(),
-            _ => ApplyCHighlighting()
-        };
+            if (textEditor == null) return;
+            textEditor.SyntaxHighlighting = lang switch
+            {
+                LanguageType.ASM => ApplyASMHighlighting(),
+                LanguageType.C => ApplyCHighlighting(),
+                _ => ApplyCHighlighting()
+            };
+        }
     }
+
     private static CustomHighlightingDefinition ApplyASMHighlighting()
     {
         // 1. Создаем пустую разметку правил синтаксиса
@@ -180,6 +184,14 @@ public static partial class CastomHighlightingManager
             }
         });
 
+        ruleSet.Rules.Add(new HighlightingRule
+        {
+            Regex = SyntaxHighlighter.IncludeDirective(),
+            Color = new HighlightingColor
+            {
+                Foreground = new SimpleHighlightingBrush((Color)ColorConverter.ConvertFromString("#C586C0"))
+            }
+        });
         return new CustomHighlightingDefinition(ruleSet);
     }
 }

@@ -33,17 +33,17 @@ namespace Kernel.ProcessorSystem
         }
 
 
-        public static NotificationType TypeNotification(BiosStatus status) => status switch
+        public static LogLevel TypeNotification(BiosStatus status) => status switch
         {
-            BiosStatus.Success => NotificationType.Log,
-            BiosStatus.SegmentationFault => NotificationType.Error,
-            BiosStatus.AlignmentFault => NotificationType.Error,
-            BiosStatus.ReadViolation => NotificationType.Error,
-            BiosStatus.EndProgramm => NotificationType.Log,
-            BiosStatus.NotImplementedOpCode => NotificationType.Error,
-            BiosStatus.NullDeviceInput => NotificationType.Warning,
-            BiosStatus.NullDeviceOutput => NotificationType.Error,
-            _ => NotificationType.Error
+            BiosStatus.Success => LogLevel.Log,
+            BiosStatus.SegmentationFault => LogLevel.Error,
+            BiosStatus.AlignmentFault => LogLevel.Error,
+            BiosStatus.ReadViolation => LogLevel.Error,
+            BiosStatus.EndProgramm => LogLevel.Log,
+            BiosStatus.NotImplementedOpCode => LogLevel.Error,
+            BiosStatus.NullDeviceInput => LogLevel.Warning,
+            BiosStatus.NullDeviceOutput => LogLevel.Error,
+            _ => LogLevel.Error
         };
 
         public static bool CanContinue(BiosStatus status) => status switch
@@ -64,13 +64,13 @@ namespace Kernel.ProcessorSystem
             var logLevel = TypeNotification(status);
             return logLevel switch
             {
-                NotificationType.Log => LogNotification(regLock, text, ip, can),
-                NotificationType.Warning => WarningNotification(regLock, text, ip, can),
-                NotificationType.Error => ErrorNotification(regLock, text, ip, can),
+                LogLevel.Log => LogNotification(regLock, text, ip, can),
+                LogLevel.Warning => WarningNotification(regLock, text, ip, can),
+                LogLevel.Error => ErrorNotification(regLock, text, ip, can),
                 _ => NoneNotification(regLock, text, can),
             };
         }
-        public static bool ErrorNotification(Lock regLock,string errorMessage, ulong ip, bool canContinue)
+        public static bool ErrorNotification(Lock regLock, string errorMessage, ulong ip, bool canContinue)
         {
             lock (regLock)
             {
@@ -83,7 +83,7 @@ namespace Kernel.ProcessorSystem
         {
             lock (regLock)
             {
-                LoggerProvider.Warning($"\n [ПРЕДУПРЕЖДЕНИЕ РАБОТЫ ПРОГРАММЫ] {errorMessage}, Ip [{ip}]"); 
+                LoggerProvider.Warning($"\n [ПРЕДУПРЕЖДЕНИЕ РАБОТЫ ПРОГРАММЫ] {errorMessage}, Ip [{ip}]");
             }
             return canContinue;
         }
@@ -105,11 +105,11 @@ namespace Kernel.ProcessorSystem
             }
             return canContinue;
         }
-        
-        
+
+
     }
 
-    public enum NotificationType
+    public enum LogLevel
     {
         Log,
         Warning,

@@ -1,4 +1,6 @@
-﻿namespace Compiller.C;
+﻿using System.Text;
+
+namespace Compiller.C;
 
 // ============================================================
 // 3. ПАРСЕР (без изменений)
@@ -15,10 +17,90 @@ public class Parser(List<Token> tokens)
         var program = new ProgramNode();
         while (Current.Type != TokenType.EOF)
         {
+            if (Current.Type == TokenType.Operator && Current.Value == "#")
+            {
+                Expect(TokenType.Operator, "#");
+                string directive = Expect(TokenType.Identifier).Value; // "include"
+                if (directive != "include")
+                    throw new Exception("Unknown preprocessor directive: #" + directive);
+                string filePath = Expect(TokenType.String).Value.Trim('"');
+                program.Includes.Add(filePath);
+                // точка с запятой не требуется
+                continue;
+            }
+
+            if (Current.Type == TokenType.Keyword && Current.Value == "extern")
+            {
+                Advance(); // съедаем extern
+                string type = ParseType(); // тип возврата или тип переменной
+
+                if (Current.Value == "*")
+                {
+                    Advance();
+                }
+
+                string name = Expect(TokenType.Identifier).Value;
+
+                if (Current.Value == "(") // функция
+                {
+                    Expect(TokenType.Punctuation, "(");
+                    var parameters = new List<ParameterNode>();
+                    if (Current.Value != ")")
+                    {
+                        while (true)
+                        {
+                            string paramType = ParseType();
+                            bool paramIsPtr = false;
+                            if (Current.Value == "*")
+                            {
+                                paramIsPtr = true;
+                                Advance();
+                            }
+                            string paramName = Expect(TokenType.Identifier).Value;
+                            parameters.Add(new ParameterNode(paramType, paramName)
+                            {
+                                IsPointer = paramIsPtr,
+                                PointedType = paramType
+                            });
+                            if (Current.Value != ",") break;
+                            Expect(TokenType.Punctuation, ",");
+                        }
+                    }
+                    Expect(TokenType.Punctuation, ")");
+                    Expect(TokenType.Punctuation, ";");
+
+                    var extFunc = new FunctionNode(name, type, null!)
+                    {
+                        IsExternal = true,
+                        Parameters = parameters
+                    };
+                    program.Functions.Add(extFunc);
+                }
+                else // переменная (пока не обрабатываем, но можно пропустить)
+                {
+                    // Ожидаем ';'
+                    while (Current.Value != ";") Advance();
+                    Advance(); // пропускаем ';'
+                }
+                continue; // переходим к следующему токену
+            }
+
             if (IsTypeSpecifier())
             {
                 string type = ParseType();
+
+                bool isPointer = false;
+                string pointedType = null!;
+
+                if (Current.Value == "*")
+                {
+                    isPointer = true;
+                    pointedType = type; // указатель на данный тип
+                    Advance(); // съедаем '*'
+                }
+
                 string name = Expect(TokenType.Identifier).Value;
+
                 if (Current.Type == TokenType.Punctuation && Current.Value == "(")
                 {
                     var func = ParseFunction(type, name);
@@ -26,7 +108,31 @@ public class Parser(List<Token> tokens)
                 }
                 else
                 {
-                    var varNode = ParseVariable(type, name);
+
+                    // Обработка массивов и обычных переменных
+                    VariableNode varNode;
+                    if (Current.Value == "[") // массив
+                    {
+                        Expect(TokenType.Punctuation, "[");
+                        if (Current.Type != TokenType.Number)
+                            throw new Exception("Array size must be constant");
+                        int size = int.Parse(Current.Value);
+                        Advance();
+                        Expect(TokenType.Punctuation, "]");
+                        varNode = new VariableNode(type, name)
+                        {
+                            IsArray = true,
+                            ArraySize = size,
+                            IsPointer = isPointer,
+                            PointedType = pointedType
+                        };
+                    }
+                    else
+                    {
+                        varNode = ParseVariable(type, name);
+                        varNode.IsPointer = isPointer;
+                        varNode.PointedType = pointedType;
+                    }
                     program.Globals.Add(varNode);
                     Expect(TokenType.Punctuation, ";");
                 }
@@ -56,8 +162,20 @@ public class Parser(List<Token> tokens)
             while (true)
             {
                 string paramType = ParseType();
+                bool isPointer = false;
+                if (Current.Value == "*")
+                {
+                    isPointer = true;
+                    Advance(); // съедаем '*'
+                }
                 string paramName = Expect(TokenType.Identifier).Value;
-                parameters.Add(new ParameterNode(paramType, paramName));
+                // Сохраняем информацию о том, что параметр — указатель, в ParameterNode
+                // Для этого потребуется расширить ParameterNode (см. ниже)
+                parameters.Add(new ParameterNode(paramType, paramName)
+                {
+                    IsPointer = isPointer,
+                    PointedType = paramType
+                });
                 if (Current.Value != ",") break;
                 Expect(TokenType.Punctuation, ",");
             }
@@ -90,8 +208,42 @@ public class Parser(List<Token> tokens)
             if (IsTypeSpecifier())
             {
                 string type = ParseType();
+
+                bool isPointer = false;
+                string? pointedType = null;
+                if (Current.Value == "*")
+                {
+                    isPointer = true;
+                    pointedType = type;
+                    Advance();
+                }
+
                 string name = Expect(TokenType.Identifier).Value;
-                var varNode = ParseVariable(type, name);
+
+                VariableNode varNode;
+                if (Current.Value == "[") // массив
+                {
+                    Expect(TokenType.Punctuation, "[");
+                    // размер – только константа (пока)
+                    if (Current.Type != TokenType.Number)
+                        throw new Exception("Array size must be constant");
+                    int size = int.Parse(Current.Value);
+                    Advance();
+                    Expect(TokenType.Punctuation, "]");
+                    varNode = new VariableNode(type, name)
+                    {
+                        IsArray = true,
+                        ArraySize = size,
+                        IsPointer = isPointer,
+                        PointedType = pointedType
+                    };
+                }
+                else
+                {
+                    varNode = ParseVariable(type, name);
+                    varNode.IsPointer = isPointer;
+                    varNode.PointedType = pointedType;
+                }
                 block.Statements.Add(varNode);
                 Expect(TokenType.Punctuation, ";");
             }
@@ -110,8 +262,10 @@ public class Parser(List<Token> tokens)
         "while" => ParseWhile(),
         "for" => ParseFor(),
         "return" => ParseReturn(),
+        "asm" => ParseInlineAsm(),
         _ => ParseStatement(),
     };
+
 
     private IfNode ParseIf()
     {
@@ -146,18 +300,87 @@ public class Parser(List<Token> tokens)
     {
         Expect(TokenType.Keyword, "for");
         Expect(TokenType.Punctuation, "(");
+
         ASTNode? init = null;
-        if (Current.Value != ";") init = ParseExpression();
+        if (Current.Value != ";")
+        {
+            if (IsTypeSpecifier())
+            {
+                // Объявление переменной: int i = 0
+                string type = ParseType();
+
+                bool isPointer = false;
+                string? pointedType = null;
+                if (Current.Value == "*")
+                {
+                    isPointer = true;
+                    pointedType = type;
+                    Advance();
+                }
+
+                string name = Expect(TokenType.Identifier).Value;
+
+                ASTNode? initializer = null;
+                if (Current.Value == "=")
+                {
+                    Expect(TokenType.Operator, "=");
+                    initializer = ParseExpression();
+                }
+                init = new VariableNode(type, name, initializer)
+                {
+                    IsPointer = isPointer,
+                    PointedType = pointedType
+                };
+            }
+            else
+            {
+                init = ParseExpression();
+            }
+        }
         Expect(TokenType.Punctuation, ";");
+
         ASTNode? condition = null;
-        if (Current.Value != ";") condition = ParseExpression();
+        if (Current.Value != ";")
+            condition = ParseExpression();
         Expect(TokenType.Punctuation, ";");
+
         ASTNode? increment = null;
-        if (Current.Value != ")") increment = ParseExpression();
+        if (Current.Value != ")")
+            increment = ParseExpression();
         Expect(TokenType.Punctuation, ")");
+
         Expect(TokenType.Punctuation, "{");
         var body = ParseBlock();
         return new ForNode(init, condition, increment, body);
+    }
+
+    private InlineAsmNode ParseInlineAsm()
+    {
+        Expect(TokenType.Keyword, "asm");
+        Expect(TokenType.Punctuation, "{");
+
+        var sb = new StringBuilder();
+        int braceDepth = 1;
+        while (braceDepth > 0)
+        {
+            if (Current.Type == TokenType.Punctuation && Current.Value == "{")
+                braceDepth++;
+            else if (Current.Type == TokenType.Punctuation && Current.Value == "}")
+            {
+                braceDepth--;
+                if (braceDepth == 0) break;
+            }
+
+            // Добавляем токен к строке asm-кода
+            sb.Append(Current.Value);
+            sb.Append(' '); // простейшее восстановление пробелов
+            Advance();
+        }
+
+        Expect(TokenType.Punctuation, "}");
+
+        string asmCode = sb.ToString().Trim();
+        return new InlineAsmNode(asmCode);
     }
 
     private ReturnNode ParseReturn()
@@ -185,13 +408,16 @@ public class Parser(List<Token> tokens)
         {
             Advance();
             ASTNode right = ParseAssignment();
-            if (left is IdentifierNode id)
-                return new AssignmentNode(id.Name, right);
-            throw new Exception("Invalid assignment target");
+            return left switch
+            {
+                IdentifierNode id => new AssignmentNode(id.Name, right) { LValue = left },
+                ArrayAccessNode arr => new AssignmentNode(arr.ArrayName, right, arr.Index) { LValue = left },
+                DereferenceNode => new AssignmentNode(null!, right) { LValue = left },
+                _ => throw new Exception("Invalid assignment target"),
+            };
         }
         return left;
     }
-
     private ASTNode ParseLogicalOr()
     {
         ASTNode left = ParseLogicalAnd();
@@ -281,6 +507,8 @@ public class Parser(List<Token> tokens)
             string op = Current.Value;
             Advance();
             ASTNode operand = ParseUnary();
+            if (op == "*") return new DereferenceNode(operand);
+            if (op == "&") return new AddressOfNode(operand);
             return new UnaryOpNode(op, operand);
         }
         return ParsePrimary();
@@ -288,42 +516,44 @@ public class Parser(List<Token> tokens)
 
     private ASTNode ParsePrimary()
     {
+
+        // Проверяем встроенные функции ввода-вывода
+        if (Current.Type == TokenType.Keyword && Current.Value == "new")
+        {
+            Advance(); // съедаем "new"
+            string type = ParseType();
+            Expect(TokenType.Punctuation, "[");
+            ASTNode sizeExpr = ParseExpression();
+            Expect(TokenType.Punctuation, "]");
+            return new NewArrayNode(type, sizeExpr);
+        }
+
         if (Current.Type == TokenType.Number)
         {
-            long value = long.Parse(Current.Value);
+            string numStr = Current.Value;
+            long value;
+            if (numStr.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+                value = Convert.ToInt64(numStr, 16);
+            else
+                value = long.Parse(numStr);
             Advance();
             return new NumberNode(value);
         }
+
         if (Current.Type == TokenType.Identifier)
         {
             string name = Current.Value;
             Advance();
-            if (Current.Type == TokenType.Punctuation && Current.Value == "(")
+            if (Current.Type == TokenType.Punctuation && Current.Value == "[")
             {
-                // Проверяем встроенные функции ввода-вывода
-                if (name == "_in_port")
-                {
-                    Expect(TokenType.Punctuation, "(");
-                    ASTNode port = ParseExpression();
-                    Expect(TokenType.Punctuation, ",");
-                    // Ожидаем идентификатор (переменную)
-                    if (Current.Type != TokenType.Identifier)
-                        throw new Exception("Expected identifier as second argument of _in_port");
-                    IdentifierNode dataVar = new(Current.Value);
-                    Advance();
-                    Expect(TokenType.Punctuation, ")");
-                    return new InPortNode(port, dataVar);
-                }
-                else if (name == "_out_port")
-                {
-                    Expect(TokenType.Punctuation, "(");
-                    ASTNode port = ParseExpression();
-                    Expect(TokenType.Punctuation, ",");
-                    ASTNode value = ParseExpression();
-                    Expect(TokenType.Punctuation, ")");
-                    return new OutPortNode(port, value);
-                }
-
+                // доступ к массиву a[i]
+                Expect(TokenType.Punctuation, "[");
+                ASTNode index = ParseExpression();
+                Expect(TokenType.Punctuation, "]");
+                return new ArrayAccessNode(name, index);
+            }
+            else if (Current.Type == TokenType.Punctuation && Current.Value == "(")
+            {
                 // Обычный вызов функции
                 var call = new FunctionCallNode(name);
                 Expect(TokenType.Punctuation, "(");
@@ -339,7 +569,10 @@ public class Parser(List<Token> tokens)
                 Expect(TokenType.Punctuation, ")");
                 return call;
             }
-            return new IdentifierNode(name);
+            else
+            {
+                return new IdentifierNode(name);
+            }
         }
         if (Current.Value == "(")
         {

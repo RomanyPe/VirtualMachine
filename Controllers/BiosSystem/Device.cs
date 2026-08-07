@@ -3,12 +3,14 @@ using Kernel.ProcessorSystem;
 using Kernel.RamSystem;
 using System.Diagnostics;
 using System.Text;
+using static Kernel.ProcessorSystem.Processor;
 
 namespace Kernel.BiosSystem;
 
 
 public class Device : IDisposable
 {
+    private readonly byte[] _ioMemory;
     private static readonly StringBuilder _sharedBuilder = new(1024);
     private readonly NameDeviceToken _nameDevice;
     private readonly MemoryBus _ram;
@@ -18,6 +20,8 @@ public class Device : IDisposable
     private readonly Lock _consoleLock = new();
     private long stepCounter = 0;
     public ulong BaseAddress;
+
+    public DateTime CreatedAt { get; } = DateTime.Now;
 
     public byte[] RamArray => _ram.Memory;
     public bool IsRunning => _processor.IsRunning;
@@ -31,31 +35,35 @@ public class Device : IDisposable
         _portBus = new PortBus(initData.SizePort, initData.SizeDev, _nameDevice, initData.NamePortBus);
         _ram = new MemoryBus(initData.Size, _nameDevice, initData.NameRam, biosFirmware);
         _processor = ProcessorPoolEmulator.Rent(_ram, _nameDevice, _portBus, _consoleLock, initData.NameProc);
+        _ioMemory = new byte[(int)initData.SizeDev];
     }
 
     public Device(byte[] biosFirmware, PortBus portBus, RamSize size, string? name = null!, string? nameProc = null!, string? nameRam = null!)
     {
         _nameDevice = new(name);
         _portBus = portBus;
-        _ram = new MemoryBus(size, _nameDevice,  nameRam, biosFirmware);
+        _ram = new MemoryBus(size, _nameDevice, nameRam, biosFirmware);
         _processor = new Processor(_ram, _nameDevice, _portBus, _consoleLock, nameProc);
+        _ioMemory = new byte[(int)SizePortOnDev.Size16B];
     }
 
-    public Device CreateDeviceForPort(RamSize size, byte[] biosFirmware, string? name = null!, string? nameProc = null!, string? nameRam = null!)
+    public Device CreateDeviceForPort(RamSize size, byte[] biosFirmware, string? name = null!, string? nameProc = null!, string? nameRam = null!, string? namePort = null!)
     {
-        var dev = new Device(biosFirmware, _portBus, size, name, nameProc, nameRam);
+        int freeSector = _portBus.AllocateFreeSector(); // нужно добавить этот метод в PortBus
+        if (freeSector < 0) return null!;
+        var dev = new Device(biosFirmware, new(size, SizePort.Size16KB, SizePortOnDev.Size16B, name.AsSpan(), nameProc.AsSpan(), nameRam.AsSpan(), namePort.AsSpan()));
+        _portBus.RegisterDevice(dev, (uint)freeSector);
         return dev;
     }
 
-    public void GetAllData()
+    public string GetAllData()
     {
-        if (_processor.IsRunning) return;
-        _processor.GetAllData();
+        return _processor.IsRunning ? string.Empty : _processor.GetAllData();
     }
 
-    private void ConsoleLock(string text, NotificationType level = NotificationType.Log)
+    private void ConsoleLock(string text, LogLevel level = LogLevel.Log)
     {
-        DeviceHelpers.LogFromDevice(in _nameDevice, text, level);
+        LoggerKernel.LogFromDevice(in _nameDevice, text, level);
     }
 
     public void LoadProgram(byte[] program, ulong loadAddress)
@@ -69,15 +77,38 @@ public class Device : IDisposable
         }
     }
 
-    public void LaunchDevice(ulong? start = null, bool isDebug = false, int delay = 0, bool snowTimer = false)
+    public bool TryLoadProgramFast(ReadOnlySpan<byte> program, ulong loadAddress)
     {
-        
+        var ram = _ram.Memory;
+        ulong ramLength = (ulong)ram.Length;
+        ulong programLength = (ulong)program.Length;
+
+        if (loadAddress + programLength < loadAddress || loadAddress + programLength > ramLength)
+        {
+            return false;
+        }
+
+        Span<byte> target = ram.AsSpan((int)loadAddress, program.Length);
+        program.CopyTo(target);
+
+        return true;
+    }
+
+    public void LaunchDevice(ulong? start,
+                             bool isDebug,
+                             int delay,
+                             bool snowTimer,
+                             Action startAct,
+                             Action everyStep,
+                             Action endAct)
+    {
+
         ConsoleLock("\n === ЗАПУСК ПОТОКА СИМУЛЯЦИИ ===");
 
         ulong startIndex = start ?? _ram.RamSize;
         stepCounter = 0;
         // Создаем новый поток и передаем ему метод выполнения
-        _simulationThread = new Thread(() => RunSimulationLoop(startIndex, isDebug, delay, snowTimer))
+        _simulationThread = new Thread(() => RunSimulationLoop(startIndex, isDebug, delay, snowTimer, startAct, everyStep, endAct))
         {
             Name = $"VM_Thread_{_nameDevice}",
             IsBackground = true
@@ -91,13 +122,14 @@ public class Device : IDisposable
     {
 
         ConsoleLock("\n === ЗАПУСК КОМПЬЮТЕРА С ТОЧКАМИ ОСТАНОВА СИМУЛЯЦИИ ===");
+
         stepCounter = 0;
         ulong startIndex = start ?? _ram.RamSize;
 
         _processor.LaunchProgramm(startIndex);
     }
 
-    public void StopDevice(int timeoutMilliseconds = 2000)
+    public void StopDevice(int timeoutMilliseconds = 10000)
     {
         // 1. Проверяем, запущен ли поток вообще
         if (_simulationThread == null || !_simulationThread.IsAlive)
@@ -119,20 +151,23 @@ public class Device : IDisposable
             ConsoleLock("[Критическая ошибка] Поток ВМ не ответил на запрос остановки вовремя.");
         }
 
-        
+
         _simulationThread = null;
     }
 
-    public void RunSimulationLoop(ulong start, bool isDebug = false, int delay = 0, bool launchTimer = false)
+    public void InitHeap(ulong hp) => _processor.InitReg(hp);
+
+    public void RunSimulationLoop(ulong start, bool isDebug, int delay, bool launchTimer, Action startAct, Action everyStep, Action endAct)
     {
-        Stopwatch? sw = null!;
+        startAct?.Invoke();
+        Stopwatch? sw = null;
         if (launchTimer)
         {
             sw = Stopwatch.StartNew();
         }
-        
+
         _processor.LaunchProgramm(start);
-        
+
         while (_processor.IsRunning)
         {
             _processor.Step(isDebug);
@@ -141,9 +176,10 @@ public class Device : IDisposable
             {
                 DebugOutput();
             }
-
+            everyStep?.Invoke();
             Thread.Sleep(delay);
         }
+
         if (sw != null)
         {
             sw.Stop();
@@ -152,6 +188,9 @@ public class Device : IDisposable
             PrintFullTimeSpanInfo(ts);
             ConsoleLock($"Время симуляции: {elapsedTime}");
         }
+
+        endAct?.Invoke();
+        //GetAllData();
         ConsoleLock("\n === ЗАВЕРШЕНИЕ (HALT) ===");
     }
 
@@ -187,14 +226,17 @@ public class Device : IDisposable
         }
     }
 
-    public RAMResultInt8 Read(ulong offset)
+    public byte ReadPort(ulong offset)
     {
-        return _ram.ReadInt8LE(offset);
+        if (offset >= (ulong)_ioMemory.Length)
+            return 0; // или ошибка
+        return _ioMemory[offset];
     }
 
-    public RAMResultInt8 Write(ulong offset, byte value)
+    public void WritePort(ulong offset, byte value)
     {
-        return _ram.WriteInt8LE(offset, value);
+        if (offset < (ulong)_ioMemory.Length)
+            _ioMemory[offset] = value;
     }
 
 
@@ -208,10 +250,10 @@ public class Device : IDisposable
 
     }
 
-    public void NextStepProcessorCount(ulong count = 5,bool isDebug = false)
+    public void NextStepProcessorCount(int count = 5, bool isDebug = false)
     {
         if (!_processor.IsRunning) return;
-        for (ulong i = 0; i < count; i++) 
+        for (int i = 0; i < count; i++)
         {
             _processor.Step(isDebug);
             stepCounter++;
@@ -221,9 +263,9 @@ public class Device : IDisposable
 
     private void DebugOutput()
     {
-        ulong currentIp = _processor.GetRegValue(Processor.RegType.rIP);
-        ConsoleLock($"\n[Такт {stepCounter}] Выполнен IP: {currentIp} -> Следующий IP: {_processor.GetRegValue(Processor.RegType.rIP)}");
-        ConsoleLock($"r0: {_processor.GetRegValue(Processor.RegType.r0)} | r1: {_processor.GetRegValue(Processor.RegType.r1)} | rFL: {_processor.GetRegValue(Processor.RegType.rFL)}");
+        ulong currentIp = _processor.GetRegValue(RegType.rIP);
+        ConsoleLock($"\n[Такт {stepCounter}] Выполнен IP: {currentIp} -> Следующий IP: {_processor.GetRegValue(RegType.rIP)}");
+        ConsoleLock($"r0: {_processor.GetRegValue(RegType.r0)} | r1: {_processor.GetRegValue(RegType.r1)} | rFL: {_processor.GetRegValue(RegType.rFL)}");
     }
 
     public void Dispose()

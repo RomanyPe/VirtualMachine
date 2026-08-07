@@ -4,9 +4,9 @@ using System.Runtime.CompilerServices;
 
 namespace ASM_gen.Information_Window;
 
-public class MemoryDataProvider(byte[] rawMemory) : IList
+public class MemoryDataProvider(ReadOnlyMemory<byte> rawMemory) : IList
 {
-    private readonly byte[] _rawMemory = rawMemory;
+    private readonly ReadOnlyMemory<byte> _rawMemory = rawMemory;
     private const int BytesPerRow = 16;
 
     // Кэш для активных UI объектов строк, чтобы иметь к ним доступ из таймера
@@ -67,7 +67,7 @@ public class MemoryDataProvider(byte[] rawMemory) : IList
 public class RowViewModel : INotifyPropertyChanged
 {
     private readonly ulong _address;
-    private readonly byte[] _memory;
+    private readonly ReadOnlyMemory<byte> _memory;
 
     // Кэш для проверки реальных изменений данных
     private ulong _cachedHash1;
@@ -75,7 +75,7 @@ public class RowViewModel : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public RowViewModel(ulong address, byte[] memory)
+    public RowViewModel(ulong address, ReadOnlyMemory<byte> memory)
     {
         _address = address;
         _memory = memory;
@@ -90,7 +90,7 @@ public class RowViewModel : INotifyPropertyChanged
     private (ulong, ulong) GetCurrentHash()
     {
         int length = Math.Min(16, _memory.Length - (int)_address);
-        ReadOnlySpan<byte> span = _memory.AsSpan((int)_address, length);
+        ReadOnlySpan<byte> span = _memory.Span.Slice((int)_address, length);
         ulong h1 = 0;
         ulong h2 = 0;
 

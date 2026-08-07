@@ -6,13 +6,16 @@ namespace ASM_gen.Utils;
 
 public static class EnumExtensions
 {
-    public static string GetDescription(this Enum value)
+    extension(Enum value)
     {
-        FieldInfo? field = value.GetType().GetField(value.ToString());
-        if (field == null) return value.ToString();
+        public string GetDescription()
+        {
+            FieldInfo? field = value.GetType().GetField(value.ToString());
+            if (field == null) return value.ToString();
 
-        DescriptionAttribute? attribute = field.GetCustomAttribute<DescriptionAttribute>();
-        return attribute?.Description ?? value.ToString();
+            DescriptionAttribute? attribute = field.GetCustomAttribute<DescriptionAttribute>();
+            return attribute?.Description ?? value.ToString();
+        }
     }
 
     public static IEnumerable<EnumItem> GetEnumItems<T>() where T : Enum

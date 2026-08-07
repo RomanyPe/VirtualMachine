@@ -18,14 +18,13 @@
   </ItemGroup>
 
   <ItemGroup>
-	<ProjectReference Include="..\Compiller\Compiller.csproj" />
-	<ProjectReference Include="..\Controllers\Kernel.csproj" />
+	<ProjectReference Include="..\VMApplication\VMApplication.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="CodeForTest_C.md">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
+	<None Update="CodeForTest_C.md">
+	  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	</None>
   </ItemGroup>
 
 	<PropertyGroup>

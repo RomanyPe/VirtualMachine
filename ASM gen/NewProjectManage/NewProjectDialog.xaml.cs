@@ -28,7 +28,7 @@ namespace ASM_gen.NewProjectManage
             bool isAsm = ((ComboBoxItem)LanguageBox.SelectedItem).Content.ToString() == "Ассемблер";
             try
             {
-                CreatedProjectPath = DirectoryManager.CreateNewProject(name, isAsm);
+                CreatedProjectPath = DirManager.CreateNewProject(name, isAsm);
                 DialogResult = true;
                 Close();
             }

@@ -1,123 +1,180 @@
 ﻿using ASM_gen.Information_Window;
-using ASM_gen.Utils.Device;
-using Compiller.Emulation;
-using Kernel.Utilites;
+using ASM_gen.ViewModels;
 using Microsoft.Win32;
+using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
+using VMApplication;
 
-namespace ASM_gen
+namespace ASM_gen;
+
+public partial class DeviceManagerWindow : Window
 {
-    /// <summary>
-    /// Логика взаимодействия для DeviceManagerWindow.xaml
-    /// </summary>
-    public partial class DeviceManagerWindow : Window
+    private const string NameSystem = "Manager Device UI Component";
+    private readonly VMHost _host;
+    private readonly IOutputView _outputView;
+    private DeviceView? _selectedDevice;
+    private DeviceData? _device;
+
+    public ObservableCollection<DeviceView> Devices { get; set; } = [];
+
+    public readonly Action<DeviceData> CurrentDevice;
+    public readonly Action<LaunchModeDevice> CurrenLaunchModel;
+    public DeviceManagerWindow(IOutputView outputView, VMHost host, Action<DeviceData> returned, Action<LaunchModeDevice> currenLaunchModel)
     {
-        private readonly Emulator _emulator;
-        //private readonly IDEPage _page;
-        private ManagerDevices.DeviceInfo? _selectedDevice;
+        InitializeComponent();
+        DeviceGrid.ItemsSource = Devices;
 
-        public DeviceManagerWindow(/*IDEPage page,*/Emulator emulator)
+        Activated += UpdateTable!;
+        _host = host;
+        _outputView = outputView;
+
+        CurrentDevice = returned;
+        CurrenLaunchModel = currenLaunchModel;
+    }
+
+    public void SetDeviceData(DeviceData device) => _device = device;
+    private void UpdateTable(object sender, EventArgs e) => RefreshDeviceList();
+
+    private void Window_Loaded(object sender, RoutedEventArgs e) => RefreshDeviceList();
+
+    public void RefreshDeviceList()
+    {
+        var arr = _host.GetAllDevices().ToList();
+
+        Devices.Clear();
+        foreach (var device in arr)
         {
-            InitializeComponent();
-            _emulator = emulator;
-            Activated += UpdateTable!;
-            //_page = page;
+            Devices.Add(device);
         }
-        private void UpdateTable(object sender, EventArgs e) => RefreshDeviceList();
+    }
 
-        private void Window_Loaded(object sender, RoutedEventArgs e)
+
+    private void DeviceGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        _selectedDevice = DeviceGrid.SelectedItem as DeviceView?;
+    }
+
+    private void ShowMemory_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = _selectedDevice;
+        if (selected == null) return;
+        var memory = selected.Value.Ram;
+        var infoWindow = new InformationWindow(memory)
         {
+            Owner = this
+        };
+        infoWindow.Show();
+    }
+
+    private void LoadBin_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = _selectedDevice;
+        if (selected == null || _device == null)
+        {
+            _outputView.Append($" {NameSystem} Выберите устройство в списке.", LogLevel.Error);
+            return;
+        }
+
+        var dialog = new OpenFileDialog
+        {
+            Filter = "Binary files (*.bin)|*.bin|All files (*.*)|*.*",
+            Title = "Выберите .bin файл программы"
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            int deviceId = selected.Value.Id;
+            byte[] program = System.IO.File.ReadAllBytes(dialog.FileName);
+            LaunchModeDevice d = _device.LoadProgram(program, ProjectBuilder.BaseAdressProgramm);
+            CurrentDevice.Invoke(_device);
+            CurrenLaunchModel.Invoke(d);
+            _outputView?.Append($" {NameSystem} Программа загружена в устройство {deviceId}.");
+        }
+    }
+
+    private void ChangeSector_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedDevice == null)
+        {
+            _outputView.Append($" {NameSystem}Выберите устройство в списке.", LogLevel.Error);
+            return;
+        }
+
+        if (!uint.TryParse(NewSectorBox.Text, out uint newSector))
+        {
+            _outputView.Append($" {NameSystem}Введите корректный номер сектора.", LogLevel.Error);
+            return;
+        }
+
+        bool success = _host.ChangeDeviceSector(_selectedDevice.Value.Id, newSector);
+        if (success)
+        {
+            _outputView.Append($" {NameSystem}Сектор изменён на {newSector}.");
             RefreshDeviceList();
         }
-
-        public void RefreshDeviceList()
+        else
         {
-            DeviceGrid.ItemsSource = _emulator.AllDevices.ToList();
+            _outputView.Append($" {NameSystem} Не удалось изменить сектор (возможно, занят).", LogLevel.Error);
         }
 
-        private void DeviceGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    }
+
+    private void SetMainDevice_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedDevice == null)
         {
-            _selectedDevice = DeviceGrid.SelectedItem as ManagerDevices.DeviceInfo?;
+            _outputView.Append($" {NameSystem} Сначала выберите устройство.", LogLevel.Error);
+            return;
         }
-
-        private void ShowMemory_Click(object sender, RoutedEventArgs e)
+        
+        _host.SetMainDevice(_selectedDevice.Value.Id);
+        DeviceData? d = _host.GetDeviceData(_selectedDevice.Value.Id);
+        _device = d;
+        if (d == null)
         {
-            if (_selectedDevice?.Device == null) return;
-
-            byte[] memory = _selectedDevice.Value.Device.RamArray;
-            var infoWindow = new InformationWindow(memory)
-            {
-                Owner = this
-            };
-            infoWindow.Show();
+            _outputView.Append($" {NameSystem} Выбранное устройство не имеет технической логики в программе, возврат из API вернул null", LogLevel.Error);
+            return;
         }
+        
+        CurrentDevice.Invoke(d);
+        _outputView.Append($" {NameSystem} Устройство {_selectedDevice.Value.Id} теперь основное.");
+    }
 
-        private void LoadBin_Click(object sender, RoutedEventArgs e)
+    private void BtnCreateDevice_Click(object sender, RoutedEventArgs e)
+    {
+        RefreshDeviceList();
+        CreateDevice();
+    }
+
+    public void CreateDevice()
+    {
+        var dialog = new CreateDeviceDialog
         {
-            if (_selectedDevice?.Device == null)
-            {
-                MessageBox.Show("Выберите устройство в списке.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            var dialog = new OpenFileDialog
-            {
-                Filter = "Binary files (*.bin)|*.bin|All files (*.*)|*.*",
-                Title = "Выберите .bin файл программы"
-            };
-
-            if (dialog.ShowDialog() == true)
-            {
-                byte[] program = System.IO.File.ReadAllBytes(dialog.FileName);
-                _selectedDevice.Value.Device.LoadProgram(program, 0x0000);
-                MessageBox.Show($"Программа загружена в устройство {_selectedDevice.Value.Id}.", "Успех",
-                                MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-        }
-
-        private void ChangeSector_Click(object sender, RoutedEventArgs e)
+            Owner = this
+        };
+        if (dialog.ShowDialog() == true)
         {
-            if (_selectedDevice?.Device == null)
+            DeviceCreationResult? res = dialog.ViewModel.Result;
+            if (res != null)
             {
-                MessageBox.Show("Выберите устройство в списке.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            if (!uint.TryParse(NewSectorBox.Text, out uint newSector))
-            {
-                MessageBox.Show("Введите корректный номер сектора.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            bool success = _emulator.ChangeDeviceSector(_selectedDevice.Value.Id, newSector);
-            if (success)
-            {
-                MessageBox.Show($"Сектор изменён на {newSector}.", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
-                RefreshDeviceList();
-            }
-            else
-            {
-                MessageBox.Show("Не удалось изменить сектор (возможно, занят).", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+                int deviceId = _host.CreateDevice(res.Bios, res.RamSize, res.Sector, 
+                                                  res.DeviceName, res.ProcName,
+                                                  res.RamName, res.PortBusName);
+                if (deviceId != -1)
+                {
+                    _outputView.Append($" {NameSystem} Устройство создано с ID: {deviceId}");
+                }
+                else
+                {
+                    _outputView.Append($" {NameSystem} Не удалось создать устройство", LogLevel.Error);
+                }
             }
         }
+    }
 
-        private void SetMainDevice_Click(object sender, RoutedEventArgs e)
-        {
-            if (_selectedDevice == null)
-            {
-                MessageBox.Show("Сначала выберите устройство.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-            _emulator.SetMainDevice(_selectedDevice.Value.Id);
-            MessageBox.Show($"Устройство {_selectedDevice.Value.Id} теперь основное.", "Успех",
-                            MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-
-        private void BtnCreateDevice_Click(object sender, RoutedEventArgs e)
-        {
-            RefreshDeviceList();
-            this.CreateDevice(_emulator);
-        }
+    private void BtnUpdateGrid_Click(object sender, RoutedEventArgs e)
+    {
+        
     }
 }

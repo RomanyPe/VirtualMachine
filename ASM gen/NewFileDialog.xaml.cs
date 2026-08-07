@@ -1,7 +1,6 @@
-﻿using ASM_gen.ProjectManage.Data;
-using Compiller.Emulation;
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
+using VMApplication;
 
 namespace ASM_gen
 {

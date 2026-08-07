@@ -14,7 +14,7 @@ public partial class InformationWindow : Window
     private readonly MemoryDataProvider? _provider;
     private VirtualizingStackPanel? _panel;
 
-    public InformationWindow(byte[] deviceMemory)
+    public InformationWindow(ReadOnlyMemory<byte> deviceMemory)
     {
         InitializeComponent();
 

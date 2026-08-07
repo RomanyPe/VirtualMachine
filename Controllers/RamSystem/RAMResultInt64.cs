@@ -97,7 +97,7 @@ public readonly struct RAMResultInt16
         NameDeviceToken = nameDeviceToken;
         Data = 0;
         _statusAndAddress = ((ulong)status << 48) | (faultAddress & 0x0000FFFFFFFFFFFFUL);
-        
+
     }
 }
 

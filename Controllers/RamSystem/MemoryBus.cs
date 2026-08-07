@@ -75,12 +75,12 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
 
         if (address + 4 <= _ramSize)
             return MemoryBusHelpers.GenerateInt32Le(_memory.AsSpan((int)address, 4));
-        
+
 
         ulong biosAddress = address - _biosRomStartCode;
         if (biosAddress + 4 <= _biosRomSize)
             return MemoryBusHelpers.GenerateInt32Le(_biosRom.AsSpan((int)biosAddress, 4));
-        
+
 
         return new RAMResultInt32(BiosStatus.SegmentationFault, address, _nameDevice);
     }

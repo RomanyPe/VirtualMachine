@@ -3,7 +3,7 @@ using System.Runtime.CompilerServices;
 
 namespace Kernel.BiosSystem;
 
-public static class DeviceHelpers
+public static class LoggerKernel
 {
     // Оптимизированный общий метод для вывода в консоль БЕЗ создания строки интерполяции
     private static void WriteToConsoleWithColor(ReadOnlySpan<char> prefix, string text, ConsoleColor? color = null)
@@ -37,20 +37,20 @@ public static class DeviceHelpers
         });
     }
 
-    public static void LogFromDevice(in NameDeviceToken nameDevice, string text, NotificationType level = NotificationType.Log)
+    public static void LogFromDevice(in NameDeviceToken nameDevice, string text, LogLevel level = LogLevel.Log)
     {
         ReadOnlySpan<char> nameSpan = nameDevice.Name.AsSpan();
         ExecuteLog(nameSpan, text, level);
     }
 
-    public static void LogFromSystem(string nameSystem, string text, NotificationType level = NotificationType.Log)
+    public static void LogFromSystem(string nameSystem, string text, LogLevel level = LogLevel.Log)
     {
         ReadOnlySpan<char> nameSpan = nameSystem.AsSpan();
         ExecuteLog(nameSpan, text, level);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private static void ExecuteLog(ReadOnlySpan<char> prefix, string text, NotificationType level)
+    private static void ExecuteLog(ReadOnlySpan<char> prefix, string text, LogLevel level)
     {
         if (!LoggerProvider.UseConsole)
         {
@@ -58,8 +58,8 @@ public static class DeviceHelpers
 
             switch (level)
             {
-                case NotificationType.Warning: LoggerProvider.Warning(fullMessage); break;
-                case NotificationType.Error: LoggerProvider.Error(fullMessage); break;
+                case LogLevel.Warning: LoggerProvider.Warning(fullMessage); break;
+                case LogLevel.Error: LoggerProvider.Error(fullMessage); break;
                 default: LoggerProvider.Info(fullMessage); break;
             }
         }
@@ -67,10 +67,10 @@ public static class DeviceHelpers
         {
             switch (level)
             {
-                case NotificationType.Warning:
+                case LogLevel.Warning:
                     WriteToConsoleWithColor(prefix, text, ConsoleColor.Yellow);
                     break;
-                case NotificationType.Error:
+                case LogLevel.Error:
                     WriteToConsoleWithColor(prefix, text, ConsoleColor.Red);
                     break;
                 default:

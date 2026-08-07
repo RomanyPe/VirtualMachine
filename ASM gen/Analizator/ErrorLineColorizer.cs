@@ -7,7 +7,7 @@ namespace ASM_gen.Analizator;
 public class ErrorLineColorizer : DocumentColorizingTransformer
 {
     // Храним номера строк с ошибками (1-based индексация, как в AvalonEdit)
-    public HashSet<int> ErrorLines { get; } = [];
+    public HashSet<int> ErrorLines = [];
 
     protected override void ColorizeLine(DocumentLine line)
     {

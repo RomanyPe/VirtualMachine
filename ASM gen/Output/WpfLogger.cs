@@ -1,24 +1,51 @@
-﻿using Kernel.BiosSystem;
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Threading;
+using VMApplication;
 
 namespace ASM_gen.Output;
 
-
-public class WpfLogger(RichTextBox outputBox) : ILogger
+public class WpfOutputView : IOutputView, ILogger   // ILogger оставлен для совместимости с Kernel
 {
-    private readonly Dispatcher _dispatcher = outputBox.Dispatcher;
-    private readonly RichTextBox _outputBox = outputBox ?? throw new ArgumentNullException(nameof(outputBox));
-    private readonly Paragraph _paragraph = new();
-
-    private static readonly Action<(WpfLogger Arg1, string Arg2, Color Arg3)> LogDelegate =
-    static state => state.Arg1.AppendInternal(state.Arg2, state.Arg3);
-
+    private readonly Dispatcher _dispatcher;
+    private readonly RichTextBox _outputBox;
+    private readonly Paragraph _paragraph;
     private static readonly ConcurrentDictionary<Color, SolidColorBrush> BrushCache = new();
 
+    public WpfOutputView(RichTextBox outputBox)
+    {
+        _outputBox = outputBox ?? throw new ArgumentNullException(nameof(outputBox));
+        _dispatcher = outputBox.Dispatcher;
+        _paragraph = new Paragraph();
+
+        _outputBox.Document.Blocks.Clear();
+        _outputBox.Document.Blocks.Add(_paragraph);
+    }
+
+    // Реализация IOutputView
+    public void Append(string message, LogLevel level)
+    {
+        Color color = level switch
+        {
+            LogLevel.Log => Colors.WhiteSmoke,
+            LogLevel.Warning => Colors.Yellow,
+            LogLevel.Error => Colors.Red,
+            _ => Colors.Gray
+        };
+        AppendMessage(message, color);
+    }
+
+    public void Clear()
+    {
+        if (_dispatcher.CheckAccess())
+            ClearInternal();
+        else
+            _dispatcher.Invoke(ClearInternal);
+    }
+
+    // Реализация ILogger (для обратной совместимости с Kernel)
     public bool UseConsole { get; set; }
     public void Info(string message) => AppendMessage(message, Colors.WhiteSmoke);
     public void Warning(string message) => AppendMessage(message, Colors.Yellow);
@@ -26,64 +53,32 @@ public class WpfLogger(RichTextBox outputBox) : ILogger
 
     private void AppendMessage(string message, Color color)
     {
-        // Выполняем в потоке UI
         if (_dispatcher.CheckAccess())
-        {
             AppendInternal(message, color);
-        }
         else
-        {
-            _dispatcher.BeginInvoke(LogDelegate, (Arg1: this, Arg2: message, Arg3: color));
-        }
+            _dispatcher.BeginInvoke(new Action(() => AppendInternal(message, color)));
     }
 
     private void AppendInternal(string message, Color color)
     {
-        SolidColorBrush brush = BrushCache.GetOrAdd(color, ColorFactory);
-
-        Run run = new(message)
+        var brush = BrushCache.GetOrAdd(color, c =>
         {
-            Foreground = brush
-        };
-        _paragraph.Inlines.Add(run);
-
+            var b = new SolidColorBrush(c);
+            if (b.CanFreeze) b.Freeze();
+            return b;
+        });
+        _paragraph.Inlines.Add(new Run(message) { Foreground = brush });
         _paragraph.Inlines.Add(new LineBreak());
-
-        _outputBox.Document.Blocks.Add(_paragraph);
+        // Удаляем старые блоки, если нужно
+        if (_outputBox.Document.Blocks.Count == 0)
+            _outputBox.Document.Blocks.Add(_paragraph);
         _outputBox.ScrollToEnd();
-
-        BlockCollection blocks = _outputBox.Document.Blocks;
-        while (blocks.Count > 1000)
-        {
-            var firstBlock = blocks.FirstBlock;
-            if (firstBlock != null)
-            {
-                blocks.Remove(firstBlock);
-            }
-        }
     }
 
-    private static SolidColorBrush ColorFactory(Color c)
+    private void ClearInternal()
     {
-        SolidColorBrush b = new(c);
-        if (b.CanFreeze) b.Freeze();
-        return b;
-    }
-
-    public void Clear()
-    {
-        if (_dispatcher.CheckAccess())
-        {
-            _outputBox.Document.Blocks.Clear();
-            _paragraph.Inlines.Clear();   // <-- очищаем Inlines, чтобы старый текст не возвращался
-        }
-        else
-        {
-            _dispatcher.Invoke(() =>
-            {
-                _outputBox.Document.Blocks.Clear();
-                _paragraph.Inlines.Clear();
-            });
-        }
+        _outputBox.Document.Blocks.Clear();
+        _paragraph.Inlines.Clear();
+        _outputBox.Document.Blocks.Add(_paragraph);
     }
 }

@@ -26,20 +26,26 @@
             </DataGrid.Columns>
         </DataGrid>
 
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10">
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="10,10, 10, 10">
             <Button Content="Загрузить .bin" Click="LoadBin_Click" Padding="10,5" Margin="5,5,10,5"/>
             <TextBlock Text="Новый сектор:" VerticalAlignment="Center"/>
-            <TextBox x:Name="NewSectorBox" Width="50" Margin="5,5"/>
+            <TextBox x:Name="NewSectorBox" Width="30" Margin="5,10"/>
             <Button Content="Сменить сектор" Click="ChangeSector_Click" Padding="10,5" Margin="5,5"/>
             <Button Content="Сделать основным" Click="SetMainDevice_Click" Padding="10,5" Margin="10,5,5,5"/>
             <Button x:Name="BtnCreateDevice" Click="BtnCreateDevice_Click" 
                     Content="Создать устройство" Padding="10,5" Margin="10,5,5,5" />
+
         </StackPanel>
 
-        <Button Grid.Row="2" Content="Показать память (Information Window)"
-                HorizontalAlignment="Right" Margin="0,10,0,0"
-                Click="ShowMemory_Click" Padding="10,5"
-                ToolTipService.InitialShowDelay="1" 
-                ToolTip="Создать IW - Information Window, позволяет видеть в реальном времени за изменением данных у устройства"/>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,10" HorizontalAlignment="Right">
+            <Button Grid.Row="2" Content="Показать память (Information Window)"
+                    HorizontalAlignment="Right" Margin="5,10,5,5"
+                    Click="ShowMemory_Click" Padding="10,5"
+                    ToolTipService.InitialShowDelay="1" 
+                    ToolTip="Создать IW - Information Window, позволяет видеть в реальном времени за изменением данных у устройства"/>
+            
+            <Button  Grid.Row="2" x:Name="BtnUpdateGrid" Click="BtnUpdateGrid_Click" 
+                    Content="Обновить" Padding="10,5" Margin="5,10,5,5" />
+        </StackPanel>
     </Grid>
 </Window>

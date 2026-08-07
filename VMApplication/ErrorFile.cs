@@ -1,4 +1,4 @@
-﻿namespace ASM_gen.ProjectManage.Data;
+﻿namespace VMApplication;
 
 public enum ErrorFile
 {
@@ -25,3 +25,4 @@ public enum ErrorFile
     PathTooLong,            // Путь к файлу превышает лимит Windows (обычно 260 символов)
     DiskFull                // На диске закончилось свободное место при попытке сохранения
 }
+

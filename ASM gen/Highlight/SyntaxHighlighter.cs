@@ -4,6 +4,9 @@ namespace ASM_gen.Highlight
 {
     public static partial class SyntaxHighlighter
     {
+        [GeneratedRegex(@"^\s*#include\s+([<""][^>""]+[>""])", RegexOptions.Multiline)]
+        public static partial Regex IncludeDirective();
+
         // Однострочный комментарий // ...
         [GeneratedRegex(@"//.*")]
         public static partial Regex CommentSingleLine();
@@ -13,7 +16,7 @@ namespace ASM_gen.Highlight
         public static partial Regex CommentMultiLine();
 
         // Ключевые слова языка
-        [GeneratedRegex(@"\b(byte|ushort|ulong|int|char|void|if|else|while|for|return|break|continue|sizeof|struct|typedef|enum)\b")]
+        [GeneratedRegex(@"\b(byte|ushort|ulong|int|char|void|if|else|while|for|return|break|continue|extern|include)\b")]
         public static partial Regex Keyword();
 
         // Числовые литералы: десятичные и шестнадцатеричные (0x...)

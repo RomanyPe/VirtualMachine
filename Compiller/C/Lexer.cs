@@ -32,12 +32,12 @@ public class Lexer(string source)
     [
         "int", "char", "void", "if", "else", "while", "for", "return",
         "break", "continue", "sizeof", "struct", "typedef", "enum",
-        "byte", "ushort", "ulong", "struct"
+        "byte", "ushort", "ulong", "new", "asm", "extern"
     ];
 
     private static readonly HashSet<char> Operators =
     [
-        '+', '-', '*', '/', '%', '=', '!', '<', '>', '&', '|', '^', '~'
+        '+', '-', '*', '/', '%', '=', '!', '<', '>', '&', '|', '^', '~','#'
     ];
 
     private static readonly HashSet<char> Punctuation = ['(', ')', '{', '}', '[', ']', ';', ',', '.', ':'];

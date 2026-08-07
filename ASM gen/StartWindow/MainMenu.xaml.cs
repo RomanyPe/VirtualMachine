@@ -1,9 +1,9 @@
 ﻿using ASM_gen.NewProjectManage;
-using ASM_gen.ProjectManage.Data;
 using ASM_gen.ProjectManage.Managers.Static;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Navigation;
+using VMApplication;
 
 namespace ASM_gen.StartWindow
 {
@@ -19,7 +19,7 @@ namespace ASM_gen.StartWindow
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             // Вызываем ваш метод из DirectoryManager
-            _projects = await DirectoryManager.SearchProjects();
+            _projects = await DirManager.SearchProjects();
 
             // Привязываем словарь к ListBox
             LstFiles.ItemsSource = _projects;
@@ -50,7 +50,7 @@ namespace ASM_gen.StartWindow
             if (dialog.ShowDialog() == true && dialog.CreatedProjectPath != null)
             {
                 // Обновляем список проектов
-                _projects = await DirectoryManager.SearchProjects();
+                _projects = await DirManager.SearchProjects();
                 LstFiles.ItemsSource = _projects;
             }
         }

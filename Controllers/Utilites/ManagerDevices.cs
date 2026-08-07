@@ -30,10 +30,54 @@ public class ManagerDevices
 
     private readonly PortBus _portBus;
 
+    public int Count => _count;
+    public DeviceInfo FirstDeviceData => new(_denseToId[0],_devices[0]!,_size[0],
+                                             _sizeDev[0],_sectorByDenseIndex[0],
+                                             _name[0],_devices[0]!.CreatedAt);
     public ManagerDevices(PortBus portBus)
     {
         _portBus = portBus;
         Array.Fill(_sparse, -1);
+    }
+
+    public DeviceInfo? GetDeviceInfo(int i)
+    {
+        var dev = _devices[i];
+        if (dev != null) return null;
+        
+        return new(_denseToId[i], _devices[i]!, _size[i], 
+                   _sizeDev[i], _sectorByDenseIndex[i], 
+                   _name[i], _devices[i]!.CreatedAt);
+        
+    }
+    public struct DeviceInfo(int id, Device device, RamSize ramSize, SizePortOnDev portSize, uint sector, string? name, DateTime createdAt)
+    {
+        public int Id = id;
+        public Device Device { get; } = device;
+        public RamSize RamSize = ramSize;
+        public SizePortOnDev PortSize = portSize;
+        public uint Sector = sector;
+        public string? Name = name;
+        public DateTime CreatedAt = createdAt;
+    }
+
+    public IEnumerable<DeviceInfo> GetAllDevices()
+    {
+        for (int i = 0; i < _count; i++)
+        {
+            var dev = _devices[i];
+            if (dev != null)
+            {
+                yield return new(
+                    _denseToId[i],
+                    _devices[i]!,
+                    _size[i],
+                    _sizeDev[i],
+                    _sectorByDenseIndex[i],
+                    _name[i],
+                    _devices[i]!.CreatedAt);
+            }
+        }
     }
 
     public Device? GetDevice(int id)
@@ -169,5 +213,26 @@ public class ManagerDevices
             int id = _denseToId[i];
             RemoveDevice(id);
         }
+    }
+
+    public bool ChangeSector(int id, uint newSector)
+    {
+        if (id < 0 || id >= MaxCountElements) return false;
+        int denseIndex = _sparse[id];
+        if (denseIndex == -1 || denseIndex >= _count) return false;
+
+        // Проверим, не занят ли новый сектор
+        if (newSector >= _portBus.SectorCount) return false;
+        var existing = _devices[denseIndex];
+        // Попробуем зарегистрировать в новом секторе
+        if (existing != null && _portBus.RegisterDevice(existing, newSector))
+        {
+            // Открепим старый сектор
+            uint oldSector = _sectorByDenseIndex[denseIndex];
+            _portBus.UnregisterDevice(oldSector);
+            _sectorByDenseIndex[denseIndex] = newSector;
+            return true;
+        }
+        return false;
     }
 }

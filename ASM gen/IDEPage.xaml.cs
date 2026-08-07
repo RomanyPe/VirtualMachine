@@ -1,27 +1,28 @@
 ﻿using ASM_gen.Analizator;
 using ASM_gen.Output;
-using ASM_gen.ProjectManage;
+using ASM_gen.ProjectManage.Managers;
 using ASM_gen.ProjectManage.Managers.Static;
+using ASM_gen.Services;
 using ASM_gen.StartWindow;
-using Compiller.C;
-using Compiller.Emulation;
-using Kernel.BiosSystem;
-using Kernel.ControllersData;
-using Kernel.ProcessorSystem;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using VMApplication;
 
 namespace ASM_gen;
 
 public partial class IDEPage : Page
 {
+    private readonly VMHost _vmHost;
     private readonly AnalizatorOnErrors _analizator;
-    private readonly Emulator _emulator;
-    private readonly WpfLogger _logger;
+    private readonly IOutputView _outputView;
     private readonly ProjectService _projectManager;
     private readonly string _projectPath;
+    private readonly IProjectPaths _projectPaths;
     private readonly string _binDir;
+    private DeviceData? _device;
+    private LaunchModeDevice? _launchModeDevice;
+    private DeviceStepMode? _deviceStepMode;
     private int _delayDeviceThred = 0;
     private int _countStepsBreakDown = 5;
 
@@ -35,84 +36,79 @@ public partial class IDEPage : Page
         Console.Title = "OutPut Console";
         _projectPath = path;
         InitializeComponent();
-        _logger = new WpfLogger(outputBox);
-        LoggerProvider.SetLogger(_logger);
 
-        _projectManager = new(tabEditor);
-        _emulator = new(totalPorts, portsPerDevice);
-        _analizator = new(_projectManager);
+        _projectPaths = AppPaths.ProjectSystemPaths(path);
+        _outputView = new WpfOutputView(outputBox);
 
-        _logger.UseConsole = UseConsole;
-        _projectManager.LoadProjectFiles(_projectPath);
+        var fileService = new WpfFileService(_projectPath, _outputView);
+        // Создаём редактор
+        var editorService = new WpfEditorService(tabEditor, fileService);
+        _projectManager = new ProjectService(fileService, editorService);
+
+        _vmHost = new VMHost(_projectManager, _outputView, _projectPaths, totalPorts, portsPerDevice);
+        _vmHost.OpenProject(_projectPath);
+
+        _analizator = new(editorService, _outputView);
+
+        _outputView.UseConsole = UseConsole;
+        _projectManager.OpenProject();
         _binDir = Path.Combine(_projectPath, "bin");
         //Window.GetWindow(this).Activated += UpdateDeviceInfo!;
     }
 
-
-    private void CompileAndRun()
-    {
-        if (_emulator.MainDevice == null)
-        {
-            MessageBox.Show("Не выбрано основное устройство. Откройте Device Manager и создайте/выберите устройство.",
-                            "Нет устройства", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
-        try
-        {
-            _projectManager.SaveAllFiles();
-            var device = ProjectBuilder.Compile(UseConsole, SnowAssemler, _emulator, _projectManager, _projectPath);
-            device?.LaunchDevice(0x0000, isDebug: IsDebugMode, delay: _delayDeviceThred, snowTimer: SnowTimer);
-        }
-        catch (Exception ex)
-        {
-            DeviceHelpers.LogFromSystem("Build", ex.Message, NotificationType.Error);
-            // Опционально: MessageBox.Show(ex.Message, "Ошибка компиляции");
-        }
-    }
     private void UpdateDeviceInfo()
     {
-        var dev = _emulator.MainDevice;
-        TxtCurrentDevice.Text = dev != null ? $"Устр-во: {_emulator.MainDeviceId}" : "Устр-во не выбрано";
+        var dev = _vmHost.MainDevice();
+        TxtCurrentDevice.Text = dev != null ? $"Устр-во: {dev.Value.Id}" : "Устр-во не выбрано";
     }
 
-    private void DebugCompile()
+    private void BtnBreakPointerModeOne(object sender, RoutedEventArgs e)
     {
-        IDEConsoleManager.InitConsole(UseConsole);
-        if (_emulator.MainDevice == null)
+        if (_launchModeDevice == null)
         {
-            MessageBox.Show("Не выбрано основное устройство. Откройте Device Manager и создайте/выберите устройство.",
-                            "Нет устройства", MessageBoxButton.OK, MessageBoxImage.Warning);
+            _outputView.Append("Устройство не готово к запуску, загрузите в него программу", LogLevel.Error);
             return;
         }
-        try
-        {
-            _projectManager.SaveAllFiles();
-            var device = ProjectBuilder.Compile(UseConsole, SnowAssemler, _emulator, _projectManager, _projectPath);
-            device?.BreakPointerLaunchDevice(0x0000);
-        }
-        catch (Exception ex)
-        {
-            DeviceHelpers.LogFromSystem("Build", ex.Message, NotificationType.Error);
-        }
+
+        IDEConsoleManager.InitConsole(UseConsole);
+        _deviceStepMode = _launchModeDevice.StepMode(ProjectBuilder.BaseAdressProgramm);
     }
-    private void BtnBreakPointerModeOne(object sender, RoutedEventArgs e) => DebugCompile();
 
-    private void BtnBreakPointerOne(object sender, RoutedEventArgs e) => _emulator.Step(IsDebugMode);
+    private void BtnBreakPointerOne(object sender, RoutedEventArgs e)
+    {
+        if (_deviceStepMode == null)
+        {
+            _outputView.Append("Устройство не подготовлено к последовательному режиму", LogLevel.Error);
+            return;
+        }
+        _deviceStepMode.Step(IsDebugMode);
+    }
 
-    private void BtnBreakPointerMulti(object sender, RoutedEventArgs e) => _emulator.Step(_countStepsBreakDown, IsDebugMode);
+    private void BtnBreakPointerMulti(object sender, RoutedEventArgs e)
+    {
+        if (_deviceStepMode == null)
+        {
+            _outputView.Append("Устройство не подготовлено к последовательному режиму", LogLevel.Error);
+            return;
+        }
+        _deviceStepMode.MultyStep(IsDebugMode, _countStepsBreakDown);
+    }
 
     private void ConsoleMode_Checked(object sender, RoutedEventArgs e)
     {
-        if (_emulator.CurrentDevice?.IsRunning == true) return;
-        _logger.UseConsole = UseConsole;
+        if (_device == null || _device.IsRunning == true) return;
+        _outputView.Append("sdssdd");
+        _outputView.UseConsole = UseConsole;
     }
 
-    private void BtnClearOutput(object sender, RoutedEventArgs e) => _logger.Clear();
+    private void BtnClearOutput(object sender, RoutedEventArgs e) => _outputView.Clear();
 
+    private void SetDeviceData(DeviceData deviceData) => _device = deviceData;
+    private void SetLaunchModel(LaunchModeDevice launchModeDevice) => _launchModeDevice = launchModeDevice;
 
     private void BtnDeviceManager_Click(object sender, RoutedEventArgs e)
     {
-        var window = new DeviceManagerWindow(_emulator)
+        var window = new DeviceManagerWindow(_outputView, _vmHost, SetDeviceData, SetLaunchModel)
         {
             Owner = Window.GetWindow(this)
         };
@@ -146,7 +142,6 @@ public partial class IDEPage : Page
             DelayInput.Text = "50";
         }
     }
-
     private void CountBreakPoint_TextChanged(object sender, TextChangedEventArgs e)
     {
         if (countBreakPoint == null || string.IsNullOrWhiteSpace(countBreakPoint.Text)) return;
@@ -179,39 +174,100 @@ public partial class IDEPage : Page
     private void BtnCompileAndLaunch(object sender, RoutedEventArgs e)
     {
         IDEConsoleManager.InitConsole(UseConsole);
+
+        _projectManager.SaveAllFiles();
+        CompileAndRun();
+    }
+    public void CompileAndSafeProgramFile(ulong baseAddress = ProjectBuilder.BaseAdressProgramm)
+    {
+        var res = _vmHost.Compile(baseAddress);
         
-        _emulator.CurrentDevice?.LaunchDevice(0x0000,IsDebugMode,_delayDeviceThred, SnowTimer);
+
+        if (res.Success)
+        {
+            if (SnowAssemler)
+            {
+                var text = VMHostHelper.DisassemblCode(res.Program!);
+                _outputView.Append(text.TextAsm);
+            }
+
+            _projectManager.FileService.SaveProgramFile(res.Program!);
+        }
+        else
+        {
+            
+            foreach (var err in res.Errors!)
+                _outputView.Append(err, LogLevel.Error);
+        }
     }
 
+    private void CompileAndRun()
+    {
+        _device = _vmHost.CreateDeviceContext();
+        if (_device == null)
+        {
+            _outputView.Append("Устройство не подготовлено к запуску", LogLevel.Error);
+            return;
+        }
+
+        CompilationResult result = _vmHost.Compile();
+
+        if (result.Success)
+        {
+            CallBackOnLaunch callBackOnLaunch = new(end: OnEndLaunch);
+            if (SnowAssemler)
+            {
+                var text = VMHostHelper.DisassemblCode(result.Program!);
+                _outputView.Append(text.TextAsm);
+            }
+            ulong startAdress = (ulong)result.Program!.Length + result.StartAdress;
+            _launchModeDevice = _device.LoadProgram(result.Program!);
+            _launchModeDevice.SetHeapAddress(startAdress);
+            _launchModeDevice.LaunchDevice(ProjectBuilder.BaseAdressProgramm, IsDebugMode, _delayDeviceThred, SnowTimer, callBackOnLaunch);
+        }
+        else
+        {
+            foreach (var err in result.Errors!)
+                _outputView.Append(err, LogLevel.Error);
+        }
+    }
+    
+    private void OnEndLaunch()
+    {
+        _outputView.Append(_vmHost.GetDumbRegisters());
+    }
     private void NewFile_Click(object sender, RoutedEventArgs e) => this.NewFile(_projectPath, _projectManager);
 
     private void SaveAll_Click(object sender, RoutedEventArgs e) => _projectManager.SaveAllFiles();
 
-    private void Exit_Click(object sender, RoutedEventArgs e) => NavigationService.Navigate(new MainMenu());
+    private void Exit_Click(object sender, RoutedEventArgs e)
+    {
+        _device?.Stop();
+        _device?.Dispose();
+        _projectManager.SaveAllFiles();
+        NavigationService.Navigate(new MainMenu());
+    }
 
     private void BtnSaveBinary_Click(object sender, RoutedEventArgs e)
     {
-        IDEConsoleManager.InitConsole(UseConsole);
         try
-        {            
-            byte[] program = _projectManager.BuildProject(_projectPath); // используем текущий метод сборки
-            if (SnowAssemler) MiniCCompiler.DisassembleCode(program);
-            if (!Directory.Exists(_binDir)) Directory.CreateDirectory(_binDir);
-            string filePath = Path.Combine(_binDir, "program.bin");
-            File.WriteAllBytes(filePath, program);
-            MessageBox.Show($"Программа сохранена в {filePath}", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
+        {
+            IDEConsoleManager.InitConsole(UseConsole);
+            CompileAndSafeProgramFile();
         }
         catch (Exception ex)
         {
-            DeviceHelpers.LogFromSystem("SaveBinary", ex.Message, NotificationType.Error);
+            _outputView.Append($"SaveBinary {ex.Message}", LogLevel.Error);
         }
     }
 
     private void BtnStopDevices(object sender, RoutedEventArgs e)
     {
-        foreach(var dev in _emulator.AllDevices)
+        if (_device == null || !_device.IsRunning)
         {
-            dev.Device.StopDevice();
+            _outputView.Append("Попытка остановить не запущенного устройства", LogLevel.Error);
+            return;
         }
+        _device.Stop();        
     }
 }

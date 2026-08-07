@@ -1,11 +1,14 @@
-﻿using ASM_gen.ProjectManage.Data;
+﻿using VMApplication;
 
 namespace ASM_gen.Utils;
 
 public static class ErrorFileHelper
 {
-    public static bool IsSucced(this ErrorFile error)
+    extension(ErrorFile error)
     {
-        return error == ErrorFile.None;
+        public bool IsSucced()
+        {
+            return error == ErrorFile.None;
+        }
     }
 }

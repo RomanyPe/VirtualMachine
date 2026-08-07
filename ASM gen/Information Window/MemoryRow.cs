@@ -5,12 +5,12 @@ public readonly ref struct MemoryRow
     private readonly ulong _address;
     private readonly ReadOnlySpan<byte> _memory;
 
-    public MemoryRow(ulong address, ReadOnlySpan<byte> memory)
+    public MemoryRow(ulong address, ReadOnlyMemory<byte> memory)
     {
         _address = address;
 
         int length = Math.Min(16, memory.Length - (int)address);
-        _memory = memory.Slice((int)address, length);
+        _memory = memory.Span.Slice((int)address, length);
     }
 
     public string AddressHex => _address.ToString("X8");
