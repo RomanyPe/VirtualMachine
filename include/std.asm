@@ -1,59 +1,73 @@
 // std.asm – Standard library for Mini-C VM
-// Provides essential system calls and utility functions
-// All comments use // style as requested
+// Requires sys.asm for get_program_end and set_int_table_base
 
 // -------------------------------------------------------------------
 // Инициализация таблицы векторов прерываний
+// Размещает таблицу сразу за кодом программы и сдвигает кучу
 // Должна быть вызвана ДО main
 // -------------------------------------------------------------------
-
 func_init_vectors:
-    // вектор 0: print_int
+    CALL get_program_end       // r0 = текущий rHP (конец программы)
+    // Выровнять адрес вверх до 8 байт
+    LDI r1, 7
+    ADD r0, r1
+    LDI r1, 0xFFFFFFFFFFFFFFF8
+    AND r0, r1                      // r0 = (rHP + 7) & ~7
+    MOV r2, r0                      // r2 = база таблицы (выровненный адрес)
+
+    // Заполняем векторы 0..2
     LDI r0, 0
     LDI r1, int0_handler
-    CALL func_set_int_vector
+    CALL func_set_int_vector_dyn
     LDI r0, 1
     LDI r1, int1_handler
-    CALL func_set_int_vector
+    CALL func_set_int_vector_dyn
     LDI r0, 2
     LDI r1, int2_handler
-    CALL func_set_int_vector
+    CALL func_set_int_vector_dyn
+
+    // Сдвинуть кучу на 256 байт после таблицы
+    MOV r0, r2
+    LDI r1, 256
+    ADD r0, r1
+    MOV rHP, r0                     // новый rHP = база + 256
+
+    // Установить rTB = адрес таблицы (r2)
+    MOV r0, r2
+    CALL set_int_table_base
     RET
 
-// -------------------------------------------------------------------
-// func_set_int_vector(vector, handler) – установить обработчик
-//   r0 = номер вектора
-//   r1 = адрес обработчика
-// -------------------------------------------------------------------
 
-func_set_int_vector:
-    // tableBase = 0x0
-    LDI r2, 0x0
+// Локальный доступ к адресу кучи
+get_program_end:
+    MOV r0, rHP
+    RET
+
+set_int_table_base:
+    MOV rTB, r0
+    RET
+
+// Установка одного вектора (для внутреннего использования)
+// r0 = номер вектора, r1 = адрес обработчика, r2 = базовый адрес таблицы
+func_set_int_vector_dyn:
+    PUSH r3
     MOV r3, r0
-    // r3 = vector * 8
-    ADD r3, r3
-    ADD r3, r3
-    ADD r3, r3
-    ADD r2, r3
-    // записать handler по адресу в r2
-    STORE_IND.S64 r1, r2
+    ADD r3, r3      // *2
+    ADD r3, r3      // *4
+    ADD r3, r3      // *8
+    ADD r3, r2      // r3 = base + offset
+    STORE_IND.S64 r1, r3
+    POP r3
     RET
 
 // -------------------------------------------------------------------
-// Обработчик 0: print_int – печатает целое из r0
-// Сохраняет r0, чтобы не испортить вызывающую программу
+// Обработчики прерываний
 // -------------------------------------------------------------------
-
 int0_handler:
     PUSH r0
     PRINT_INT r0
     POP r0
     IRET
-
-// -------------------------------------------------------------------
-// Обработчик 1: _out_port – вывод байта в порт
-//   r0 = порт, r1 = значение
-// -------------------------------------------------------------------
 
 int1_handler:
     PUSH r0
@@ -63,11 +77,6 @@ int1_handler:
     POP r0
     IRET
 
-// -------------------------------------------------------------------
-// Обработчик 2: _in_port – чтение байта из порта
-//   r0 = порт, возврат значения в r0
-// -------------------------------------------------------------------
-
 int2_handler:
     IN r0, r0
     IRET
@@ -75,7 +84,6 @@ int2_handler:
 // -------------------------------------------------------------------
 // Публичные обёртки для системных вызовов
 // -------------------------------------------------------------------
-
 func_print_int:
     LDI r2, 0
     INT r2
