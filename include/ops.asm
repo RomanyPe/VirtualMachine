@@ -1,0 +1,3 @@
+func_double:
+	ADD r0, r0
+	RET
