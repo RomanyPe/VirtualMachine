@@ -1,4 +1,4 @@
-﻿# Тестирование базовых концепций Mini-C (MiC)
+# Тестирование базовых концепций Mini-C (MiC)
 
 В этом документе собраны тестовые примеры для проверки работы со статическими массивами, указателями и динамической памятью.
 
@@ -8,7 +8,7 @@
 Написание ``` #include "std.asm"``` подключает библиотеку std.asm к проекту, к нему также нужно написать ``` extern метод(параметры);```
 
 Файл std.asm:
-```assembler
+```asm
 // std.asm – Standard library for Mini-C VM
 // Provides essential system calls and utility functions
 // All comments use // style as requested
@@ -142,7 +142,7 @@ int main() {
 }
 ```
 ### Результат
-```ams
+```asm
 00000000: 000C0040   JMP data64  data = 0x0000000000000210 (528)
 00000010: 000C0113   LDI r0, data64  data = 0x0000000000000003 (3)
 00000020: 00080112   STORE.S32 [data64], r0  data = 0x0000000000001000 (4096)
@@ -275,7 +275,7 @@ int main() {
 }
 ```
 ### Результат
-```ams
+```asm
 00000000: 000C0040   JMP data64  data = 0x0000000000000270 (624)
 00000010: 000C0113   LDI r0, data64  data = 0x0000000000000003 (3)
 00000020: 00080112   STORE.S32 [data64], r0  data = 0x0000000000001000 (4096)
@@ -410,7 +410,7 @@ int main() {
 }
 ```
 ### Результат:
-```
+```asm
 00000000: 000C0040   JMP data64  data = 0x0000000000000348 (840)
 00000010: 000C0113   LDI r0, data64  data = 0x0000000000000000 (0)
 00000020: 000C0213   LDI r1, data64  data = 0x00000000000002CC (716)
@@ -1022,8 +1022,6 @@ IP 1108
 
 [Unknown Name Device] 
  === ЗАВЕРШЕНИЕ (HALT) ===
-
-
 ```
 ---
 
@@ -1581,7 +1579,7 @@ int main(){
 ```
 
 lib.asm
-```assembler
+```asm
 func_get_hundred:
 	LDI r0, 100
 	RET
@@ -1707,14 +1705,14 @@ int main() {
 ```
 
 math.asm
-```assembler
+```asm
 func_double:
 	ADD r0, r0
 	RET
 ```
 
 ops.asm
-```assembler
+```asm
 func_double:
 	ADD r0, r0
 	RET
