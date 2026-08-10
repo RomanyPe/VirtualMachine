@@ -1,4 +1,5 @@
-﻿using static Kernel.ProcessorSystem.Processor;
+﻿using Kernel.Common;
+using static Kernel.ProcessorSystem.Processor;
 
 namespace Compiller.C.CodeGenerator;
 

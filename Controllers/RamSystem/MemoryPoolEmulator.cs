@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+﻿using Kernel.Common;
+using System.Collections.Concurrent;
 
 namespace Kernel.RamSystem;
 

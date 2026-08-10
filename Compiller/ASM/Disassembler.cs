@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using Kernel.Common;
+using System.Text;
 using static Kernel.ProcessorSystem.Processor;
 
 namespace Compiller.ASM;

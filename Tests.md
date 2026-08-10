@@ -5,107 +5,9 @@
 [Legacy] - Kernel или Compile изменились и требуют перепрохождения тестов
 # Часто повторяемые файлы и готовые библиотеки:
 
-Написание ``` #include "std.asm"``` подключает библиотеку std.asm к проекту, к нему также нужно написать ``` extern метод(параметры);```
+Написание ``` #include "std.vma"``` подключает библиотеку std.vma к проекту, к нему также нужно написать ``` extern метод(параметры);```
 
-Файл std.asm:
-```asm
-// std.asm – Standard library for Mini-C VM
-// Provides essential system calls and utility functions
-// All comments use // style as requested
-
-// -------------------------------------------------------------------
-// Инициализация таблицы векторов прерываний
-// Должна быть вызвана до любого прерывания
-// -------------------------------------------------------------------
-
-func_init_vectors:
-	// вектор 0: print_int
-	LDI r0, 0
-	LDI r1, int0_handler
-	CALL func_set_int_vector
-	LDI r0, 1
-	LDI r1, int1_handler
-	CALL func_set_int_vector
-	LDI r0, 2
-	LDI r1, int2_handler
-	CALL func_set_int_vector
-	RET
-
-// -------------------------------------------------------------------
-// func_set_int_vector(vector, handler) – установить обработчик
-//   r0 = номер вектора
-//   r1 = адрес обработчика
-// -------------------------------------------------------------------
-
-func_set_int_vector:
-	// tableBase = 0x0
-	LDI r2, 0x0
-	MOV r3, r0
-	// r3 = vector * 8
-	ADD r3, r3
-	ADD r3, r3
-	ADD r3, r3
-	ADD r2, r3
-	// записать handler по адресу в r2
-	STORE_IND.S64 r1, r2
-	RET
-
-// -------------------------------------------------------------------
-// Обработчик 0: print_int – печатает целое из r0
-// Сохраняет r0, чтобы не испортить вызывающую программу
-// -------------------------------------------------------------------
-
-int0_handler:
-	PUSH r0
-	PRINT_INT r0
-	POP r0
-	IRET
-
-// -------------------------------------------------------------------
-// Обработчик 1: _out_port – вывод байта в порт
-//   r0 = порт, r1 = значение
-// -------------------------------------------------------------------
-
-int1_handler:
-	PUSH r0
-	PUSH r1
-	OUT r1, r0
-	POP r1
-	POP r0
-	IRET
-
-// -------------------------------------------------------------------
-// Обработчик 2: _in_port – чтение байта из порта
-//   r0 = порт, возврат значения в r0
-// -------------------------------------------------------------------
-
-int2_handler:
-	IN r0, r0
-	IRET
-
-// -------------------------------------------------------------------
-// Публичные обёртки для системных вызовов
-// -------------------------------------------------------------------
-
-func_print_int:
-	LDI r2, 0
-	INT r2
-	RET
-
-func__out_port:
-	LDI r2, 1
-	INT r2
-	RET
-
-func__in_port:
-	LDI r2, 2
-	INT r2
-	RET
-
-func_exit:
-	HALT
-	RET
-```
+Файл std.vma и прочие готовые библиотеки доступны в директории ```include```
 
 # Тесты:
 ---
@@ -142,7 +44,7 @@ int main() {
 }
 ```
 ### Результат
-```asm
+```vma
 00000000: 000C0040   JMP data64  data = 0x0000000000000210 (528)
 00000010: 000C0113   LDI r0, data64  data = 0x0000000000000003 (3)
 00000020: 00080112   STORE.S32 [data64], r0  data = 0x0000000000001000 (4096)
@@ -380,7 +282,7 @@ IP 812
 ## Тест 3: Статичные массивы
 
 ```cpp
-#include "std.asm"
+#include "std.vma"
 
 extern void print_int(int value);
 
@@ -883,7 +785,7 @@ IP 716
 ## Тест 6: Динамическая память, вывод чисел на экран командой print_int(value);
 
 ```cpp
-#include "std.asm"
+#include "std.vma"
 
 extern void init_vectors();
 extern void print_int(int value);
@@ -1029,7 +931,7 @@ IP 1108
 
 в отличие от высокоуровневых языков аллокатор и метод delete нужно реализовывать разработчику, либо скачать готовую библиотеку с методами
 ```cpp
-#include "std.asm"
+#include "std.vma"
 
 extern void init_vectors();
 extern void print_int(int value);
@@ -1310,7 +1212,7 @@ IP 1972
 ## Тест 8: Простейший asm { \... }
 
 ```cpp
-#include "std.asm"
+#include "std.vma"
 
 extern void init_vectors();
 extern void print_int(int value);
@@ -1434,7 +1336,7 @@ IP 956
 ## Тест 9: Передача результата из asm в C-переменную
 
 ```cpp
-#include "std.asm"
+#include "std.vma"
 
 extern void init_vectors();
 extern void print_int(int value);
@@ -1558,12 +1460,12 @@ IP 980
 ```
 ---
 
-## Тест 10: #include "lib.asm" и вызов функции из библиотеки
+## Тест 10: #include "lib.vma" и вызов функции из библиотеки
 
 main.c
 ```cpp
-#include "std.asm"
-#include "lib.asm"
+#include "std.vma"
+#include "lib.vma"
 
 extern void init_vectors();
 extern void print_int(int value);
@@ -1578,7 +1480,7 @@ int main(){
 }
 ```
 
-lib.asm
+lib.vma
 ```asm
 func_get_hundred:
 	LDI r0, 100
@@ -1693,8 +1595,8 @@ IP 964
 
 main.c
 ```cpp
-#include "math.asm"
-#include "ops.asm"
+#include "math.vma"
+#include "ops.vma"
 
 extern int double(int x);
 
@@ -1704,14 +1606,14 @@ int main() {
 }
 ```
 
-math.asm
+math.vma
 ```asm
 func_double:
 	ADD r0, r0
 	RET
 ```
 
-ops.asm
+ops.vma
 ```asm
 func_double:
 	ADD r0, r0
@@ -1851,7 +1753,7 @@ IP 964
 ## Тест 13: Тестирование функции из библиотеки std: print_int(int value) и exit()
 
 ```cpp
-#include "std.asm"
+#include "std.vma"
 
 extern void init_vectors();
 extern void print_int(int value);
@@ -1974,7 +1876,7 @@ IP 836
 ## Тест 14: Тестирование функции из библиотеки std: _out_port(int port, int value)
 
 ```cpp
-#include "std.asm"
+#include "std.vma"
 
 extern void init_vectors();
 extern void _out_port(int port, int value);
@@ -2095,7 +1997,7 @@ IP 956
 ## Тест 15: Тестирование функции из библиотеки std: in_port(int port)
 
 ```cpp
-#include "std.asm"
+#include "std.vma"
 
 extern int in_port(int port);
 extern void init_vectors();
@@ -2223,7 +2125,7 @@ IP 836
 ## Тест 16: Комбинированный тест с asm { \... } для низкоуровневой проверки
 
 ```cpp
-#include "std.asm"
+#include "std.vma"
 
 extern void init_vectors();
 extern void out_port(int port, int value);
@@ -2383,7 +2285,7 @@ IP 836
 ## Тест 17: Тест на многократный вызов print_int без exit (проверка, что HALT не вызывается раньше времени)
 
 ```cpp
-#include "std.asm"
+#include "std.vma"
 
 extern void init_vectors();
 extern void print_int(int x);
@@ -2517,7 +2419,7 @@ IP 1068
 ```cpp
 
 ```
-файл.asm
+файл.vma
 ```asm
 
 ```

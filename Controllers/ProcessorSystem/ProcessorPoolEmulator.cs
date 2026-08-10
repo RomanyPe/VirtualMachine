@@ -1,4 +1,4 @@
-﻿using Kernel.BiosSystem;
+﻿using Kernel.Common;
 using Kernel.ControllersData;
 using Kernel.RamSystem;
 using System.Collections.Concurrent;

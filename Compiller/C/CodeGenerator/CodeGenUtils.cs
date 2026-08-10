@@ -1,4 +1,5 @@
 ﻿using Compiller.ASM;
+using Kernel.Common;
 using static Kernel.ProcessorSystem.Processor;
 
 namespace Compiller.C.CodeGenerator;

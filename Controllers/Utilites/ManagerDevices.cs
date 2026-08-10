@@ -1,4 +1,5 @@
 ﻿using Kernel.BiosSystem;
+using Kernel.Common;
 using Kernel.ControllersData;
 using Kernel.RamSystem;
 
@@ -11,7 +12,7 @@ public class ManagerDevices
     // Плотные массивы данных (Dense Arrays)
     private readonly RamSize[] _size = new RamSize[MaxCountElements];
     private readonly SizePort[] _sizePort = new SizePort[MaxCountElements];
-    private readonly SizePortOnDev[] _sizeDev = new SizePortOnDev[MaxCountElements];
+    private readonly SizePortOnDevice[] _sizeDev = new SizePortOnDevice[MaxCountElements];
 
     private readonly uint[] _sectorByDenseIndex = new uint[MaxCountElements];
 
@@ -50,12 +51,12 @@ public class ManagerDevices
                    _name[i], _devices[i]!.CreatedAt);
         
     }
-    public struct DeviceInfo(int id, Device device, RamSize ramSize, SizePortOnDev portSize, uint sector, string? name, DateTime createdAt)
+    public struct DeviceInfo(int id, Device device, RamSize ramSize, SizePortOnDevice portSize, uint sector, string? name, DateTime createdAt)
     {
         public int Id = id;
         public Device Device { get; } = device;
         public RamSize RamSize = ramSize;
-        public SizePortOnDev PortSize = portSize;
+        public SizePortOnDevice PortSize = portSize;
         public uint Sector = sector;
         public string? Name = name;
         public DateTime CreatedAt = createdAt;
@@ -91,7 +92,7 @@ public class ManagerDevices
     public int CreateNewDevice(
         RamSize size,
         SizePort sizePort,
-        SizePortOnDev sizeDev,
+        SizePortOnDevice sizeDev,
         string? name,
         string? nameProc,
         string? nameRam,

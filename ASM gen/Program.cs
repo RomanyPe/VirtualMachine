@@ -1,7 +1,7 @@
 ﻿using ASM_gen.StartWindow;
 using Serilog;
 using System.IO;
-using VMApplication;
+using VMApplication.Project;
 
 namespace ASM_gen;
 
@@ -40,37 +40,31 @@ public static class AppPaths
 {
     public const string ExtensionProj = "*.vmproj";
 
-    private const string BinPath = "bin";
-    private const string SysDataPath = "sysData";
-    private const string TemplatesPath = "templates";
-    private const string LocalDataPath = "localData";
-    private const string MetaDataPath = "metaData";
-    private const string ProjectsDataPath = "projectsData";
-    private const string UserProjectsPath = "userProjects";
-    private const string IncludePath = "include";
-
-    private class PathSystem(string projectPath, string include) : IProjectPaths
+    private class PathSystem(string projectPath, string include) : IProjectFilesConfig
     {
         public string ProjectPath => projectPath;
-
         public string IncludePath => include;
+
+        public string[] ExtensionsAsm => [".asm",".soe",".vma"];
+
+        public string[] ExtensionsMiniC => [".c",".mic",".cll"];
     }
 
-    public static IProjectPaths ProjectSystemPaths(string path) => new PathSystem(path, sharedIncludePath);
+    public static IProjectFilesConfig ProjectSystemPaths(string path) => new PathSystem(path, sharedIncludePath);
     /// <summary> Базовая директория приложения </summary>
     private static readonly string CurrentDir = AppDomain.CurrentDomain.BaseDirectory;
 
-    private static readonly string currentBinPath = Path.Combine(CurrentDir, BinPath);
+    private static readonly string currentBinPath = Path.Combine(CurrentDir, "bin");
 
-    private static readonly string currentSysDataPath = Path.Combine(CurrentDir, SysDataPath);
-    private static readonly string currentTemplatesPath = Path.Combine(CurrentSysDataPath, TemplatesPath);
+    private static readonly string currentSysDataPath = Path.Combine(CurrentDir, "sysData");
+    private static readonly string currentTemplatesPath = Path.Combine(CurrentSysDataPath, "templates");
 
-    private static readonly string currentLocalDataPath = Path.Combine(CurrentDir, LocalDataPath);
-    private static readonly string currentMetaDataPath = Path.Combine(CurrentLocalDataPath, MetaDataPath);
-    private static readonly string currentProjectsDataPath = Path.Combine(CurrentMetaDataPath, ProjectsDataPath);
+    private static readonly string currentLocalDataPath = Path.Combine(CurrentDir, "localData");
+    private static readonly string currentMetaDataPath = Path.Combine(CurrentLocalDataPath, "metaData");
+    private static readonly string currentProjectsDataPath = Path.Combine(CurrentMetaDataPath, "pojectsData");
 
-    private static readonly string currentUserProjectsPath = Path.Combine(CurrentDir, UserProjectsPath);
-    private static readonly string sharedIncludePath = Path.Combine(CurrentLocalDataPath, IncludePath);
+    private static readonly string currentUserProjectsPath = Path.Combine(CurrentDir, "userProjects");
+    private static readonly string sharedIncludePath = Path.Combine(CurrentLocalDataPath, "include");
 
     public static string CurrentBinPath => currentBinPath;
     public static string CurrentSysDataPath => currentSysDataPath;

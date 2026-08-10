@@ -3,7 +3,7 @@ using ASM_gen.ProjectManage.Managers.Static;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Navigation;
-using VMApplication;
+using VMApplication.Project;
 
 namespace ASM_gen.StartWindow
 {

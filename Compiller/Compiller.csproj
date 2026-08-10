@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Controllers\Kernel.csproj" />
+    <ProjectReference Include="..\Kernel.Common\Kernel.Common.csproj" />
   </ItemGroup>
 
 </Project>

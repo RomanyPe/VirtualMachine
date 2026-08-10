@@ -1,9 +1,9 @@
-﻿using Kernel.ControllersData;
+﻿using Kernel.Common;
+using Kernel.ControllersData;
 using Kernel.ProcessorSystem;
 using Kernel.RamSystem;
 using System.Diagnostics;
 using System.Text;
-using static Kernel.ProcessorSystem.Processor;
 
 namespace Kernel.BiosSystem;
 
@@ -44,14 +44,14 @@ public class Device : IDisposable
         _portBus = portBus;
         _ram = new MemoryBus(size, _nameDevice, nameRam, biosFirmware);
         _processor = new Processor(_ram, _nameDevice, _portBus, _consoleLock, nameProc);
-        _ioMemory = new byte[(int)SizePortOnDev.Size16B];
+        _ioMemory = new byte[(int)SizePortOnDevice.Size16B];
     }
 
     public Device CreateDeviceForPort(RamSize size, byte[] biosFirmware, string? name = null!, string? nameProc = null!, string? nameRam = null!, string? namePort = null!)
     {
         int freeSector = _portBus.AllocateFreeSector(); // нужно добавить этот метод в PortBus
         if (freeSector < 0) return null!;
-        var dev = new Device(biosFirmware, new(size, SizePort.Size16KB, SizePortOnDev.Size16B, name.AsSpan(), nameProc.AsSpan(), nameRam.AsSpan(), namePort.AsSpan()));
+        var dev = new Device(biosFirmware, new(size, SizePort.Size16KB, SizePortOnDevice.Size16B, name.AsSpan(), nameProc.AsSpan(), nameRam.AsSpan(), namePort.AsSpan()));
         _portBus.RegisterDevice(dev, (uint)freeSector);
         return dev;
     }
@@ -61,7 +61,7 @@ public class Device : IDisposable
         return _processor.IsRunning ? string.Empty : _processor.GetAllData();
     }
 
-    private void ConsoleLock(string text, LogLevel level = LogLevel.Log)
+    private void ConsoleLock(string text, LogLevelKernel level = LogLevelKernel.Log)
     {
         LoggerKernel.LogFromDevice(in _nameDevice, text, level);
     }

@@ -1,5 +1,4 @@
-﻿using Kernel.BiosSystem;
-using Kernel.RamSystem;
+﻿using Kernel.Common;
 using static Kernel.ProcessorSystem.Processor;
 
 namespace Kernel.ProcessorSystem
@@ -8,7 +7,6 @@ namespace Kernel.ProcessorSystem
     {
         public static bool TryContinueAfterStatus(ResultInstruction dat, ulong ip, Lock regLock)
         {
-            if (dat.BiosStatus == BiosStatus.Success) return true;
             if (dat.BiosStatus == BiosStatus.EndProgramm)
             {
                 lock (regLock)
@@ -33,17 +31,17 @@ namespace Kernel.ProcessorSystem
         }
 
 
-        public static LogLevel TypeNotification(BiosStatus status) => status switch
+        public static LogLevelKernel TypeNotification(BiosStatus status) => status switch
         {
-            BiosStatus.Success => LogLevel.Log,
-            BiosStatus.SegmentationFault => LogLevel.Error,
-            BiosStatus.AlignmentFault => LogLevel.Error,
-            BiosStatus.ReadViolation => LogLevel.Error,
-            BiosStatus.EndProgramm => LogLevel.Log,
-            BiosStatus.NotImplementedOpCode => LogLevel.Error,
-            BiosStatus.NullDeviceInput => LogLevel.Warning,
-            BiosStatus.NullDeviceOutput => LogLevel.Error,
-            _ => LogLevel.Error
+            BiosStatus.Success => LogLevelKernel.Log,
+            BiosStatus.SegmentationFault => LogLevelKernel.Error,
+            BiosStatus.AlignmentFault => LogLevelKernel.Error,
+            BiosStatus.ReadViolation => LogLevelKernel.Error,
+            BiosStatus.EndProgramm => LogLevelKernel.Log,
+            BiosStatus.NotImplementedOpCode => LogLevelKernel.Error,
+            BiosStatus.NullDeviceInput => LogLevelKernel.Warning,
+            BiosStatus.NullDeviceOutput => LogLevelKernel.Error,
+            _ => LogLevelKernel.Error
         };
 
         public static bool CanContinue(BiosStatus status) => status switch
@@ -64,9 +62,9 @@ namespace Kernel.ProcessorSystem
             var logLevel = TypeNotification(status);
             return logLevel switch
             {
-                LogLevel.Log => LogNotification(regLock, text, ip, can),
-                LogLevel.Warning => WarningNotification(regLock, text, ip, can),
-                LogLevel.Error => ErrorNotification(regLock, text, ip, can),
+                LogLevelKernel.Log => LogNotification(regLock, text, ip, can),
+                LogLevelKernel.Warning => WarningNotification(regLock, text, ip, can),
+                LogLevelKernel.Error => ErrorNotification(regLock, text, ip, can),
                 _ => NoneNotification(regLock, text, can),
             };
         }
@@ -105,14 +103,5 @@ namespace Kernel.ProcessorSystem
             }
             return canContinue;
         }
-
-
-    }
-
-    public enum LogLevel
-    {
-        Log,
-        Warning,
-        Error
     }
 }

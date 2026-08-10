@@ -1,0 +1,29 @@
+﻿namespace Kernel.Common;
+
+public enum BiosStatus : byte
+{
+    /// <summary> Выполнено </summary>
+    Success,
+    /// <summary> Выход за границы ОЗУ </summary>
+    SegmentationFault,
+
+    /// <summary> Попытка прочесть int по невыровненному адресу (например, 0x03) </summary>
+    AlignmentFault,
+
+    /// <summary> Попытка чтения из защищенной области памяти </summary>
+    ReadViolation,
+
+    /// <summary> Не ошибка, остановка программы </summary>
+    EndProgramm,
+
+    /// <summary> Неизвестная команда OpCode </summary>
+    NotImplementedOpCode,
+
+    NullDeviceInput,
+
+    NullDeviceOutput,
+
+    InfinityLoopWarning,
+
+    DivOnZero,
+}

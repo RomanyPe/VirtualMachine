@@ -3,11 +3,11 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Threading;
-using VMApplication;
+using VMApplication.Logger;
 
 namespace ASM_gen.Output;
 
-public class WpfOutputView : IOutputView, ILogger   // ILogger оставлен для совместимости с Kernel
+public class WpfOutputView : IOutputView   // ILogger оставлен для совместимости с Kernel
 {
     private readonly Dispatcher _dispatcher;
     private readonly RichTextBox _outputBox;
@@ -24,7 +24,6 @@ public class WpfOutputView : IOutputView, ILogger   // ILogger оставлен 
         _outputBox.Document.Blocks.Add(_paragraph);
     }
 
-    // Реализация IOutputView
     public void Append(string message, LogLevel level = LogLevel.Log)
     {
         Color color = level switch
@@ -44,12 +43,6 @@ public class WpfOutputView : IOutputView, ILogger   // ILogger оставлен 
         else
             _dispatcher.Invoke(ClearInternal);
     }
-
-    // Реализация ILogger (для обратной совместимости с Kernel)
-    public bool UseConsole { get; set; }
-    public void Info(string message) => AppendMessage(message, Colors.WhiteSmoke);
-    public void Warning(string message) => AppendMessage(message, Colors.Yellow);
-    public void Error(string message) => AppendMessage(message, Colors.Red);
 
     private void AppendMessage(string message, Color color)
     {

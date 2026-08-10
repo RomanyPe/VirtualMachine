@@ -5,6 +5,8 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
 using VMApplication;
+using VMApplication.Emulator;
+using VMApplication.Logger;
 
 namespace ASM_gen;
 
@@ -37,10 +39,9 @@ public partial class DeviceManagerWindow : Window
     private void UpdateTable(object sender, EventArgs e) => RefreshDeviceList();
 
     private void Window_Loaded(object sender, RoutedEventArgs e) => RefreshDeviceList();
-
     public void RefreshDeviceList()
     {
-        var arr = _host.GetAllDevices().ToList();
+        var arr = _host.Emulator.GetAllDevices().ToList();
 
         Devices.Clear();
         foreach (var device in arr)
@@ -59,7 +60,7 @@ public partial class DeviceManagerWindow : Window
     {
         var selected = _selectedDevice;
         if (selected == null) return;
-        var memory = selected.Value.Ram;
+        ReadOnlyMemory<byte> memory = selected.Value.Ram;
         var infoWindow = new InformationWindow(memory)
         {
             Owner = this
@@ -107,7 +108,7 @@ public partial class DeviceManagerWindow : Window
             return;
         }
 
-        bool success = _host.ChangeDeviceSector(_selectedDevice.Value.Id, newSector);
+        bool success = _host.Emulator.ChangeDeviceSector(_selectedDevice.Value.Id, newSector);
         if (success)
         {
             _outputView.Append($" {NameSystem}Сектор изменён на {newSector}.");
@@ -128,8 +129,8 @@ public partial class DeviceManagerWindow : Window
             return;
         }
         
-        _host.SetMainDevice(_selectedDevice.Value.Id);
-        DeviceData? d = _host.GetDeviceData(_selectedDevice.Value.Id);
+        _host.Emulator.SetMainDevice(_selectedDevice.Value.Id);
+        DeviceData? d = _host.Emulator.GetDeviceData(_selectedDevice.Value.Id);
         _device = d;
         if (d == null)
         {
@@ -158,7 +159,7 @@ public partial class DeviceManagerWindow : Window
             DeviceCreationResult? res = dialog.ViewModel.Result;
             if (res != null)
             {
-                int deviceId = _host.CreateDevice(res.Bios, res.RamSize, res.Sector, 
+                int deviceId = _host.Emulator.CreateDevice(res.Bios, res.RamSize, res.Sector, 
                                                   res.DeviceName, res.ProcName,
                                                   res.RamName, res.PortBusName);
                 if (deviceId != -1)

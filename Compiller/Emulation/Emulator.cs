@@ -1,6 +1,6 @@
 ﻿using Kernel.BiosSystem;
+using Kernel.Common;
 using Kernel.ControllersData;
-using Kernel.RamSystem;
 using Kernel.Utilites;
 using static Kernel.Utilites.ManagerDevices;
 
@@ -17,12 +17,12 @@ public class Emulator
 
     private int _mainDeviceId = -1;
 
-    public Emulator(SizePort totalPorts = SizePort.Size16KB, SizePortOnDev portsPerDevice = SizePortOnDev.Size16B)
+    public Emulator(SizePort totalPorts = SizePort.Size16KB, SizePortOnDevice portsPerDevice = SizePortOnDevice.Size16B)
     {
         _portBus = new PortBus(totalPorts, portsPerDevice, new NameDeviceToken("System"), "PortBus");
         _manager = new ManagerDevices(_portBus);
     }
-    public void ReloadEmulator(SizePort totalPorts = SizePort.Size16KB, SizePortOnDev portsPerDevice = SizePortOnDev.Size16B)
+    public void ReloadEmulator(SizePort totalPorts = SizePort.Size16KB, SizePortOnDevice portsPerDevice = SizePortOnDevice.Size16B)
     {
         _portBus = new PortBus(totalPorts, portsPerDevice, new NameDeviceToken("System"), "PortBus");
     }
@@ -46,7 +46,7 @@ public class Emulator
         int id = _manager.CreateNewDevice(
             size,
             SizePort.Size16KB,
-            SizePortOnDev.Size16B,
+            SizePortOnDevice.Size16B,
             name,
             nameProc,
             nameRam,

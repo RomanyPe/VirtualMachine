@@ -1,4 +1,5 @@
-﻿using Kernel.RamSystem;
+﻿using Kernel.Common;
+using Kernel.RamSystem;
 
 namespace Compiller;
 

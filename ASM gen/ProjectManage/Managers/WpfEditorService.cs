@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using VMApplication;
+using VMApplication.Project;
 
 namespace ASM_gen.ProjectManage.Managers;
 

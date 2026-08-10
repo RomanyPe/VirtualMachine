@@ -1,5 +1,4 @@
-﻿using Kernel.RamSystem;
-using static Kernel.ProcessorSystem.Processor;
+﻿using Kernel.Common;
 
 namespace Compiller.ASM;
 
@@ -14,6 +13,17 @@ namespace Compiller.ASM;
 /// </summary>
 public static class InstructionEncoder
 {
+    extension(OpCode c)
+    {
+        public uint ToUint() => (uint)c;
+        public uint Uint => (uint)c;
+    }
+
+    extension(OpCodeSize s)
+    {
+        public uint ToUint() => (uint)s;
+        public uint Uint => (uint)s;
+    }
     #region Методы кодирования
 
     /// <summary>
@@ -47,7 +57,7 @@ public static class InstructionEncoder
     /// </summary>
     public static uint EncodeLDI(uint reg)
     {
-        return EncodeI((uint)OpCode.LDI, reg, (uint)OpCodeSize.S64);
+        return EncodeI(OpCode.LDI.Uint, reg, (uint)OpCodeSize.S64);
     }
 
     /// <summary>
@@ -55,7 +65,7 @@ public static class InstructionEncoder
     /// </summary>
     public static uint EncodeLOAD(uint regDst, uint sizeCode)
     {
-        return EncodeI((uint)OpCode.LOAD, regDst, sizeCode);
+        return EncodeI(OpCode.LOAD.Uint, regDst, sizeCode);
     }
 
     /// <summary>
@@ -63,7 +73,7 @@ public static class InstructionEncoder
     /// </summary>
     public static uint EncodeSTORE(uint regSrc, uint sizeCode)
     {
-        return EncodeI((uint)OpCode.STORE, regSrc, sizeCode);
+        return EncodeI(OpCode.STORE.Uint, regSrc, sizeCode);
     }
 
     /// <summary>
@@ -80,7 +90,7 @@ public static class InstructionEncoder
     /// </summary>
     public static uint EncodeJ(uint opcode)
     {
-        return opcode | ((uint)OpCodeSize.S64 << 18);
+        return opcode | (OpCodeSize.S64.Uint << 18);
     }
 
     /// <summary>
@@ -88,7 +98,7 @@ public static class InstructionEncoder
     /// </summary>
     public static uint EncodeCALL()
     {
-        return EncodeJ((uint)OpCode.CALL);
+        return EncodeJ(OpCode.CALL.Uint);
     }
 
     /// <summary>
@@ -96,7 +106,7 @@ public static class InstructionEncoder
     /// </summary>
     public static uint EncodeRET()
     {
-        return (uint)OpCode.RET;  // Без аргументов, без размера
+        return OpCode.RET.Uint;
     }
 
     /// <summary>
@@ -104,7 +114,7 @@ public static class InstructionEncoder
     /// </summary>
     public static uint EncodeHALT()
     {
-        return (uint)OpCode.HALT;
+        return OpCode.HALT.Uint;
     }
 
     /// <summary>
@@ -112,7 +122,7 @@ public static class InstructionEncoder
     /// </summary>
     public static uint EncodeNOP()
     {
-        return (uint)OpCode.NOP;
+        return OpCode.NOP.Uint;
     }
 
     #endregion
@@ -154,16 +164,16 @@ public static class InstructionEncoder
 
     public static uint EncodeLOAD_IND(uint regDst, uint regAddr, uint sizeCode)
     {
-        return EncodeRS((uint)OpCode.LOAD_IND, regDst, regAddr, sizeCode);
+        return EncodeRS(OpCode.LOAD_IND.Uint, regDst, regAddr, sizeCode);
     }
 
     public static uint EncodeSTORE_IND(uint regSrc, uint regAddr, uint sizeCode)
     {
-        return EncodeRS((uint)OpCode.STORE_IND, regSrc, regAddr, sizeCode);
+        return EncodeRS(OpCode.STORE_IND.Uint, regSrc, regAddr, sizeCode);
     }
 
-    public static uint EncodeSHR(uint regDst, uint regSrc) => EncodeR((uint)OpCode.SHR, regDst, regSrc);
-    public static uint EncodeMULT_INT(uint regDst, uint regSrc) => EncodeR((uint)OpCode.MULT_INT, regDst, regSrc);
+    public static uint EncodeSHR(uint regDst, uint regSrc) => EncodeR(OpCode.SHR.Uint, regDst, regSrc);
+    public static uint EncodeMULT_INT(uint regDst, uint regSrc) => EncodeR(OpCode.MULT_INT.Uint, regDst, regSrc);
     #endregion
 
     #region Декодирование (для отладки)

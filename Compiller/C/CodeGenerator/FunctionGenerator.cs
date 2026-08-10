@@ -1,4 +1,5 @@
 ﻿using Compiller.ASM;
+using Kernel.Common;
 using static Kernel.ProcessorSystem.Processor;
 
 namespace Compiller.C.CodeGenerator;
@@ -57,7 +58,7 @@ public class FunctionGenerator(Assembler asm)
                 {
                     var gInfo = _globalMem.GetInfo(global.Name)!.Value;
                     var opSize = global.IsPointer ? OpCodeSize.S64 : CodeGenUtils.GetSizeForType(global.Type);
-                    _asm.EmitInstruction64(InstructionEncoder.EncodeSTORE((uint)RegType.r0, (uint)opSize), addr);
+                    _asm.EmitInstruction64(InstructionEncoder.EncodeSTORE((uint)RegType.r0, opSize.Uint), addr);
                 }
             }
         }
@@ -88,7 +89,7 @@ public class FunctionGenerator(Assembler asm)
         if (!isMain)
         {
             foreach (var reg in funcCtx.UsedRegisters.OrderBy(r => (int)r))
-                _asm.EmitInstruction(InstructionEncoder.EncodeU((uint)OpCode.PUSH, (uint)reg));
+                _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.PUSH.Uint, (uint)reg));
 
             foreach (var param in func.Parameters)
             {
@@ -97,13 +98,13 @@ public class FunctionGenerator(Assembler asm)
                 string globalName = $"__param_{func.Name}_{param.Name}";
                 var addr = _globalMem.GetInfo(globalName)!.Value.Address;
                 var size = param.IsPointer ? OpCodeSize.S64 : CodeGenUtils.GetSizeForType(param.Type);
-                _asm.EmitInstruction64(InstructionEncoder.EncodeLOAD((uint)loc.Register, (uint)size), addr);
+                _asm.EmitInstruction64(InstructionEncoder.EncodeLOAD((uint)loc.Register, size.Uint), addr);
             }
 
             if (funcCtx.TotalLocalSize > 0)
             {
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(CodeGenUtils.TMP_REG), (ulong)funcCtx.TotalLocalSize);
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.SUB, (uint)RegType.rSP, CodeGenUtils.TMP_REG));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.SUB.Uint, (uint)RegType.rSP, CodeGenUtils.TMP_REG));
             }
         }
         else
@@ -111,7 +112,7 @@ public class FunctionGenerator(Assembler asm)
             if (funcCtx.TotalLocalSize > 0)
             {
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(CodeGenUtils.TMP_REG), (ulong)funcCtx.TotalLocalSize);
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.SUB, (uint)RegType.rSP, CodeGenUtils.TMP_REG));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.SUB.Uint, (uint)RegType.rSP, CodeGenUtils.TMP_REG));
             }
         }
 
@@ -129,10 +130,10 @@ public class FunctionGenerator(Assembler asm)
             if (funcCtx.TotalLocalSize > 0)
             {
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(CodeGenUtils.TMP_REG), (ulong)funcCtx.TotalLocalSize);
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.ADD, (uint)RegType.rSP, CodeGenUtils.TMP_REG));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, (uint)RegType.rSP, CodeGenUtils.TMP_REG));
             }
             for (int i = funcCtx.UsedRegisters.Count - 1; i >= 0; i--)
-                _asm.EmitInstruction(InstructionEncoder.EncodeU((uint)OpCode.POP, (uint)funcCtx.UsedRegisters[i]));
+                _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.POP.Uint, (uint)funcCtx.UsedRegisters[i]));
             _asm.EmitInstruction(InstructionEncoder.EncodeRET());
         }
     }

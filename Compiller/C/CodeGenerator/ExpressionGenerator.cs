@@ -1,4 +1,5 @@
 ﻿using Compiller.ASM;
+using Kernel.Common;
 using static Kernel.ProcessorSystem.Processor;
 
 namespace Compiller.C.CodeGenerator;
@@ -58,12 +59,12 @@ public class ExpressionGenerator(Assembler asm, GlobalMemoryManager globalMem, F
             if (loc.IsRegister)
             {
                 _asm.EmitInstruction(InstructionEncoder.EncodeR(
-                    (uint)OpCode.MOV, (uint)RegType.r0, (uint)loc.Register));
+                    OpCode.MOV.Uint, (uint)RegType.r0, (uint)loc.Register));
             }
             else
             {
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(CodeGenUtils.TMP_REG), (ulong)loc.StackOffset);
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.ADD, CodeGenUtils.TMP_REG, (uint)RegType.rSP));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, CodeGenUtils.TMP_REG, (uint)RegType.rSP));
                 _asm.EmitInstruction(InstructionEncoder.EncodeLOAD_IND((uint)RegType.r0, CodeGenUtils.TMP_REG, (uint)loc.TypeSize));
             }
         }
@@ -83,12 +84,12 @@ public class ExpressionGenerator(Assembler asm, GlobalMemoryManager globalMem, F
         {
             if (loc.IsRegister)
             {
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.MOV, (uint)loc.Register, (uint)RegType.r0));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)loc.Register, (uint)RegType.r0));
             }
             else
             {
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(CodeGenUtils.TMP_REG), (ulong)loc.StackOffset);
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.ADD, CodeGenUtils.TMP_REG, (uint)RegType.rSP));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, CodeGenUtils.TMP_REG, (uint)RegType.rSP));
                 _asm.EmitInstruction(InstructionEncoder.EncodeSTORE_IND((uint)RegType.r0, CodeGenUtils.TMP_REG, (uint)loc.TypeSize));
             }
         }
@@ -129,7 +130,7 @@ public class ExpressionGenerator(Assembler asm, GlobalMemoryManager globalMem, F
 
     public void StoreR0ToArrayElement(string arrayName, ASTNode indexExpr)
     {
-        _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.MOV, (uint)RegType.r1, (uint)RegType.r0));
+        _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)RegType.r1, (uint)RegType.r0));
 
         if (_funcCtx.VarMap.TryGetValue(arrayName, out var loc))
         {
@@ -161,8 +162,8 @@ public class ExpressionGenerator(Assembler asm, GlobalMemoryManager globalMem, F
         if (typeSize != OpCodeSize.S8)
             CodeGenUtils.EmitMultiplyByConstant(_asm, (uint)RegType.r0, CodeGenUtils.GetSizeInBytes(typeSize));
         _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(CodeGenUtils.TMP_REG), (ulong)loc.StackOffset);
-        _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.ADD, CodeGenUtils.TMP_REG, (uint)RegType.rSP));
-        _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.ADD, CodeGenUtils.TMP_REG, (uint)RegType.r0));
+        _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, CodeGenUtils.TMP_REG, (uint)RegType.rSP));
+        _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, CodeGenUtils.TMP_REG, (uint)RegType.r0));
         _asm.EmitInstruction(InstructionEncoder.EncodeLOAD_IND((uint)RegType.r0, CodeGenUtils.TMP_REG, (uint)typeSize));
     }
 
@@ -173,7 +174,7 @@ public class ExpressionGenerator(Assembler asm, GlobalMemoryManager globalMem, F
         if (typeSize != OpCodeSize.S8)
             CodeGenUtils.EmitMultiplyByConstant(_asm, (uint)RegType.r0, CodeGenUtils.GetSizeInBytes(typeSize));
         _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(CodeGenUtils.TMP_REG), gInfo.Address);
-        _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.ADD, CodeGenUtils.TMP_REG, (uint)RegType.r0));
+        _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, CodeGenUtils.TMP_REG, (uint)RegType.r0));
         _asm.EmitInstruction(InstructionEncoder.EncodeLOAD_IND((uint)RegType.r0, CodeGenUtils.TMP_REG, (uint)typeSize));
     }
 
@@ -190,14 +191,14 @@ public class ExpressionGenerator(Assembler asm, GlobalMemoryManager globalMem, F
 
         // 1. Вычисляем индекс → r1
         GenerateExpression(indexExpr);   // r0 = индекс
-        _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.MOV, (uint)RegType.r1, (uint)RegType.r0));
+        _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)RegType.r1, (uint)RegType.r0));
         // 2. Загружаем адрес указателя → r0
         LoadVariableToR0(pointerName);   // r0 = адрес
                                          // 3. Умножаем индекс на размер элемента
         if (pointedSize != OpCodeSize.S8)
             CodeGenUtils.EmitMultiplyByConstant(_asm, (uint)RegType.r1, CodeGenUtils.GetSizeInBytes(pointedSize));
         // 4. r0 = адрес + смещение
-        _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.ADD, (uint)RegType.r0, (uint)RegType.r1));
+        _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, (uint)RegType.r0, (uint)RegType.r1));
         // 5. Загружаем значение
         _asm.EmitInstruction(InstructionEncoder.EncodeLOAD_IND((uint)RegType.r0, (uint)RegType.r0, (uint)pointedSize));
     }
@@ -209,8 +210,8 @@ public class ExpressionGenerator(Assembler asm, GlobalMemoryManager globalMem, F
         if (typeSize != OpCodeSize.S8)
             CodeGenUtils.EmitMultiplyByConstant(_asm, (uint)RegType.r0, CodeGenUtils.GetSizeInBytes(typeSize));
         _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(CodeGenUtils.TMP_REG), (ulong)loc.StackOffset);
-        _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.ADD, CodeGenUtils.TMP_REG, (uint)RegType.rSP));
-        _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.ADD, CodeGenUtils.TMP_REG, (uint)RegType.r0));
+        _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, CodeGenUtils.TMP_REG, (uint)RegType.rSP));
+        _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, CodeGenUtils.TMP_REG, (uint)RegType.r0));
         _asm.EmitInstruction(InstructionEncoder.EncodeSTORE_IND((uint)RegType.r1, CodeGenUtils.TMP_REG, (uint)typeSize));
     }
 
@@ -221,7 +222,7 @@ public class ExpressionGenerator(Assembler asm, GlobalMemoryManager globalMem, F
         if (typeSize != OpCodeSize.S8)
             CodeGenUtils.EmitMultiplyByConstant(_asm, (uint)RegType.r0, CodeGenUtils.GetSizeInBytes(typeSize));
         _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(CodeGenUtils.TMP_REG), gInfo.Address);
-        _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.ADD, CodeGenUtils.TMP_REG, (uint)RegType.r0));
+        _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, CodeGenUtils.TMP_REG, (uint)RegType.r0));
         _asm.EmitInstruction(InstructionEncoder.EncodeSTORE_IND((uint)RegType.r1, CodeGenUtils.TMP_REG, (uint)typeSize));
     }
 
@@ -237,7 +238,7 @@ public class ExpressionGenerator(Assembler asm, GlobalMemoryManager globalMem, F
 
         // 1. Вычисляем индекс → r2
         GenerateExpression(indexExpr);
-        _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.MOV, (uint)RegType.r2, (uint)RegType.r0));
+        _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)RegType.r2, (uint)RegType.r0));
 
         // 2. Умножаем индекс на размер элемента (в r2)
         if (pointedSize != OpCodeSize.S8)
@@ -250,7 +251,7 @@ public class ExpressionGenerator(Assembler asm, GlobalMemoryManager globalMem, F
         LoadVariableToR0(pointerName);
 
         // 4. r0 = адрес + смещение
-        _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.ADD, (uint)RegType.r0, (uint)RegType.r2));
+        _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, (uint)RegType.r0, (uint)RegType.r2));
 
         // 5. Сохраняем значение из r1 (которое пришло из StoreR0ToArrayElement)
         _asm.EmitInstruction(InstructionEncoder.EncodeSTORE_IND((uint)RegType.r1, (uint)RegType.r0, (uint)pointedSize));
@@ -261,9 +262,9 @@ public class ExpressionGenerator(Assembler asm, GlobalMemoryManager globalMem, F
         if (condition is BinaryOpNode binop && CodeGenUtils.IsComparisonOperator(binop.Operator))
         {
             GenerateExpression(binop.Left);
-            _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.MOV, (uint)RegType.r1, (uint)RegType.r0));
+            _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)RegType.r1, (uint)RegType.r0));
             GenerateExpression(binop.Right);
-            _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.SUB, (uint)RegType.r1, (uint)RegType.r0));
+            _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.SUB.Uint, (uint)RegType.r1, (uint)RegType.r0));
             GenerateComparisonJump(binop.Operator, trueLabel, falseLabel);
         }
         else
@@ -271,23 +272,23 @@ public class ExpressionGenerator(Assembler asm, GlobalMemoryManager globalMem, F
             GenerateExpression(condition);
             if (trueLabel != null && falseLabel != null)
             {
-                _asm.EmitJump(InstructionEncoder.EncodeJ((uint)OpCode.JNZ), trueLabel);
-                _asm.EmitJump(InstructionEncoder.EncodeJ((uint)OpCode.JMP), falseLabel);
+                _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JNZ.Uint), trueLabel);
+                _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JMP.Uint), falseLabel);
             }
             else if (trueLabel != null)
             {
-                _asm.EmitJump(InstructionEncoder.EncodeJ((uint)OpCode.JNZ), trueLabel);
+                _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JNZ.Uint), trueLabel);
             }
             else if (falseLabel != null)
             {
-                _asm.EmitJump(InstructionEncoder.EncodeJ((uint)OpCode.JZ), falseLabel);
+                _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JZ.Uint), falseLabel);
             }
         }
     }
 
     private void GenerateComparisonJump(string op, string? trueLabel, string? falseLabel)
     {
-        void EmitJmp(string label) => _asm.EmitJump(InstructionEncoder.EncodeJ((uint)OpCode.JMP), label);
+        void EmitJmp(string label) => _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JMP.Uint), label);
         void EmitCond(OpCode jmpOp, string label) => _asm.EmitJump(InstructionEncoder.EncodeJ((uint)jmpOp), label);
 
         if (trueLabel != null && falseLabel == null)
@@ -332,26 +333,26 @@ public class ExpressionGenerator(Assembler asm, GlobalMemoryManager globalMem, F
     private void GenerateBinaryOp(BinaryOpNode binop)
     {
         GenerateExpression(binop.Left);
-        _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.MOV, (uint)RegType.r1, (uint)RegType.r0));
+        _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)RegType.r1, (uint)RegType.r0));
         GenerateExpression(binop.Right);
 
         switch (binop.Operator)
         {
             case "+":
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.ADD, (uint)RegType.r1, (uint)RegType.r0));
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.MOV, (uint)RegType.r0, (uint)RegType.r1));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, (uint)RegType.r1, (uint)RegType.r0));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)RegType.r0, (uint)RegType.r1));
                 break;
             case "-":
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.SUB, (uint)RegType.r1, (uint)RegType.r0));
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.MOV, (uint)RegType.r0, (uint)RegType.r1));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.SUB.Uint, (uint)RegType.r1, (uint)RegType.r0));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)RegType.r0, (uint)RegType.r1));
                 break;
             case "*":
                 _asm.EmitInstruction(InstructionEncoder.EncodeMULT_INT((uint)RegType.r1, (uint)RegType.r0));
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.MOV, (uint)RegType.r0, (uint)RegType.r1));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)RegType.r0, (uint)RegType.r1));
                 break;
             case "/":
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.DIV, (uint)RegType.r1, (uint)RegType.r0));
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.MOV, (uint)RegType.r0, (uint)RegType.r1));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.DIV.Uint, (uint)RegType.r1, (uint)RegType.r0));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)RegType.r0, (uint)RegType.r1));
                 break;
             case "<":
             case ">":
@@ -372,8 +373,8 @@ public class ExpressionGenerator(Assembler asm, GlobalMemoryManager globalMem, F
 
     private void GenerateComparison(string op)
     {
-        _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.SUB, (uint)RegType.r1, (uint)RegType.r0));
-        _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.MOV, (uint)RegType.r0, (uint)RegType.r1));
+        _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.SUB.Uint, (uint)RegType.r1, (uint)RegType.r0));
+        _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)RegType.r0, (uint)RegType.r1));
 
         string trueLabel = _getLabel();
         string endLabel = _getLabel();
@@ -382,62 +383,62 @@ public class ExpressionGenerator(Assembler asm, GlobalMemoryManager globalMem, F
         switch (op)
         {
             case "<":
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.MOV, (uint)RegType.r1, (uint)RegType.rFL));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)RegType.r1, (uint)RegType.rFL));
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI((uint)RegType.r2), 2);
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.AND, (uint)RegType.r1, (uint)RegType.r2));
-                _asm.EmitJump(InstructionEncoder.EncodeJ((uint)OpCode.JNZ), trueLabel);
-                _asm.EmitJump(InstructionEncoder.EncodeJ((uint)OpCode.JMP), endLabel);
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.AND.Uint, (uint)RegType.r1, (uint)RegType.r2));
+                _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JNZ.Uint), trueLabel);
+                _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JMP.Uint), endLabel);
                 _asm.MarkLabel(trueLabel);
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI((uint)RegType.r0), 1);
                 _asm.MarkLabel(endLabel);
                 break;
             // ... остальные case'ы "<", ">", "<=", ">=", "==", "!=" – полностью сохранены, как в оригинале
             case ">":
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.MOV, (uint)RegType.r1, (uint)RegType.rFL));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)RegType.r1, (uint)RegType.rFL));
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI((uint)RegType.r2), 3);
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.AND, (uint)RegType.r1, (uint)RegType.r2));
-                _asm.EmitJump(InstructionEncoder.EncodeJ((uint)OpCode.JZ), trueLabel);
-                _asm.EmitJump(InstructionEncoder.EncodeJ((uint)OpCode.JMP), endLabel);
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.AND.Uint, (uint)RegType.r1, (uint)RegType.r2));
+                _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JZ.Uint), trueLabel);
+                _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JMP.Uint), endLabel);
                 _asm.MarkLabel(trueLabel);
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI((uint)RegType.r0), 1);
                 _asm.MarkLabel(endLabel);
                 break;
             case "<=":
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.MOV, (uint)RegType.r1, (uint)RegType.rFL));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)RegType.r1, (uint)RegType.rFL));
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI((uint)RegType.r2), 3);
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.AND, (uint)RegType.r1, (uint)RegType.r2));
-                _asm.EmitJump(InstructionEncoder.EncodeJ((uint)OpCode.JNZ), trueLabel);
-                _asm.EmitJump(InstructionEncoder.EncodeJ((uint)OpCode.JMP), endLabel);
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.AND.Uint, (uint)RegType.r1, (uint)RegType.r2));
+                _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JNZ.Uint), trueLabel);
+                _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JMP.Uint), endLabel);
                 _asm.MarkLabel(trueLabel);
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI((uint)RegType.r0), 1);
                 _asm.MarkLabel(endLabel);
                 break;
             case ">=":
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.MOV, (uint)RegType.r1, (uint)RegType.rFL));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)RegType.r1, (uint)RegType.rFL));
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI((uint)RegType.r2), 2);
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.AND, (uint)RegType.r1, (uint)RegType.r2));
-                _asm.EmitJump(InstructionEncoder.EncodeJ((uint)OpCode.JZ), trueLabel);
-                _asm.EmitJump(InstructionEncoder.EncodeJ((uint)OpCode.JMP), endLabel);
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.AND.Uint, (uint)RegType.r1, (uint)RegType.r2));
+                _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JZ.Uint), trueLabel);
+                _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JMP.Uint), endLabel);
                 _asm.MarkLabel(trueLabel);
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI((uint)RegType.r0), 1);
                 _asm.MarkLabel(endLabel);
                 break;
             case "==":
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.MOV, (uint)RegType.r1, (uint)RegType.rFL));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)RegType.r1, (uint)RegType.rFL));
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI((uint)RegType.r2), 1);
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.AND, (uint)RegType.r1, (uint)RegType.r2));
-                _asm.EmitJump(InstructionEncoder.EncodeJ((uint)OpCode.JNZ), trueLabel);
-                _asm.EmitJump(InstructionEncoder.EncodeJ((uint)OpCode.JMP), endLabel);
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.AND.Uint, (uint)RegType.r1, (uint)RegType.r2));
+                _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JNZ.Uint), trueLabel);
+                _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JMP.Uint), endLabel);
                 _asm.MarkLabel(trueLabel);
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI((uint)RegType.r0), 1);
                 _asm.MarkLabel(endLabel);
                 break;
             case "!=":
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.MOV, (uint)RegType.r1, (uint)RegType.rFL));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)RegType.r1, (uint)RegType.rFL));
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI((uint)RegType.r2), 1);
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.AND, (uint)RegType.r1, (uint)RegType.r2));
-                _asm.EmitJump(InstructionEncoder.EncodeJ((uint)OpCode.JZ), trueLabel);
-                _asm.EmitJump(InstructionEncoder.EncodeJ((uint)OpCode.JMP), endLabel);
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.AND.Uint, (uint)RegType.r1, (uint)RegType.r2));
+                _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JZ.Uint), trueLabel);
+                _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JMP.Uint), endLabel);
                 _asm.MarkLabel(trueLabel);
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI((uint)RegType.r0), 1);
                 _asm.MarkLabel(endLabel);
@@ -453,24 +454,24 @@ public class ExpressionGenerator(Assembler asm, GlobalMemoryManager globalMem, F
         {
             case "-":
                 GenerateExpression(unop.Operand);
-                _asm.EmitInstruction(InstructionEncoder.EncodeU((uint)OpCode.NOT, (uint)RegType.r0));
-                _asm.EmitInstruction(InstructionEncoder.EncodeU((uint)OpCode.INC, (uint)RegType.r0));
+                _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.NOT.Uint, (uint)RegType.r0));
+                _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.INC.Uint, (uint)RegType.r0));
                 break;
             case "!":
                 GenerateExpression(unop.Operand);
                 string trueLabel = _getLabel();
                 string endLabel = _getLabel();
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI((uint)RegType.r0), 1);
-                _asm.EmitJump(InstructionEncoder.EncodeJ((uint)OpCode.JNZ), trueLabel);
+                _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JNZ.Uint), trueLabel);
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI((uint)RegType.r0), 0);
-                _asm.EmitJump(InstructionEncoder.EncodeJ((uint)OpCode.JMP), endLabel);
+                _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JMP.Uint), endLabel);
                 _asm.MarkLabel(trueLabel);
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI((uint)RegType.r0), 1);
                 _asm.MarkLabel(endLabel);
                 break;
             case "~":
                 GenerateExpression(unop.Operand);
-                _asm.EmitInstruction(InstructionEncoder.EncodeU((uint)OpCode.NOT, (uint)RegType.r0));
+                _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.NOT.Uint, (uint)RegType.r0));
                 break;
             default:
                 throw new Exception($"Unsupported unary operator: {unop.Operator}");
@@ -487,8 +488,8 @@ public class ExpressionGenerator(Assembler asm, GlobalMemoryManager globalMem, F
                 if (loc.IsRegister)
                     throw new Exception($"Cannot take address of register variable '{varName}'");
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(CodeGenUtils.TMP_REG), (ulong)loc.StackOffset);
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.ADD, CodeGenUtils.TMP_REG, (uint)RegType.rSP));
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.MOV, (uint)RegType.r0, CodeGenUtils.TMP_REG));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, CodeGenUtils.TMP_REG, (uint)RegType.rSP));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)RegType.r0, CodeGenUtils.TMP_REG));
             }
             else if (_globalMem.TryGetAddress(varName, out var addr))
             {
@@ -504,7 +505,7 @@ public class ExpressionGenerator(Assembler asm, GlobalMemoryManager globalMem, F
     {
         GenerateExpression(deref.Operand);
         OpCodeSize size = GetPointedSize(deref.Operand);
-        _asm.EmitInstruction(InstructionEncoder.EncodeLOAD_IND((uint)RegType.r0, (uint)RegType.r0, (uint)size));
+        _asm.EmitInstruction(InstructionEncoder.EncodeLOAD_IND((uint)RegType.r0, (uint)RegType.r0, size.Uint));
     }
 
     private OpCodeSize GetPointedSize(ASTNode expr)
@@ -529,7 +530,7 @@ public class ExpressionGenerator(Assembler asm, GlobalMemoryManager globalMem, F
         int elementSize = CodeGenUtils.GetSizeInBytes(CodeGenUtils.GetSizeForType(newArr.Type));
         if (elementSize > 1)
             CodeGenUtils.EmitMultiplyByConstant(_asm, (uint)RegType.r0, elementSize);
-        _asm.EmitInstruction(InstructionEncoder.EncodeU((uint)OpCode.ALLOC, 0));
+        _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.ALLOC.Uint, 0));
     }
 
     private void GenerateFunctionCall(FunctionCallNode call)
@@ -548,7 +549,7 @@ public class ExpressionGenerator(Assembler asm, GlobalMemoryManager globalMem, F
             if (!_globalMem.TryGetAddress(globalName, out var addr))
                 throw new Exception($"Parameter global not found: {globalName}");
             var opSize = param.IsPointer ? OpCodeSize.S64 : CodeGenUtils.GetSizeForType(param.Type);
-            _asm.EmitInstruction64(InstructionEncoder.EncodeSTORE((uint)RegType.r0, (uint)opSize), addr);
+            _asm.EmitInstruction64(InstructionEncoder.EncodeSTORE((uint)RegType.r0, opSize.Uint), addr);
         }
 
         _asm.EmitJump(InstructionEncoder.EncodeCALL(), $"func_{call.Name}");
@@ -560,12 +561,12 @@ public class ExpressionGenerator(Assembler asm, GlobalMemoryManager globalMem, F
         {
             if (loc.IsRegister)
             {
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.MOV, (uint)loc.Register, (uint)srcReg));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)loc.Register, (uint)srcReg));
             }
             else
             {
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(CodeGenUtils.TMP_REG), (ulong)loc.StackOffset);
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.ADD, CodeGenUtils.TMP_REG, (uint)RegType.rSP));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, CodeGenUtils.TMP_REG, (uint)RegType.rSP));
                 _asm.EmitInstruction(InstructionEncoder.EncodeSTORE_IND((uint)srcReg, CodeGenUtils.TMP_REG, (uint)loc.TypeSize));
             }
         }

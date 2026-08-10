@@ -1,4 +1,4 @@
-﻿using Kernel.ControllersData;
+﻿using Kernel.Common;
 using Kernel.RamSystem;
 
 namespace Kernel.BiosSystem;
@@ -7,7 +7,7 @@ public readonly ref struct DeviceInitData
 {
     public readonly RamSize Size;
     public readonly SizePort SizePort;
-    public readonly SizePortOnDev SizeDev;
+    public readonly SizePortOnDevice SizeDev;
     public readonly ReadOnlySpan<char> Name;
     public readonly ReadOnlySpan<char> NameProc;
     public readonly ReadOnlySpan<char> NameRam;
@@ -18,7 +18,7 @@ public readonly ref struct DeviceInitData
     public DeviceInitData(
         RamSize size = RamSize.Size4MB,
         SizePort sizePort = SizePort.Size1KB,
-        SizePortOnDev sizeDev = SizePortOnDev.Size16B,
+        SizePortOnDevice sizeDev = SizePortOnDevice.Size16B,
         ReadOnlySpan<char> name = default,
         ReadOnlySpan<char> nameProc = default,
         ReadOnlySpan<char> nameRam = default,

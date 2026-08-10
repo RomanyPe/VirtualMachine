@@ -1,6 +1,7 @@
 ﻿using Compiller.ASM;
 using Compiller.C.CodeGenerator;
 using Kernel.BiosSystem;
+using Kernel.Common;
 
 namespace Compiller.C;
 
@@ -46,13 +47,5 @@ public static class MiniCCompiler
 
         var generator = new FunctionGenerator(asm);
         generator.Generate(ast);
-    }
-
-    /// <summary>Выводит дизассемблированный код программы в консоль.</summary>
-    public static void DisassembleCode(byte[] program)
-    {
-        LoggerKernel.LogFromSystem(_nameSystem, Disassembler.Disassemble(program, out int lines, out int size, 0));
-        LoggerKernel.LogFromSystem(_nameSystem, $"Количество строк кода: {lines}");
-        LoggerKernel.LogFromSystem(_nameSystem, $"Размер файла программы: {size} байт");
     }
 }

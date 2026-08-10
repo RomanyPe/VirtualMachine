@@ -1,6 +1,7 @@
 ﻿using System.Windows;
 using System.Windows.Controls;
 using VMApplication;
+using VMApplication.Project;
 
 namespace ASM_gen
 {

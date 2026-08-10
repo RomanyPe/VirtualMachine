@@ -1,4 +1,4 @@
-﻿using Kernel.BiosSystem;
+﻿using Kernel.Common;
 using Kernel.ControllersData;
 using Kernel.RamSystem;
 using System.Runtime.CompilerServices;
@@ -8,13 +8,15 @@ namespace Kernel.ProcessorSystem;
 
 public class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus portBus, Lock regLock, ReadOnlySpan<char> name)
 {
-    const int CountReg = 32;
-
     [InlineArray(CountReg)]
     public struct ArrayRegisters
     {
         public ulong _element0;
     }
+    const int CountReg = 32;
+    private const ulong NegativeMask = 0x8000000000000000;
+
+    
 
     private ArrayRegisters _registers;
 
@@ -25,6 +27,8 @@ public class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus p
     private volatile bool _isRunning = false;
 
     public bool IsRunning => _isRunning;
+    private ulong IsZero => GetRegValue(RegType.rFL) & 1UL;
+    private ulong IsNegative => GetRegValue(RegType.rFL) & 2UL;
 
     public bool TryInitInPool(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus portBus, Lock regLock, ReadOnlySpan<char> name)
     {
@@ -38,9 +42,8 @@ public class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus p
         _regLock = regLock;
 
         return true;
-
     }
-    private void ConsoleLock(string text, LogLevel level = LogLevel.Log)
+    private void ConsoleLock(string text, LogLevelKernel level = LogLevelKernel.Log)
     {
         LoggerKernel.LogFromDevice(in _nameDevice, text, level);
     }
@@ -57,25 +60,13 @@ public class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus p
     }
     private void UpdateFlags(ulong result)
     {
-        // Получаем текущие флаги из регистра
         ulong currentFlags = GetRegValue(RegType.rFL);
 
-        // Очищаем старые биты Zero (бит 0) и Negative (бит 1)
         currentFlags &= ~(1UL | 2UL);
 
-        // Проверяем флаг нуля
-        if (result == 0)
-        {
-            currentFlags |= 1UL; // Устанавливаем бит 0 в единицу
-        }
-
-        // Проверяем флаг отрицательного числа (старший 63-й бит у ulong)
-        if ((result & 0x8000000000000000) != 0)
-        {
-            currentFlags |= 2UL; // Устанавливаем бит 1 в единицу
-        }
-
-        // Сохраняем обновленные флаги обратно в регистр
+        if (result == 0) currentFlags |= 1UL;
+        if ((result & NegativeMask) != 0) currentFlags |= 2UL;
+        
         SetRegValue(RegType.rFL, currentFlags);
     }
 
@@ -116,11 +107,11 @@ public class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus p
         // ВРЕМЕННЫЙ ТЕСТ: Выводим в консоль, что именно прочитал процессор из памяти
         if (isDebug)
         {
-            ConsoleLock($"[DEBUG] IP: {_ip} | rawInst в HEX: 0x{rawInst:X8} | Распознанный OpCode: {opCode} (0x{(byte)opCode:X2})");
+            ConsoleLock($"IP: {_ip} | rawInst в HEX: 0x{rawInst:X8} | Распознанный OpCode: {opCode} (0x{(byte)opCode:X2})");
         }
         _ip += 4;
 
-        ulong data2 = 0;
+        ulong data = 0;
 
         if (opCode == OpCode.LDI || opCode == OpCode.LOAD || opCode == OpCode.STORE ||
             opCode == OpCode.CALL || opCode == OpCode.JMP ||
@@ -134,98 +125,17 @@ public class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus p
                 return;
             }
 
-            data2 = dataResult.Data;
+            data = dataResult.Data;
             _ip += 8;
         }
 
         SetRegValue(RegType.rIP, _ip);
-        ResultInstruction dat = DecodeInstruction(rawInst, data2);
+        ResultInstruction dat = DecodeInstruction(rawInst, data);
 
-        _isRunning = ProcessorHelpers.TryContinueAfterStatus(dat, _ip, _regLock);
-
-    }
-
-
-    public enum RegType : byte
-    {
-        rZ = 0x0,
-
-        r0, r1, r2, r3, r4,
-        r5, r6, r7, r8, r9,
-        r10, r11, r12, r13, r14,
-        r15, r16, r17, r18, r19,
-        r20, r21, 
-        rTB = 0x17,
-        rCD = 0x18,
-        rFL = 0x19,
-        rLP = 0x1A,
-        rCL = 0x1B,
-        rRT = 0x1C,
-        rSP = 0x1D,
-        rHP = 0x1E,
-        rIP = 0x1F,
-
-    }
-
-    public enum OpCodeSize
-    {
-        S8 = 0b0,
-        S16 = 0b1,
-        S32 = 0b10,
-        S64 = 0b11,
-    }
-
-    public enum OpCode : byte
-    {
-        // === 1. Системные команды ===
-        NOP = 0x00, // Нет операции (пропуск такта)
-        HALT = 0x01, // Остановка процессора / завершение программы
-        PRINT = 0x02,
-
-        // === 2. Работа с памятью (Указатели и регистры) ===
-        MOV = 0x10, // Копировать значение из регистра в регистр (MOV R1, R2)
-        LOAD = 0x11, // Загрузить в регистр число из памяти по адресу (LOAD R1, [R2])
-        STORE = 0x12, // Записать число из регистра в память по адресу (STORE [R1], R2)
-        LDI = 0x13, // Загрузить константу (Immediate) прямо в регистр (LDI R1, 42)
-        LOAD_IND = 0x14,
-        STORE_IND = 0x15,
-
-        // === 3. Арифметика и Логика (Тьюринг-базис) ===
-        ADD = 0x20, // Сложение (ADD R1, R2 -> R1 = R1 + R2)
-        SUB = 0x21, // Вычитание (SUB R1, R2 -> R1 = R1 - R2)
-        MULT_INT = 0x22, //Умножение (MULT_INT R1 R2 -> R1 = R1 * R2)
-        SHR = 0x23, //Деление SHR r1, r2 (r1 = r1 >> r2)
-        INC = 0x24, // Инкремент значения в регистре (INC R1)
-        DEC = 0x25, // Декремент значения в регистре (DEC R1)
-        DIV = 0x26,
-
-        // === 4. Логика (нужна для битовых масок и флагов) ===
-        AND = 0x30, // Побитовое И
-        OR = 0x31, // Побитовое ИЛИ
-        XOR = 0x32, // Побитовое исключающее ИЛИ (часто используется для обнуления: XOR R1, R1)
-        NOT = 0x33, // Побитовое НЕ
-
-        // === 5. Управление потоком (Ветвление и Указатели команд) ===
-        JMP = 0x40, // Безусловный переход по адресу (JMP 0x05)
-        JZ = 0x41, // Переход, если результат последней операции равен нулю (Jump if Zero)
-        JNZ = 0x42, // Переход, если результат НЕ равен нулю (Jump if Not Zero)
-        JG = 0x43, // Переход, если первое число больше второго (Jump if Greater)
-        JL = 0x44, // Переход, если первое число меньше второго (Jump if Less)
-
-        // === 6. Работа со Стеком (необходима для вызова функций) ===
-        PUSH = 0x50, // Положить значение регистра в стек
-        POP = 0x51, // Забрать значение из стека в регистр
-        CALL = 0x52, // Вызов подпрограммы (сохраняет адрес возврата в стек и делает JMP)
-        RET = 0x53,  // Возврат из подпрограммы (делает POP адреса возврата в Instruction Pointer)
-
-        // === 7. Ввод-вывод ===
-        IN = 0x60,  // Чтение из порта: IN Rdest, Rport  (Rdest ← порт[Rport])
-        OUT = 0x61,  // Запись в порт:  OUT Rsrc, Rport  (порт[Rport] ← Rsrc)
-        PRINT_INT = 0x62,
-        INT = 0x63,   // программное прерывание
-        IRET = 0x64,   // возврат из прерывания
-
-        ALLOC = 0x70,
+        if (dat.BiosStatus != BiosStatus.Success)
+        {
+            _isRunning = ProcessorHelpers.TryContinueAfterStatus(dat, _ip, _regLock);
+        }
     }
 
     public ResultInstruction DecodeInstruction(uint rawInst, ulong data)
@@ -298,9 +208,6 @@ public class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus p
         ulong divisor = GetRegValue(reg2);
         if (divisor == 0)
         {
-            //SetRegValue(reg1, 0);
-            //UpdateFlags(0);
-
             ulong ip = GetRegValue(RegType.rIP);
             return new ResultInstruction(BiosStatus.DivOnZero, ip);
         }
@@ -358,8 +265,10 @@ public class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus p
         ulong sp = GetRegValue(RegType.rSP);
         sp -= 8;
         RAMResultInt64 writeResult = _ram.WriteInt64LE(sp, GetRegValue(RegType.rIP));
-        if (!writeResult.IsSuccess)
+
+        if (!writeResult.IsSuccess) 
             return new ResultInstruction(writeResult.Status, sp);
+
         SetRegValue(RegType.rSP, sp);
         if (handlerAddr == 0)
         {
@@ -406,7 +315,7 @@ public class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus p
 
     private ResultInstruction InstructionPRINT(RegType reg)
     {
-        Console.Write((char)GetRegValue(reg));
+        LoggerProvider.Info((char)GetRegValue(reg));
         return ResultInstruction.IsSucced;
     }
     private void SetRegValue(RegType reg, ulong value)
@@ -447,50 +356,57 @@ public class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus p
         {
             case OpCodeSize.S8:
                 RAMResultInt8 data8 = _ram.ReadInt8LE(adress);
-                if (!data8.IsSuccess)
+                if (data8.IsSuccess)
                 {
-                    return new(data8.Status, data8.FaultAddress);
+                    SetRegValue(reg, data8.Data);
+                    UpdateFlags(data8.Data);
+                    return ResultInstruction.IsSucced;
                 }
-                SetRegValue(reg, data8.Data);
-                UpdateFlags(data8.Data);
-                break;
+                return new(data8.Status, data8.FaultAddress);
+
+
             case OpCodeSize.S16:
                 RAMResultInt16 data16 = _ram.ReadInt16LE(adress);
-                if (!data16.IsSuccess)
+                if (data16.IsSuccess)
                 {
-                    return new(data16.Status, data16.FaultAddress);
-                }
-                SetRegValue(reg, data16.Data);
-                UpdateFlags(data16.Data);
+                    SetRegValue(reg, data16.Data);
+                    UpdateFlags(data16.Data);
 
-                break;
+                    return ResultInstruction.IsSucced;
+                }
+                return new(data16.Status, data16.FaultAddress);
+
 
             case OpCodeSize.S32:
                 RAMResultInt32 data32 = _ram.ReadInt32LE(adress);
-                if (!data32.IsSuccess)
+                if (data32.IsSuccess)
                 {
-                    return new(data32.Status, data32.FaultAddress);
-                }
-                SetRegValue(reg, data32.Data);
-                UpdateFlags(data32.Data);
+                    SetRegValue(reg, data32.Data);
+                    UpdateFlags(data32.Data);
 
-                break;
+                    return ResultInstruction.IsSucced;
+                }
+                return new(data32.Status, data32.FaultAddress);
+
+
             case OpCodeSize.S64:
                 RAMResultInt64 data64 = _ram.ReadInt64LE(adress);
-                if (!data64.IsSuccess)
+                if (data64.IsSuccess)
                 {
-                    return new(data64.Status, data64.FaultAddress);
-                }
-                SetRegValue(reg, data64.Data);
-                UpdateFlags(data64.Data);
+                    SetRegValue(reg, data64.Data);
+                    UpdateFlags(data64.Data);
 
-                break;
+                    return ResultInstruction.IsSucced;
+                }
+                return new(data64.Status, data64.FaultAddress);
+
+
             default:
                 // Защита на случай передачи некорректного или нереализованного OpCodeSize
                 return new(BiosStatus.SegmentationFault, adress);
         }
 
-        return new(BiosStatus.Success, 0);
+        
     }
 
     private ResultInstruction InstructionSTORE(OpCodeSize sizeT, RegType reg, ulong adress)
@@ -499,49 +415,47 @@ public class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus p
         switch (sizeT)
         {
             case OpCodeSize.S8:
-
                 RAMResultInt8 data8 = _ram.WriteInt8LE(adress, (byte)GetRegValue(reg));
-                if (!data8.IsSuccess)
+                if (data8.IsSuccess)
                 {
-                    return new(data8.Status, data8.FaultAddress);
+                    UpdateFlags(data8.Data);
+                    return ResultInstruction.IsSucced;
                 }
-                UpdateFlags(data8.Data);
+                return new(data8.Status, data8.FaultAddress);
 
-                break;
             case OpCodeSize.S16:
                 RAMResultInt16 data16 = _ram.WriteInt16LE(adress, (ushort)GetRegValue(reg));
-                if (!data16.IsSuccess)
+                if (data16.IsSuccess)
                 {
-                    return new(data16.Status, data16.FaultAddress);
+                    UpdateFlags(data16.Data);
+                    return ResultInstruction.IsSucced;
                 }
-                UpdateFlags(data16.Data);
+                return new(data16.Status, data16.FaultAddress);
 
-                break;
 
             case OpCodeSize.S32:
                 RAMResultInt32 data32 = _ram.WriteInt32LE(adress, (uint)GetRegValue(reg));
-                if (!data32.IsSuccess)
+                if (data32.IsSuccess)
                 {
-                    return new(data32.Status, data32.FaultAddress);
+                    UpdateFlags(data32.Data);
+                    return ResultInstruction.IsSucced;
                 }
-                UpdateFlags(data32.Data);
+                return new(data32.Status, data32.FaultAddress);
 
-                break;
+
             case OpCodeSize.S64:
                 RAMResultInt64 data64 = _ram.WriteInt64LE(adress, GetRegValue(reg));
-                if (!data64.IsSuccess)
+                if (data64.IsSuccess)
                 {
-                    return new(data64.Status, data64.FaultAddress);
+                    UpdateFlags(data64.Data);
+                    return ResultInstruction.IsSucced;
                 }
-                UpdateFlags(data64.Data);
+                return new(data64.Status, data64.FaultAddress);
 
-                break;
+
             default:
-                // Защита на случай передачи некорректного или нереализованного OpCodeSize
                 return new(BiosStatus.AlignmentFault, adress);
         }
-
-        return ResultInstruction.IsSucced;
     }
 
     private ResultInstruction InstructionLOAD_IND(OpCodeSize sizeT, RegType reg1, RegType reg2)
@@ -557,10 +471,8 @@ public class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus p
     private ResultInstruction InstructionLDI(RegType reg, ulong value)
     {
         SetRegValue(reg, value);
-
         return ResultInstruction.IsSucced;
     }
-
 
     private ResultInstruction InstructionADD(RegType reg1, RegType reg2)
     {
@@ -654,18 +566,13 @@ public class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus p
 
     private ResultInstruction InstructionJZ(ulong targetAddress)
     {
-        ulong flags = GetRegValue(RegType.rFL);
-        if ((flags & 1UL) != 0)
-        {
-            SetRegValue(RegType.rIP, targetAddress);
-        }
+        if (IsZero != 0) return InstructionJMP(targetAddress);
         return ResultInstruction.IsSucced;
     }
 
     private ResultInstruction InstructionJNZ(ulong targetAddress)
     {
-        ulong flags = GetRegValue(RegType.rFL);
-        if ((flags & 1UL) == 0)
+        if (IsZero == 0)
         {
             SetRegValue(RegType.rIP, targetAddress);
         }
@@ -675,9 +582,8 @@ public class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus p
 
     private ResultInstruction InstructionJG(ulong targetAddress)
     {
-        ulong flags = GetRegValue(RegType.rFL);
-        bool isZero = (flags & 1UL) != 0;
-        bool isNegative = (flags & 2UL) != 0;
+        bool isZero = IsZero != 0;
+        bool isNegative = IsNegative != 0;
 
         if (!isZero && !isNegative)
         {
@@ -689,8 +595,7 @@ public class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus p
 
     private ResultInstruction InstructionJL(ulong targetAddress)
     {
-        ulong flags = GetRegValue(RegType.rFL);
-        if ((flags & 2UL) != 0)
+        if (IsNegative != 0)
         {
             SetRegValue(RegType.rIP, targetAddress);
         }

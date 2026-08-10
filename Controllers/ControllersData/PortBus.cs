@@ -1,10 +1,11 @@
 ﻿using Kernel.BiosSystem;
+using Kernel.Common;
 using Kernel.RamSystem;
 using System.ComponentModel;
 
 namespace Kernel.ControllersData;
 
-public class PortBus(SizePort ports, SizePortOnDev portsOnDev, NameDeviceToken nameDevice, ReadOnlySpan<char> name)
+public class PortBus(SizePort ports, SizePortOnDevice portsOnDev, NameDeviceToken nameDevice, ReadOnlySpan<char> name)
 {
     private readonly ulong _totalPorts = (ulong)ports;
     private readonly uint _portsOnDevice = (uint)portsOnDev;
@@ -69,28 +70,4 @@ public class PortBus(SizePort ports, SizePortOnDev portsOnDev, NameDeviceToken n
         }
         else return new RAMResultInt8(BiosStatus.NullDeviceInput, address, _nameDevice);
     }
-}
-
-public enum SizePort : ulong
-{
-    Size64B = 1U << 6,
-    Size128B = 1U << 7,
-    Size256B = 1U << 8,
-    Size512B = 1U << 9,
-    Size1KB = 1U << 10,
-    Size4KB = 1U << 12,
-    Size8KB = 1U << 13,
-    Size16KB = 1U << 14,
-    Size64KB = 1U << 16,
-    Size128KB = 1U << 17,
-    Size256KB = 1U << 18,
-    Size512KB = 1U << 19,
-}
-
-public enum SizePortOnDev : uint
-{
-    Size4B = 1U << 2,
-    Size8B = 1U << 3,
-    Size16B = 1U << 4,
-    Size32B = 1U << 5,
 }

@@ -1,4 +1,6 @@
 ﻿using VMApplication;
+using VMApplication.Logger;
+using VMApplication.Project;
 
 namespace ASM_gen.Analizator;
 

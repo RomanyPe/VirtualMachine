@@ -1,5 +1,7 @@
 ﻿using System.IO;
 using VMApplication;
+using VMApplication.Logger;
+using VMApplication.Project;
 
 namespace ASM_gen.ProjectManage.Managers;
 

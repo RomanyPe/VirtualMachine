@@ -4,10 +4,15 @@ using ASM_gen.ProjectManage.Managers;
 using ASM_gen.ProjectManage.Managers.Static;
 using ASM_gen.Services;
 using ASM_gen.StartWindow;
+using Kernel.Common;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using VMApplication;
+using VMApplication.CallBacks;
+using VMApplication.Emulator;
+using VMApplication.Logger;
+using VMApplication.Project;
 
 namespace ASM_gen;
 
@@ -18,7 +23,7 @@ public partial class IDEPage : Page
     private readonly WpfOutputView _outputView;
     private readonly ProjectService _projectManager;
     private readonly string _projectPath;
-    private readonly IProjectPaths _projectPaths;
+    private readonly IProjectFilesConfig _projectPaths;
     private readonly string _binDir;
     private DeviceData? _device;
     private LaunchModeDevice? _launchModeDevice;
@@ -31,12 +36,12 @@ public partial class IDEPage : Page
     public bool SnowAssemler => DisassembleMode.IsChecked ?? false;
     public bool SnowTimer => SnowTimerMode.IsChecked ?? false;
 
-    public IDEPage(string path, SizePort totalPorts = SizePort.Size16KB, SizePortOnDev portsPerDevice = SizePortOnDev.Size16B)
+    public IDEPage(string path, SizePort totalPorts = SizePort.Size16KB, SizePortOnDevice portsPerDevice = SizePortOnDevice.Size16B)
     {
         Console.Title = "OutPut Console";
-        _projectPath = path;
         InitializeComponent();
 
+        _projectPath = path;
         _projectPaths = AppPaths.ProjectSystemPaths(path);
         _outputView = new WpfOutputView(outputBox);
 
@@ -45,20 +50,37 @@ public partial class IDEPage : Page
         var editorService = new WpfEditorService(tabEditor, fileService);
         _projectManager = new ProjectService(fileService, editorService);
 
-        _vmHost = new VMHost(_projectManager, _outputView, _projectPaths, totalPorts, portsPerDevice);
-        _vmHost.OpenProject(_projectPath);
+        var hostLogger = new LoggerBuilder()
+                    .WithOutPut(_outputView)
+                    .Build();
+
+        var hostProj = new VMHostProjectBuilder()
+                    .WithPaths(_projectPaths)
+                    .WithProjectSevice(_projectManager)
+                    .WithLogger(hostLogger)
+                    .Build();
+        var hostEmulator = new VMEmulatorBuilder()
+                    .WithLogger(hostLogger)
+                    .WithPortBusSize(totalPorts)
+                    .WithPortsPerDevice(portsPerDevice)
+                    .Build();
+
+        _vmHost = new VMHostBuilder()
+                    .WithLogger(hostLogger)
+                    .WithProject(hostProj)
+                    .WithEmulator(hostEmulator)
+                    .Build();
+            
 
         _analizator = new(editorService, _outputView);
 
-        _outputView.UseConsole = UseConsole;
         _projectManager.OpenProject();
         _binDir = Path.Combine(_projectPath, "bin");
-        //Window.GetWindow(this).Activated += UpdateDeviceInfo!;
     }
 
     private void UpdateDeviceInfo()
     {
-        var dev = _vmHost.MainDevice();
+        var dev = _vmHost.Emulator.MainDevice();
         TxtCurrentDevice.Text = dev != null ? $"Устр-во: {dev.Value.Id}" : "Устр-во не выбрано";
     }
 
@@ -97,8 +119,7 @@ public partial class IDEPage : Page
     private void ConsoleMode_Checked(object sender, RoutedEventArgs e)
     {
         if (_device == null || _device.IsRunning == true) return;
-        _outputView.Append("sdssdd");
-        _outputView.UseConsole = UseConsole;
+        //_outputView.UseConsole = UseConsole;
     }
 
     private void BtnClearOutput(object sender, RoutedEventArgs e) => _outputView.Clear();
@@ -180,7 +201,7 @@ public partial class IDEPage : Page
     }
     public void CompileAndSafeProgramFile(ulong baseAddress = ProjectBuilder.BaseAdressProgramm)
     {
-        var res = _vmHost.Compile(baseAddress);
+        var res = _vmHost.Project.Compile(baseAddress);
         
 
         if (res.Success)
@@ -203,14 +224,14 @@ public partial class IDEPage : Page
 
     private void CompileAndRun()
     {
-        _device = _vmHost.CreateDeviceContext();
+        _device = _vmHost.Emulator.CreateDeviceContext();
         if (_device == null)
         {
             _outputView.Append("Устройство не подготовлено к запуску", LogLevel.Error);
             return;
         }
 
-        CompilationResult result = _vmHost.Compile();
+        CompilationResult result = _vmHost.Project.Compile();
 
         if (result.Success)
         {
@@ -234,7 +255,7 @@ public partial class IDEPage : Page
     
     private void OnEndLaunch()
     {
-        _outputView.Append(_vmHost.GetDumbRegisters());
+        _outputView.Append(_vmHost.Emulator.GetDumpRegisters());
     }
     private void NewFile_Click(object sender, RoutedEventArgs e) => this.NewFile(_projectPath, _projectManager);
 

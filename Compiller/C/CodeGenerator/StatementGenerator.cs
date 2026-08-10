@@ -1,4 +1,5 @@
 ﻿using Compiller.ASM;
+using Kernel.Common;
 using static Kernel.ProcessorSystem.Processor;
 
 namespace Compiller.C.CodeGenerator;
@@ -80,7 +81,7 @@ public class StatementGenerator(Assembler asm, ExpressionGenerator exprGen, Func
             if (assign.LValue is DereferenceNode deref)
             {
                 _exprGen.GenerateExpression(assign.Value);
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.MOV, (uint)RegType.r1, (uint)RegType.r0));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)RegType.r1, (uint)RegType.r0));
                 _exprGen.GenerateExpression(deref.Operand);
                 OpCodeSize size = GetPointedSize(deref.Operand);
                 _asm.EmitInstruction(InstructionEncoder.EncodeSTORE_IND((uint)RegType.r1, (uint)RegType.r0, (uint)size));
@@ -100,16 +101,16 @@ public class StatementGenerator(Assembler asm, ExpressionGenerator exprGen, Func
             if (binop.Right is NumberNode num)
             {
                 if (num.Value == 1 && binop.Operator == "+")
-                    _asm.EmitInstruction(InstructionEncoder.EncodeU((uint)OpCode.INC, (uint)xReg));
+                    _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.INC.Uint, (uint)xReg));
                 else if (num.Value == 1 && binop.Operator == "-")
-                    _asm.EmitInstruction(InstructionEncoder.EncodeU((uint)OpCode.DEC, (uint)xReg));
+                    _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.DEC.Uint, (uint)xReg));
                 else
                 {
                     _asm.EmitInstruction64(InstructionEncoder.EncodeLDI((uint)RegType.r0), (ulong)num.Value);
                     if (binop.Operator == "+")
-                        _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.ADD, (uint)xReg, (uint)RegType.r0));
+                        _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, (uint)xReg, (uint)RegType.r0));
                     else
-                        _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.SUB, (uint)xReg, (uint)RegType.r0));
+                        _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.SUB.Uint, (uint)xReg, (uint)RegType.r0));
                 }
                 return;
             }
@@ -119,18 +120,18 @@ public class StatementGenerator(Assembler asm, ExpressionGenerator exprGen, Func
                 _exprGen.GenerateExpression(binop.Right);
                 // Теперь r0 содержит y, напрямую делаем ADD/SUB с xReg
                 if (binop.Operator == "+")
-                    _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.ADD, (uint)xReg, (uint)RegType.r0));
+                    _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, (uint)xReg, (uint)RegType.r0));
                 else
-                    _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.SUB, (uint)xReg, (uint)RegType.r0));
+                    _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.SUB.Uint, (uint)xReg, (uint)RegType.r0));
                 return;
             }
             else
             {
                 _exprGen.GenerateExpression(binop.Right);
                 if (binop.Operator == "+")
-                    _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.ADD, (uint)xReg, (uint)RegType.r0));
+                    _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, (uint)xReg, (uint)RegType.r0));
                 else
-                    _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)OpCode.SUB, (uint)xReg, (uint)RegType.r0));
+                    _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.SUB.Uint, (uint)xReg, (uint)RegType.r0));
                 return;
             }
         }
@@ -165,7 +166,7 @@ public class StatementGenerator(Assembler asm, ExpressionGenerator exprGen, Func
 
         if (ifNode.ElseBlock != null)
         {
-            _asm.EmitJump(InstructionEncoder.EncodeJ((uint)OpCode.JMP), endLabel);
+            _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JMP.Uint), endLabel);
             _asm.MarkLabel(elseLabel);
             GenerateBlock(ifNode.ElseBlock);
             _asm.MarkLabel(endLabel);
@@ -184,7 +185,7 @@ public class StatementGenerator(Assembler asm, ExpressionGenerator exprGen, Func
         _asm.MarkLabel(startLabel);
         _exprGen.GenerateCondition(whileNode.Condition, null, endLabel);
         GenerateBlock(whileNode.Body);
-        _asm.EmitJump(InstructionEncoder.EncodeJ((uint)OpCode.JMP), startLabel);
+        _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JMP.Uint), startLabel);
         _asm.MarkLabel(endLabel);
     }
 
@@ -224,7 +225,7 @@ public class StatementGenerator(Assembler asm, ExpressionGenerator exprGen, Func
             else
                 _exprGen.GenerateExpression(forNode.Increment);
         }
-        _asm.EmitJump(InstructionEncoder.EncodeJ((uint)OpCode.JMP), startLabel);
+        _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JMP.Uint), startLabel);
         _asm.MarkLabel(endLabel);
     }
 
@@ -235,6 +236,6 @@ public class StatementGenerator(Assembler asm, ExpressionGenerator exprGen, Func
         if (_funcCtx.FunctionName == "main")
             _asm.EmitInstruction(InstructionEncoder.EncodeHALT());
         else
-            _asm.EmitJump(InstructionEncoder.EncodeJ((uint)OpCode.JMP), _funcCtx.EpilogueLabel);
+            _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JMP.Uint), _funcCtx.EpilogueLabel);
     }
 }

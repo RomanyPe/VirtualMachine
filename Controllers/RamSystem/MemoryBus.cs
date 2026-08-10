@@ -1,4 +1,5 @@
 ﻿using Kernel.BiosSystem;
+using Kernel.Common;
 using System.Buffers.Binary;
 
 namespace Kernel.RamSystem;
@@ -31,12 +32,9 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
         }
 
         ulong biosAddress = address - _biosRomStartCode;
-        if (biosAddress < _biosRomSize)
-        {
-            return new RAMResultInt8(_biosRom[biosAddress]);
-        }
-
-        return new RAMResultInt8(BiosStatus.SegmentationFault, address, _nameDevice);
+        return biosAddress < _biosRomSize
+            ? new RAMResultInt8(_biosRom[biosAddress])
+            : new RAMResultInt8(BiosStatus.SegmentationFault, address, _nameDevice);
     }
 
     /// <summary>
@@ -55,14 +53,10 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
         }
 
         ulong biosAddress = address - _biosRomStartCode;
-        if (biosAddress + 2 <= _biosRomSize)
-        {
-            return MemoryBusHelpers.GenerateInt16Le(_biosRom.AsSpan((int)biosAddress, 2));
-        }
-
-        return new RAMResultInt16(BiosStatus.SegmentationFault, (uint)address, _nameDevice);
+        return biosAddress + 2 <= _biosRomSize
+            ? MemoryBusHelpers.GenerateInt16Le(_biosRom.AsSpan((int)biosAddress, 2))
+            : new RAMResultInt16(BiosStatus.SegmentationFault, (uint)address, _nameDevice);
     }
-
 
     /// <summary>
     /// Метод для чтения 32 битового целого числа (Int32)
@@ -78,11 +72,9 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
 
 
         ulong biosAddress = address - _biosRomStartCode;
-        if (biosAddress + 4 <= _biosRomSize)
-            return MemoryBusHelpers.GenerateInt32Le(_biosRom.AsSpan((int)biosAddress, 4));
-
-
-        return new RAMResultInt32(BiosStatus.SegmentationFault, address, _nameDevice);
+        return biosAddress + 4 <= _biosRomSize
+            ? MemoryBusHelpers.GenerateInt32Le(_biosRom.AsSpan((int)biosAddress, 4))
+            : new RAMResultInt32(BiosStatus.SegmentationFault, address, _nameDevice);
     }
 
     /// <summary>
@@ -101,12 +93,9 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
         }
 
         ulong biosAddress = address - _biosRomStartCode;
-        if (biosAddress + 8 <= _biosRomSize)
-        {
-            return MemoryBusHelpers.GenerateInt64Le(_biosRom.AsSpan((int)biosAddress, 8));
-        }
-
-        return new RAMResultInt64(BiosStatus.SegmentationFault, address, _nameDevice);
+        return biosAddress + 8 <= _biosRomSize
+            ? MemoryBusHelpers.GenerateInt64Le(_biosRom.AsSpan((int)biosAddress, 8))
+            : new RAMResultInt64(BiosStatus.SegmentationFault, address, _nameDevice);
     }
 
     /// <summary>
@@ -153,13 +142,13 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
         BinaryPrimitives.WriteUInt32LittleEndian(_memory.AsSpan((int)address, 4), value);
         return new RAMResultInt32(value);
     }
+
     /// <summary>
     /// Метод для записи в память 64 битового целого числа (Int64)
     /// </summary>
     /// <param name="address"> Адрес в виртуальной памяти </param>
     /// <param name="value"> 64 битовое целое число (Int64) </param>
     /// <returns> Успешность операции, при возврате False программа остановится и выведится ошибка </returns>
-
     public RAMResultInt64 WriteInt64LE(ulong address, ulong value)
     {
         if ((address & 0x07) != 0) return new RAMResultInt64(BiosStatus.AlignmentFault, address, _nameDevice);
@@ -169,7 +158,61 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
         return new RAMResultInt64(value);
     }
 
+    /// <summary>
+    /// Метод для чтения 16 битового целого числа (Int16)
+    /// </summary>
+    /// <param name="address"> Адресс в виртуальной памяти </param>
+    /// <returns> Успешность операции, при возврате не BiosStatus.Success происходит исключение и остановка работы биоса </returns>
 
+    public RAMResultInt16 ReadInt16LEUnSafe(ulong address)
+    {
+        if (address + 2 <= _ramSize)
+        {
+            return MemoryBusHelpers.GenerateInt16Le(_memory.AsSpan((int)address, 2));
+        }
+
+        ulong biosAddress = address - _biosRomStartCode;
+        return biosAddress + 2 <= _biosRomSize
+            ? MemoryBusHelpers.GenerateInt16Le(_biosRom.AsSpan((int)biosAddress, 2))
+            : new RAMResultInt16(BiosStatus.SegmentationFault, (uint)address, _nameDevice);
+    }
+
+    /// <summary>
+    /// Метод для чтения 32 битового целого числа (Int32)
+    /// </summary>
+    /// <param name="address"> Адресс в виртуальной памяти </param>
+    /// <returns> Успешность операции, при возврате не BiosStatus.Success происходит исключение и остановка работы биоса </returns>
+    public RAMResultInt32 ReadInt32LEUnSafe(ulong address)
+    {
+        if (address + 4 <= _ramSize)
+        {
+            return MemoryBusHelpers.GenerateInt32Le(_memory.AsSpan((int)address, 4));
+        }
+
+        ulong biosAddress = address - _biosRomStartCode;
+        return biosAddress + 4 <= _biosRomSize
+            ? MemoryBusHelpers.GenerateInt32Le(_biosRom.AsSpan((int)biosAddress, 4))
+            : new RAMResultInt32(BiosStatus.SegmentationFault, address, _nameDevice);
+    }
+
+    /// <summary>
+    /// Метод для чтения 64 битового целого числа (Int64)
+    /// </summary>
+    /// <param name="address"> Адресс в виртуальной памяти </param>
+    /// <returns> Успешность операции, при возврате не BiosStatus.Success происходит исключение и остановка работы биоса </returns>
+
+    public RAMResultInt64 ReadInt64LEUnSafe(ulong address)
+    {
+        if (address + 8 <= _ramSize)
+        {
+            return MemoryBusHelpers.GenerateInt64Le(_memory.AsSpan((int)address, 8));
+        }
+
+        ulong biosAddress = address - _biosRomStartCode;
+        return biosAddress + 8 <= _biosRomSize
+            ? MemoryBusHelpers.GenerateInt64Le(_biosRom.AsSpan((int)biosAddress, 8))
+            : new RAMResultInt64(BiosStatus.SegmentationFault, address, _nameDevice);
+    }
 
     // ==============================
     //              API 
