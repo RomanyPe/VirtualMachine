@@ -1,19 +1,23 @@
 ﻿using Compiller.ASM;
 using Kernel.Common;
-using static Kernel.ProcessorSystem.Processor;
 
 namespace Compiller.C.CodeGenerator;
 
 // ============================================================
 // ExpressionGenerator – генерация выражений
 // ============================================================
-public class ExpressionGenerator(Assembler asm, GlobalMemoryManager globalMem, FunctionContext funcCtx,
-                            Dictionary<string, FunctionNode> functionTable, Func<string> getLabel)
+public class ExpressionGenerator(Assembler asm,
+                                 GlobalMemoryManager globalMem,
+                                 FunctionContext funcCtx,
+                                 Dictionary<string, FunctionNode> functionTable,
+                                 Func<string> getLabel,
+                                 Dictionary<string, StructLayout> structTable)
 {
     private readonly Assembler _asm = asm;
     private readonly GlobalMemoryManager _globalMem = globalMem;
     private readonly FunctionContext _funcCtx = funcCtx;
     private readonly Dictionary<string, FunctionNode> _functionTable = functionTable;
+    private readonly Dictionary<string, StructLayout> _structTable = structTable;
     private readonly Func<string> _getLabel = getLabel;
 
     public void GenerateExpression(ASTNode expr)
@@ -47,13 +51,339 @@ public class ExpressionGenerator(Assembler asm, GlobalMemoryManager globalMem, F
             case NewArrayNode newArr:
                 GenerateNewOp(newArr);
                 break;
+            case MemberAccessNode member:
+                GenerateMemberAccess(member);
+                break;
             default:
                 throw new Exception($"Unsupported expression: {expr.GetType()}");
         }
     }
 
+    public void GenerateMemberAddress(MemberAccessNode node)
+    {
+        string? structType;
+        if (node.Object is IdentifierNode id)
+        {
+            // Ищем в локальных или глобальных
+            if (_funcCtx.VarMap.TryGetValue(id.Name, out var loc))
+            {
+                if (loc.StructTypeName != null)
+                    structType = loc.StructTypeName;
+                else if (loc.IsPointer && loc.PointedType != null && _structTable.ContainsKey(loc.PointedType))
+                    structType = loc.PointedType; // ptr->field
+                else throw new Exception($"'{id.Name}' is not a struct or pointer to struct");
+            }
+            else if (_globalMem.Contains(id.Name))
+            {
+                var gInfo = _globalMem.GetInfo(id.Name)!.Value;
+                if (_structTable.ContainsKey(gInfo.Type))
+                    structType = gInfo.Type;
+                else if (gInfo.IsPointer && gInfo.PointedType != null && _structTable.ContainsKey(gInfo.PointedType))
+                    structType = gInfo.PointedType;
+                else throw new Exception($"'{id.Name}' is not a struct or pointer to struct");
+            }
+            else throw new Exception($"Unknown variable '{id.Name}'");
+        }
+        else if (node.Object is MemberAccessNode node1)
+        {
+            // Рекурсивно вычисляем адрес вложенного объекта (результат в r0)
+            GenerateMemberAddress(node1);
+
+            // Получаем ТИП поля node1, чтобы понять, в какой структуре искать текущее поле
+            var (_, _, innerFieldType) = ResolveMemberAccessType(node1);
+
+            if (!_structTable.TryGetValue(innerFieldType, out var innerLayout))
+                throw new Exception($"Unknown struct type '{innerFieldType}'");
+
+            var currentField = innerLayout.GetField(node.FieldName)
+                               ?? throw new Exception($"Field '{node.FieldName}' not found in struct '{innerFieldType}'");
+
+            if (currentField.Offset > 0)
+            {
+                _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(CodeGenUtils.TMP_REG), (ulong)currentField.Offset);
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, (uint)RegType.r0, CodeGenUtils.TMP_REG));
+            }
+            return;
+        }
+        else if (node.Object is DereferenceNode)
+        {
+            // *ptr  ->  ptr – указатель на структуру
+            // Тип указателя должен быть известен. Пока не поддерживается, но можно через контекст.
+            throw new Exception("Dereference member access not implemented yet");
+        }
+        else if (node.Object is ArrayAccessNode arrAcc)
+        {
+            // arr[i].field — адрес поля
+            string? arrStructType = ResolveArrayStructType(arrAcc.ArrayName);
+            var layoutstr = _structTable[arrStructType!];
+            var fieldstr = layoutstr.GetField(node.FieldName)
+                        ?? throw new Exception($"Field '{node.FieldName}' not found in struct '{arrStructType}'");
+
+            // Вычисляем адрес элемента arr[i]
+            GenerateExpression(arrAcc.Index);                    // r0 = i
+            _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)RegType.r2, (uint)RegType.r0));
+            LoadVariableToR0(arrAcc.ArrayName);                 // r0 = arr (указатель)
+            int elemSize = layoutstr.Size;
+            if (elemSize > 1)
+                CodeGenUtils.EmitMultiplyByConstant(_asm, (uint)RegType.r2, elemSize);
+            _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, (uint)RegType.r0, (uint)RegType.r2));
+            // r0 = адрес arr[i]
+
+            // Прибавляем смещение поля
+            if (fieldstr.Offset > 0)
+            {
+                _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(CodeGenUtils.TMP_REG), (ulong)fieldstr.Offset);
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, (uint)RegType.r0, CodeGenUtils.TMP_REG));
+            }
+            // Готово: r0 = адрес поля
+            return;
+        }
+        else
+        {
+            throw new Exception("Unsupported object for member access");
+        }
+
+        if (structType == null)
+            throw new Exception("Cannot determine struct type for member access");
+
+        var layout = _structTable[structType];
+        var field = layout.GetField(node.FieldName) ?? throw new Exception($"Field '{node.FieldName}' not found in struct '{structType}'");
+
+        if (node.IsArrow)
+        {
+            GenerateExpression(node.Object);  // r0 = ptr
+        }
+        else
+        {
+            if (node.Object is IdentifierNode identifer)
+                LoadAddressToR0(identifer.Name);
+            else throw new Exception("Dot address only for simple variables");
+        }
+        if (field.Offset > 0)
+        {
+            _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(CodeGenUtils.TMP_REG), (ulong)field.Offset);
+            _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, (uint)RegType.r0, CodeGenUtils.TMP_REG));
+        }
+    }
+
+    private void GenerateMemberAccess(MemberAccessNode node)
+    {
+        // 1. Определить StructLayout
+        // Нужно узнать тип объекта. Он может быть переменной (IdentifierNode) или другим выражением.
+        string? structType;
+        if (node.Object is IdentifierNode id)
+        {
+            // Ищем в локальных или глобальных
+            if (_funcCtx.VarMap.TryGetValue(id.Name, out var loc))
+            {
+                if (loc.StructTypeName != null)
+                    structType = loc.StructTypeName;
+                else if (loc.IsPointer && loc.PointedType != null && _structTable.ContainsKey(loc.PointedType))
+                    structType = loc.PointedType; // ptr->field
+                else throw new Exception($"'{id.Name}' is not a struct or pointer to struct");
+            }
+            else if (_globalMem.Contains(id.Name))
+            {
+                var gInfo = _globalMem.GetInfo(id.Name)!.Value;
+                if (_structTable.ContainsKey(gInfo.Type))
+                    structType = gInfo.Type;
+                else if (gInfo.IsPointer && gInfo.PointedType != null && _structTable.ContainsKey(gInfo.PointedType))
+                    structType = gInfo.PointedType;
+                else throw new Exception($"'{id.Name}' is not a struct or pointer to struct");
+            }
+            else throw new Exception($"Unknown variable '{id.Name}'");
+        }
+        else if (node.Object is MemberAccessNode)
+        {
+            // Рекурсивно вычисляем адрес вложенного объекта (без загрузки значения) в r0
+            GenerateMemberAddress(node); // этот метод вычислит адрес поля
+                                         // Теперь r0 содержит адрес поля, загружаем значение
+            var (_, fieldMem, _) = ResolveMemberAccessType(node);
+            OpCodeSize fieldSizeMem = CodeGenUtils.GetSizeForType(fieldMem.Type);
+            _asm.EmitInstruction(InstructionEncoder.EncodeLOAD_IND((uint)RegType.r0, (uint)RegType.r0, fieldSizeMem.Uint));
+            return;
+        }
+        else if (node.Object is DereferenceNode)
+        {
+            // *ptr  ->  ptr – указатель на структуру
+            // Тип указателя должен быть известен. Пока не поддерживается, но можно через контекст.
+            throw new Exception("Dereference member access not implemented yet");
+        }
+        else if (node.Object is ArrayAccessNode arrAcc)
+        {
+            string? arrStructType = ResolveArrayStructType(arrAcc.ArrayName);
+            var layoutstr = _structTable[arrStructType!];
+            var fieldstr = layoutstr.GetField(node.FieldName)
+                        ?? throw new Exception($"Field '{node.FieldName}' not found in struct '{arrStructType}'");
+
+            GenerateExpression(arrAcc.Index);
+            _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)RegType.r2, (uint)RegType.r0));
+            LoadVariableToR0(arrAcc.ArrayName);
+            int elemSize = layoutstr.Size;
+            if (elemSize > 1)
+                CodeGenUtils.EmitMultiplyByConstant(_asm, (uint)RegType.r2, elemSize);
+            _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, (uint)RegType.r0, (uint)RegType.r2));
+
+            if (fieldstr.Offset > 0)
+            {
+                _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(CodeGenUtils.TMP_REG), (ulong)fieldstr.Offset);
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, (uint)RegType.r0, CodeGenUtils.TMP_REG));
+            }
+
+            // Загружаем значение поля
+            OpCodeSize fieldSizestr = CodeGenUtils.GetSizeForType(fieldstr.Type);
+            _asm.EmitInstruction(InstructionEncoder.EncodeLOAD_IND((uint)RegType.r0, (uint)RegType.r0, fieldSizestr.Uint));
+            return;
+        }
+        else
+        {
+            throw new Exception("Unsupported object for member access");
+        }
+
+        if (structType == null)
+            throw new Exception("Cannot determine struct type for member access");
+
+        var layout = _structTable[structType];
+        var field = layout.GetField(node.FieldName) ?? throw new Exception($"Field '{node.FieldName}' not found in struct '{structType}'");
+
+        // 2. Загрузить адрес начала структуры в r0
+        if (node.IsArrow)
+        {
+            // Для ptr->field: ptr содержит адрес структуры, загружаем его.
+            GenerateExpression(node.Object);  // r0 = ptr (значение указателя)
+        }
+        else
+        {
+            if (node.Object is IdentifierNode identifer)
+            {
+                LoadAddressToR0(identifer.Name);
+            }
+            else
+            {
+                throw new Exception("Dot access only supported for simple variables currently");
+            }
+        }
+
+        if (field.Offset > 0)
+        {
+            _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(CodeGenUtils.TMP_REG), (ulong)field.Offset);
+            _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, (uint)RegType.r0, CodeGenUtils.TMP_REG));
+        }
+
+        // 4. Загрузить значение поля
+        OpCodeSize fieldSize = CodeGenUtils.GetSizeForType(field.Type);
+        _asm.EmitInstruction(InstructionEncoder.EncodeLOAD_IND((uint)RegType.r0, (uint)RegType.r0, fieldSize.Uint));
+    }
+
+    /// <summary>
+    /// Возвращает (StructLayout родительской структуры, FieldInfo поля, тип поля)
+    /// </summary>
+    private (StructLayout layout, FieldInfo field, string fieldType) ResolveMemberAccessType(MemberAccessNode node)
+    {
+        string? structType = null;
+
+        if (node.Object is IdentifierNode id)
+        {
+            // локальная или глобальная переменная
+            if (_funcCtx.VarMap.TryGetValue(id.Name, out var loc))
+            {
+                if (loc.StructTypeName != null)
+                    structType = loc.StructTypeName;
+                else if (loc.IsPointer && loc.PointedType != null && _structTable.ContainsKey(loc.PointedType))
+                    structType = loc.PointedType;
+            }
+            else if (_globalMem.Contains(id.Name))
+            {
+                var gInfo = _globalMem.GetInfo(id.Name)!.Value;
+                if (_structTable.ContainsKey(gInfo.Type))
+                    structType = gInfo.Type;
+                else if (gInfo.IsPointer && gInfo.PointedType != null && _structTable.ContainsKey(gInfo.PointedType))
+                    structType = gInfo.PointedType;
+            }
+
+            if (structType == null)
+                throw new Exception($"'{id.Name}' is not a struct or pointer to struct");
+        }
+        else if (node.Object is MemberAccessNode innerMember)
+        {
+            // рекурсивно получаем тип поля внутреннего доступа
+            var (_, _, innerFieldType) = ResolveMemberAccessType(innerMember);
+            structType = innerFieldType; // тип поля, к которому обращаемся дальше
+        }
+        else if (node.Object is ArrayAccessNode arrAcc)
+        {
+            structType = ResolveArrayStructType(arrAcc.ArrayName);
+        }
+        else if (node.Object is DereferenceNode)
+        {
+            throw new Exception("Dereference in member access not yet supported");
+        }
+        else
+        {
+            throw new Exception("Unsupported object for member access");
+        }
+
+        if (structType == null)
+            throw new Exception("Cannot determine struct type for member access");
+
+        if (!_structTable.TryGetValue(structType, out var layout))
+            throw new Exception($"Unknown struct type '{structType}'");
+
+        var field = layout.GetField(node.FieldName)
+                    ?? throw new Exception($"Field '{node.FieldName}' not found in struct '{structType}'");
+
+        return (layout, field, field.Type);
+    }
+
+    public string? ResolveArrayStructType(string arrayName)
+    {
+        if (_funcCtx.VarMap.TryGetValue(arrayName, out var loc))
+        {
+            if (loc.IsPointer && loc.PointedType != null && _structTable.ContainsKey(loc.PointedType))
+                return loc.PointedType;
+            if (loc.StructTypeName != null)
+                return loc.StructTypeName;
+        }
+        else if (_globalMem.Contains(arrayName))
+        {
+            var gInfo = _globalMem.GetInfo(arrayName)!.Value;
+            if (gInfo.IsPointer && gInfo.PointedType != null && _structTable.ContainsKey(gInfo.PointedType))
+                return gInfo.PointedType;
+            if (_structTable.ContainsKey(gInfo.Type))
+                return gInfo.Type;
+        }
+        throw new Exception($"'{arrayName}' is not a struct array or pointer to struct");
+    }
+
+
+    public void LoadAddressToR0(string varName)
+    {
+        if (_funcCtx.VarMap.TryGetValue(varName, out var loc))
+        {
+            if (loc.IsRegister)
+                throw new Exception($"Cannot take address of register variable '{varName}'");
+            _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(CodeGenUtils.TMP_REG), (ulong)loc.StackOffset);
+            _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, CodeGenUtils.TMP_REG, (uint)RegType.rSP));
+            _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)RegType.r0, CodeGenUtils.TMP_REG));
+        }
+        else if (_globalMem.TryGetAddress(varName, out var addr))
+        {
+            _asm.EmitInstruction64(InstructionEncoder.EncodeLDI((uint)RegType.r0), addr);
+        }
+        else throw new Exception($"Undefined variable '{varName}'");
+    }
+
     private void LoadVariableToR0(string varName)
     {
+        if (_funcCtx.VarMap.TryGetValue(varName, out var loca) && loca.StructTypeName != null)
+            throw new Exception($"Direct load/store of struct variable '{varName}' is not supported.");
+        if (_globalMem.Contains(varName))
+        {
+            var gInfo = _globalMem.GetInfo(varName)!.Value;
+            if (CodeGenUtils.IsStructType(gInfo.Type, _structTable))
+                throw new Exception($"Direct load/store of struct variable '{varName}' is not supported.");
+        }
+
         if (_funcCtx.VarMap.TryGetValue(varName, out var loc))
         {
             if (loc.IsRegister)
@@ -80,6 +410,15 @@ public class ExpressionGenerator(Assembler asm, GlobalMemoryManager globalMem, F
 
     public void StoreR0ToVariable(string varName)
     {
+        if (_funcCtx.VarMap.TryGetValue(varName, out var loca) && loca.StructTypeName != null)
+            throw new Exception($"Direct load/store of struct variable '{varName}' is not supported.");
+        if (_globalMem.Contains(varName))
+        {
+            var gInfo = _globalMem.GetInfo(varName)!.Value;
+            if (CodeGenUtils.IsStructType(gInfo.Type, _structTable))
+                throw new Exception($"Direct load/store of struct variable '{varName}' is not supported.");
+        }
+
         if (_funcCtx.VarMap.TryGetValue(varName, out var loc))
         {
             if (loc.IsRegister)
@@ -526,8 +865,13 @@ public class ExpressionGenerator(Assembler asm, GlobalMemoryManager globalMem, F
 
     private void GenerateNewOp(NewArrayNode newArr)
     {
-        GenerateExpression(newArr.Size);
-        int elementSize = CodeGenUtils.GetSizeInBytes(CodeGenUtils.GetSizeForType(newArr.Type));
+        int elementSize;
+        if (_structTable.TryGetValue(newArr.Type, out var layout))
+            elementSize = layout.Size;
+        else
+            elementSize = CodeGenUtils.GetSizeInBytes(CodeGenUtils.GetSizeForType(newArr.Type));
+
+        GenerateExpression(newArr.Size);   // r0 = количество элементов
         if (elementSize > 1)
             CodeGenUtils.EmitMultiplyByConstant(_asm, (uint)RegType.r0, elementSize);
         _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.ALLOC.Uint, 0));
@@ -548,7 +892,13 @@ public class ExpressionGenerator(Assembler asm, GlobalMemoryManager globalMem, F
             string globalName = $"__param_{targetFunc.Name}_{param.Name}";
             if (!_globalMem.TryGetAddress(globalName, out var addr))
                 throw new Exception($"Parameter global not found: {globalName}");
-            var opSize = param.IsPointer ? OpCodeSize.S64 : CodeGenUtils.GetSizeForType(param.Type);
+            OpCodeSize opSize;
+            if (param.IsPointer)
+                opSize = OpCodeSize.S64;
+            else if (_structTable.ContainsKey(param.Type))
+                opSize = OpCodeSize.S64;   // значение-структура – пока не реализовано
+            else
+                opSize = CodeGenUtils.GetSizeForType(param.Type);
             _asm.EmitInstruction64(InstructionEncoder.EncodeSTORE((uint)RegType.r0, opSize.Uint), addr);
         }
 

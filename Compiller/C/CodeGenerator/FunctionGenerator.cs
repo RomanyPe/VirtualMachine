@@ -1,43 +1,46 @@
 ﻿using Compiller.ASM;
 using Kernel.Common;
-using static Kernel.ProcessorSystem.Processor;
 
 namespace Compiller.C.CodeGenerator;
 
 // ============================================================
 // FunctionGenerator – генерация программы и функций
 // ============================================================
-public class FunctionGenerator(Assembler asm)
+public class FunctionGenerator(Assembler asm, Dictionary<string, StructLayout> structTable)
 {
     private readonly Assembler _asm = asm;
-    private readonly GlobalMemoryManager _globalMem = new();
+    private GlobalMemoryManager _globalMem = null!;
     private readonly Dictionary<string, FunctionNode> _functionTable = [];
+    private readonly Dictionary<string, StructLayout> _structTable = structTable;
     private int _labelCounter;
 
     public void Generate(ProgramNode program)
     {
-        // 1. Глобальные переменные
+        _globalMem = new GlobalMemoryManager(_structTable);
+
+        //foreach (var s in program.Structs)
+        //{
+        //    _structTable[s.Name] = new(s.Name, s.Fields, _structTable);
+        //}
+
         foreach (var global in program.Globals)
         {
             _globalMem.Allocate(global.Name, global.Type, global.IsArray, global.IsPointer, global.PointedType, global.ArraySize);
         }
+        
 
-        // 2. Таблица функций
         _functionTable.Clear();
         foreach (var func in program.Functions)
             _functionTable[func.Name] = func;
 
-        // 3. Псевдо‑глобальные адреса параметров
         foreach (var func in program.Functions)
             _globalMem.AllocatePseudoGlobals(func);
 
-        // 4. Глобальная инициализация
         GenerateGlobalInit(program);
 
-        // 5. Генерация кода функций (main уже первый)
         foreach (var func in program.Functions)
         {
-            if (func.IsExternal) continue; // не генерируем тело
+            if (func.IsExternal) continue;
             GenerateFunction(func);
         }
     }
@@ -47,12 +50,16 @@ public class FunctionGenerator(Assembler asm)
         // Временный контекст для вычисления глобальных инициализаторов
         var dummyCtx = new FunctionContext(); // не используется для varMap
         var getLabel = GetLabel;
-        var exprGen = new ExpressionGenerator(_asm, _globalMem, dummyCtx, _functionTable, getLabel);
+        var exprGen = new ExpressionGenerator(_asm, _globalMem, dummyCtx, _functionTable, getLabel, _structTable);
 
         foreach (var global in program.Globals)
         {
             if (global.Initializer != null)
             {
+                // Пропускаем структуры – их инициализация пока не поддерживается
+                if (CodeGenUtils.IsStructType(global.Type, _structTable))
+                    continue;
+
                 exprGen.GenerateExpression(global.Initializer);
                 if (_globalMem.TryGetAddress(global.Name, out var addr))
                 {
@@ -76,12 +83,12 @@ public class FunctionGenerator(Assembler asm)
         _globalMem.AllocateLocalGlobals(func.Body, func.Name);
 
         // Создание контекста функции
-        var funcCtx = FunctionContext.Create(func, localVarNodes);
+        var funcCtx = FunctionContext.Create(func, localVarNodes, _structTable);
 
         // Генераторы для тела функции
         var getLabel = GetLabel;
-        var exprGen = new ExpressionGenerator(_asm, _globalMem, funcCtx, _functionTable, getLabel);
-        var stmtGen = new StatementGenerator(_asm, exprGen, funcCtx, getLabel, _globalMem);
+        var exprGen = new ExpressionGenerator(_asm, _globalMem, funcCtx, _functionTable, getLabel, _structTable);
+        var stmtGen = new StatementGenerator(_asm, exprGen, funcCtx, getLabel, _globalMem, _structTable);
 
         bool isMain = func.Name == "main";
 
@@ -97,7 +104,13 @@ public class FunctionGenerator(Assembler asm)
                     throw new Exception($"Parameter '{param.Name}' not allocated to a register");
                 string globalName = $"__param_{func.Name}_{param.Name}";
                 var addr = _globalMem.GetInfo(globalName)!.Value.Address;
-                var size = param.IsPointer ? OpCodeSize.S64 : CodeGenUtils.GetSizeForType(param.Type);
+                OpCodeSize size;
+                if (param.IsPointer)
+                    size = OpCodeSize.S64;
+                else if (_structTable.ContainsKey(param.Type))
+                    size = OpCodeSize.S64;   // значение-структура пока не передаётся в регистр, но на всякий случай
+                else
+                    size = CodeGenUtils.GetSizeForType(param.Type);
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLOAD((uint)loc.Register, size.Uint), addr);
             }
 

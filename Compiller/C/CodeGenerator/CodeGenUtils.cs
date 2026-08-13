@@ -42,4 +42,46 @@ public static class CodeGenUtils
     }
 
     public static bool IsComparisonOperator(string op) => op is "==" or "!=" or "<" or ">" or "<=" or ">=";
+
+    public static int GetAlignment(string type) => type switch
+    {
+        "byte" or "char" => 1,
+        "ushort" => 2,
+        "int" => 4,
+        "ulong" => 8,
+        _ => 8  // структуры/указатели выравниваются на 8
+    };
+
+    public static bool IsStructType(string type, Dictionary<string, StructLayout> structTable)
+        => structTable.ContainsKey(type);
+
+    public static StructLayout GetStructLayout(string type, Dictionary<string, StructLayout> structTable)
+        => structTable.TryGetValue(type, out var layout) ? layout : throw new Exception($"Unknown struct type: {type}");
+
+    public static bool IsPrimitiveType(string type) => type switch
+    {
+        "int" or "char" or "void" or "byte" or "ushort" or "ulong" => true,
+        _ => false
+    };
+
+    public static int GetTypeSize(string type, Dictionary<string, StructLayout> structTable)
+    {
+        if (structTable.TryGetValue(type, out var layout))
+            return layout.Size;
+        return GetSizeInBytes(GetSizeForType(type));
+    }
+
+    public static int GetAlignment(string type, Dictionary<string, StructLayout> structTable)
+    {
+        if (structTable.ContainsKey(type)) // структура
+            return 8; // наибольшее выравнивание, можно брать максимальное из полей, но 8 ок
+        return type switch
+        {
+            "byte" or "char" => 1,
+            "ushort" => 2,
+            "int" => 4,
+            "ulong" => 8,
+            _ => 8
+        };
+    }
 }

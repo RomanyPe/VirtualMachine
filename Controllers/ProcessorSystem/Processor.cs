@@ -1,6 +1,7 @@
 ﻿using Kernel.Common;
 using Kernel.ControllersData;
 using Kernel.RamSystem;
+using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Text;
 
@@ -19,7 +20,7 @@ public class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus p
     
 
     private ArrayRegisters _registers;
-
+    private readonly ConcurrentStack<BiosStatus> _statusFromSimulation = [];
     private NameDeviceToken _nameDevice = nameDeviceToken.CreateChild(name);
     private MemoryBus _ram = ram;
     private PortBus _portBus = portBus;
@@ -43,6 +44,9 @@ public class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus p
 
         return true;
     }
+
+    public void PushBiosStatus(BiosStatus status) => _statusFromSimulation.Push(status);
+
     private void ConsoleLock(string text, LogLevelKernel level = LogLevelKernel.Log)
     {
         LoggerKernel.LogFromDevice(in _nameDevice, text, level);
@@ -88,12 +92,20 @@ public class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus p
 
         SetRegValue(RegType.rSP, stackTop);
     }
+
     public void Step(bool isDebug = false)
     {
-        if (!_isRunning) return;
-
         ulong _ip = GetRegValue(RegType.rIP);
         RAMResultInt32 instResult = _ram.ReadInt32LE(_ip);
+
+        while (_statusFromSimulation.TryPop(out BiosStatus result))
+        {
+            if (result != BiosStatus.Success)
+            {
+                _isRunning = ProcessorHelpers.TryContinueAfterStatus(new ResultInstruction(instResult.Status, 1UL), _ip, _regLock);
+                return;
+            }
+        }
 
         if (!instResult.IsSuccess)
         {

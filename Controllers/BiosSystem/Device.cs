@@ -129,7 +129,7 @@ public class Device : IDisposable
         _processor.LaunchProgramm(startIndex);
     }
 
-    public void StopDevice(int timeoutMilliseconds = 10000)
+    public void StopDevice(int timeoutMilliseconds = 3000)
     {
         // 1. Проверяем, запущен ли поток вообще
         if (_simulationThread == null || !_simulationThread.IsAlive)
@@ -137,8 +137,10 @@ public class Device : IDisposable
             ConsoleLock("Устройство уже остановлено или не запускалось.");
             return;
         }
-
+        
         ConsoleLock("Инициирована остановка устройства...");
+
+        _processor.PushBiosStatus(BiosStatus.EndProgramm);
 
         bool threadTerminatedCleanly = _simulationThread.Join(timeoutMilliseconds);
 
@@ -266,6 +268,11 @@ public class Device : IDisposable
         ulong currentIp = _processor.GetRegValue(RegType.rIP);
         ConsoleLock($"\n[Такт {stepCounter}] Выполнен IP: {currentIp} -> Следующий IP: {_processor.GetRegValue(RegType.rIP)}");
         ConsoleLock($"r0: {_processor.GetRegValue(RegType.r0)} | r1: {_processor.GetRegValue(RegType.r1)} | rFL: {_processor.GetRegValue(RegType.rFL)}");
+    }
+
+    public void ResetMemoryRam()
+    {
+        _ram.ClearMemory();
     }
 
     public void Dispose()

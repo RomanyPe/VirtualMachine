@@ -1,5 +1,4 @@
 ﻿using Kernel.Common;
-using static Kernel.ProcessorSystem.Processor;
 
 namespace Compiller.C.CodeGenerator;
 
@@ -17,4 +16,5 @@ public class VarLocation
     public int ArraySize;
     public bool IsPointer;
     public string? PointedType;
+    public string? StructTypeName;
 }

@@ -7,12 +7,13 @@ namespace Compiller.C.CodeGenerator;
 // ============================================================
 // StatementGenerator – генерация инструкций
 // ============================================================
-public class StatementGenerator(Assembler asm, ExpressionGenerator exprGen, FunctionContext funcCtx, Func<string> getLabel, GlobalMemoryManager globalMem)
+public class StatementGenerator(Assembler asm, ExpressionGenerator exprGen, FunctionContext funcCtx, Func<string> getLabel, GlobalMemoryManager globalMem, Dictionary<string, StructLayout> structTable)
 {
     private readonly GlobalMemoryManager _globalMem = globalMem;
     private readonly Assembler _asm = asm;
     private readonly ExpressionGenerator _exprGen = exprGen;
     private readonly FunctionContext _funcCtx = funcCtx;
+    private readonly Dictionary<string, StructLayout> _structTable = structTable;
     private readonly Func<string> _getLabel = getLabel;
 
     public void GenerateBlock(BlockNode block)
@@ -89,6 +90,21 @@ public class StatementGenerator(Assembler asm, ExpressionGenerator exprGen, Func
             }
         }
 
+        if (assign.LValue is MemberAccessNode memberAccess)
+        {
+            // Генерируем значение правой части в r0, затем сохраняем в поле
+            _exprGen.GenerateExpression(assign.Value);   // r0 = значение
+                                                         // Сохраняем значение во временный регистр r1
+            _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)RegType.r1, (uint)RegType.r0));
+
+            // Вычисляем адрес поля
+            _exprGen.GenerateMemberAddress(memberAccess); // нужно написать метод, возвращающий адрес в r0
+                                                          // Сохраняем
+            OpCodeSize size = GetFieldSize(memberAccess);
+            _asm.EmitInstruction(InstructionEncoder.EncodeSTORE_IND((uint)RegType.r1, (uint)RegType.r0, size.Uint));
+            return;
+        }
+
         // Оптимизация x = x +/- ...
         if (assign.Value is BinaryOpNode binop &&
             (binop.Operator == "+" || binop.Operator == "-") &&
@@ -139,6 +155,146 @@ public class StatementGenerator(Assembler asm, ExpressionGenerator exprGen, Func
         // Обычное скалярное присваивание
         _exprGen.GenerateExpression(assign.Value);
         _exprGen.StoreR0ToVariable(assign.Name);
+    }
+
+
+    private OpCodeSize GetFieldSize(MemberAccessNode node)
+    {
+        var (_, field, _) = ResolveFieldInfo(node);
+        return CodeGenUtils.GetSizeForType(field.Type);
+    }
+
+    private (StructLayout layout, FieldInfo field, string fieldType) ResolveFieldInfo(MemberAccessNode node)
+    {
+        // 1. Собираем цепочку полей от корневого объекта до самого вложенного
+        var chain = new List<string>();
+        MemberAccessNode? current = node;
+        ASTNode? rootObject = null;
+
+        while (current != null)
+        {
+            chain.Add(current.FieldName);
+            if (current.Object is MemberAccessNode inner)
+            {
+                current = inner;
+            }
+            else
+            {
+                rootObject = current.Object;
+                break;
+            }
+        }
+        chain.Reverse(); // от внешнего к внутреннему
+
+        // 2. Определяем тип корневого объекта
+        string? rootStructType = null;
+        if (rootObject is IdentifierNode id)
+        {
+            if (_funcCtx.VarMap.TryGetValue(id.Name, out var loc))
+            {
+                if (loc.StructTypeName != null)
+                    rootStructType = loc.StructTypeName;
+                else if (loc.IsPointer && loc.PointedType != null && _structTable.ContainsKey(loc.PointedType))
+                    rootStructType = loc.PointedType;
+            }
+            else if (_globalMem.Contains(id.Name))
+            {
+                var gInfo = _globalMem.GetInfo(id.Name)!.Value;
+                if (_structTable.ContainsKey(gInfo.Type))
+                    rootStructType = gInfo.Type;
+                else if (gInfo.IsPointer && gInfo.PointedType != null && _structTable.ContainsKey(gInfo.PointedType))
+                    rootStructType = gInfo.PointedType;
+            }
+        }
+        else if (rootObject is ArrayAccessNode arrAcc)
+        {
+            rootStructType = _exprGen.ResolveArrayStructType(arrAcc.ArrayName);
+        }
+
+        if (rootStructType == null)
+            throw new Exception("Cannot determine struct type for member access");
+
+        // 3. Проходим по цепочке, получая раскладку и поле на каждом уровне
+        StructLayout? currentLayout = null;
+        FieldInfo? currentField = null;
+        string currentType = rootStructType;
+
+        foreach (var fieldName in chain)
+        {
+            if (!_structTable.TryGetValue(currentType, out var layout))
+                throw new Exception($"Unknown struct type '{currentType}'");
+            currentLayout = layout;
+            currentField = layout.GetField(fieldName)
+                           ?? throw new Exception($"Field '{fieldName}' not found in struct '{currentType}'");
+            currentType = currentField.Type;
+        }
+
+        return (currentLayout!, currentField!, currentType);
+    }
+    // Вспомогательный метод – определение типа структуры для данного MemberAccessNode
+    private string? ResolveStructType(MemberAccessNode node)
+    {
+        // Собираем цепочку полей: для o.y.a -> ["y", "a"]
+        var chain = new List<string>();
+        MemberAccessNode? current = node;
+        ASTNode? rootObject = null;
+
+        // Раскручиваем цепочку MemberAccessNode до корневого объекта
+        while (current != null)
+        {
+            chain.Add(current.FieldName);
+            if (current.Object is MemberAccessNode inner)
+            {
+                current = inner;
+            }
+            else
+            {
+                rootObject = current.Object;
+                break;
+            }
+        }
+        chain.Reverse(); // теперь от корня к последнему полю
+
+        // Определяем тип корневого объекта
+        string? structType = null;
+        if (rootObject is IdentifierNode id)
+        {
+            if (_funcCtx.VarMap.TryGetValue(id.Name, out var loc))
+            {
+                if (loc.StructTypeName != null)
+                    structType = loc.StructTypeName;
+                else if (loc.IsPointer && loc.PointedType != null && _structTable.ContainsKey(loc.PointedType))
+                    structType = loc.PointedType;
+            }
+            else if (_globalMem.Contains(id.Name))
+            {
+                var gInfo = _globalMem.GetInfo(id.Name)!.Value;
+                if (_structTable.ContainsKey(gInfo.Type))
+                    structType = gInfo.Type;
+                else if (gInfo.IsPointer && gInfo.PointedType != null && _structTable.ContainsKey(gInfo.PointedType))
+                    structType = gInfo.PointedType;
+            }
+        }
+        else if (rootObject is ArrayAccessNode arrAcc)
+        {
+            structType = _exprGen.ResolveArrayStructType(arrAcc.ArrayName);
+        }
+
+        if (structType == null)
+            return null;
+
+        // Проходим по цепочке полей, обновляя тип
+        foreach (var fieldName in chain)
+        {
+            if (!_structTable.TryGetValue(structType, out var layout))
+                return null;
+            var field = layout.GetField(fieldName);
+            if (field == null)
+                return null;
+            structType = field.Type;
+        }
+
+        return structType;
     }
 
     private OpCodeSize GetPointedSize(ASTNode expr)

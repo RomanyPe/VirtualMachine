@@ -221,10 +221,9 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
     /// <summary>
     /// API для очистки памяти
     /// </summary>
-    public void Clear()
+    public void ClearMemory()
     {
         Array.Clear(_memory, 0, _memory.Length);
-        MemoryPoolEmulator.Return(_memory, _ramSizeEn);
     }
 
 
@@ -232,6 +231,7 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
     {
         if (_memory != null)
         {
+            ClearMemory();
             MemoryPoolEmulator.Return(_memory, _ramSizeEn);
             _memory = null!;
         }

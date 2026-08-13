@@ -18,7 +18,10 @@ namespace ASM_gen;
 
 public partial class IDEPage : Page
 {
-    private readonly VMHost _vmHost;
+    private readonly VMHostLogger _hostLogger;
+    private readonly VMHostProject _hostProject;
+    private readonly VMEmulator _hostEmulator;
+
     private readonly AnalizatorOnErrors _analizator;
     private readonly WpfOutputView _outputView;
     private readonly ProjectService _projectManager;
@@ -35,6 +38,7 @@ public partial class IDEPage : Page
     public bool UseConsole => ConsoleMode.IsChecked ?? false;
     public bool SnowAssemler => DisassembleMode.IsChecked ?? false;
     public bool SnowTimer => SnowTimerMode.IsChecked ?? false;
+    public bool OptimizationCode => OptimizationMode.IsChecked ?? false;
 
     public IDEPage(string path, SizePort totalPorts = SizePort.Size16KB, SizePortOnDevice portsPerDevice = SizePortOnDevice.Size16B)
     {
@@ -50,25 +54,19 @@ public partial class IDEPage : Page
         var editorService = new WpfEditorService(tabEditor, fileService);
         _projectManager = new ProjectService(fileService, editorService);
 
-        var hostLogger = new LoggerBuilder()
+        _hostLogger = new LoggerBuilder()
                     .WithOutPut(_outputView)
                     .Build();
 
-        var hostProj = new VMHostProjectBuilder()
+        _hostProject = new VMHostProjectBuilder()
                     .WithPaths(_projectPaths)
                     .WithProjectSevice(_projectManager)
-                    .WithLogger(hostLogger)
+                    .WithLogger(_hostLogger)
                     .Build();
-        var hostEmulator = new VMEmulatorBuilder()
-                    .WithLogger(hostLogger)
+        _hostEmulator = new VMEmulatorBuilder()
+                    .WithLogger(_hostLogger)
                     .WithPortBusSize(totalPorts)
                     .WithPortsPerDevice(portsPerDevice)
-                    .Build();
-
-        _vmHost = new VMHostBuilder()
-                    .WithLogger(hostLogger)
-                    .WithProject(hostProj)
-                    .WithEmulator(hostEmulator)
                     .Build();
             
 
@@ -80,7 +78,7 @@ public partial class IDEPage : Page
 
     private void UpdateDeviceInfo()
     {
-        var dev = _vmHost.Emulator.MainDevice();
+        var dev = _hostEmulator.MainDevice();
         TxtCurrentDevice.Text = dev != null ? $"Устр-во: {dev.Value.Id}" : "Устр-во не выбрано";
     }
 
@@ -129,7 +127,7 @@ public partial class IDEPage : Page
 
     private void BtnDeviceManager_Click(object sender, RoutedEventArgs e)
     {
-        var window = new DeviceManagerWindow(_outputView, _vmHost, SetDeviceData, SetLaunchModel)
+        var window = new DeviceManagerWindow(_outputView, _hostEmulator, SetDeviceData, SetLaunchModel)
         {
             Owner = Window.GetWindow(this)
         };
@@ -195,53 +193,66 @@ public partial class IDEPage : Page
     private void BtnCompileAndLaunch(object sender, RoutedEventArgs e)
     {
         IDEConsoleManager.InitConsole(UseConsole);
-
-        _projectManager.SaveAllFiles();
         CompileAndRun();
+    }
+
+    private void LogSystemData(CompilationResult res, bool optim)
+    {
+        if (SnowAssemler)
+        {
+            var text = VMHostHelper.DisassemblCode(res.Program!);
+            _outputView.Append(text.TextAsm);
+        }
+        var resultOpt = res.OptimizationResultLog;
+        if (optim && resultOpt != null)
+        {
+            _outputView.Append("--- Result Optimization ---\n");
+
+            _outputView.Append("[Function inlining]");
+            _outputView.Append(resultOpt.Value.InlinedFunc.ToString());
+            _outputView.Append("[Control flow simplification]");
+            _outputView.Append(resultOpt.Value.RemovedNodes.ToString());
+        }
     }
     public void CompileAndSafeProgramFile(ulong baseAddress = ProjectBuilder.BaseAdressProgramm)
     {
-        var res = _vmHost.Project.Compile(baseAddress);
+        bool optimize = OptimizationCode;
+        _projectManager.SaveAllFiles();
+        CompilationResult result = _hostProject.Compile(baseAddress, optimize);
         
 
-        if (res.Success)
+        if (result.Success)
         {
-            if (SnowAssemler)
-            {
-                var text = VMHostHelper.DisassemblCode(res.Program!);
-                _outputView.Append(text.TextAsm);
-            }
-
-            _projectManager.FileService.SaveProgramFile(res.Program!);
+            LogSystemData(result, optimize);
+            _projectManager.FileService.SaveProgramFile(result.Program!);
         }
         else
         {
             
-            foreach (var err in res.Errors!)
+            foreach (var err in result.Errors!)
                 _outputView.Append(err, LogLevel.Error);
         }
     }
 
-    private void CompileAndRun()
+    private void CompileAndRun(ulong baseAddress = ProjectBuilder.BaseAdressProgramm)
     {
-        _device = _vmHost.Emulator.CreateDeviceContext();
+        _projectManager.SaveAllFiles();
+        _device = _hostEmulator.CreateDeviceContext();
+        
         if (_device == null)
         {
             _outputView.Append("Устройство не подготовлено к запуску", LogLevel.Error);
             return;
         }
-
-        CompilationResult result = _vmHost.Project.Compile();
+        bool optimize = OptimizationCode;
+        CompilationResult result = _hostProject.Compile(baseAddress, optimize);
 
         if (result.Success)
         {
             CallBackOnLaunch callBackOnLaunch = new(end: OnEndLaunch);
-            if (SnowAssemler)
-            {
-                var text = VMHostHelper.DisassemblCode(result.Program!);
-                _outputView.Append(text.TextAsm);
-            }
+            LogSystemData(result, optimize);
             ulong startAdress = (ulong)result.Program!.Length + result.StartAdress;
+            _device.ResetMemoryRam();
             _launchModeDevice = _device.LoadProgram(result.Program!);
             _launchModeDevice.SetHeapAddress(startAdress);
             _launchModeDevice.LaunchDevice(ProjectBuilder.BaseAdressProgramm, IsDebugMode, _delayDeviceThred, SnowTimer, callBackOnLaunch);
@@ -255,7 +266,7 @@ public partial class IDEPage : Page
     
     private void OnEndLaunch()
     {
-        _outputView.Append(_vmHost.Emulator.GetDumpRegisters());
+        _outputView.Append(_hostEmulator.GetDumpRegisters());
     }
     private void NewFile_Click(object sender, RoutedEventArgs e) => this.NewFile(_projectPath, _projectManager);
 

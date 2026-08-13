@@ -62,7 +62,10 @@
                       ToolTip="Компьютер запуститься сначала с Bios"/>
             <CheckBox Name="SnowTimerMode" Content="Запустить с таймером" Margin="5,5,5,0" 
                       ToolTipService.InitialShowDelay="1"
-                      ToolTip="Вся ос запуститься с таймером"/>
+                      ToolTip="Вся машина запуститься с таймером"/>
+            <CheckBox Name="OptimizationMode" Content="Оптимизировать код" Margin="5,5,5,0" 
+                      ToolTipService.InitialShowDelay="1"
+                      ToolTip="Оптимизация кода с логирование удалленых данных"/>
 
             <TextBlock x:Name="DelayThread" Margin="5,5,5,0" HorizontalAlignment="Center" FontSize="14">
                 Интервал команд

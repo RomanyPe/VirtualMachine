@@ -1,20 +1,27 @@
 ﻿using Kernel.BiosSystem;
 using Kernel.Common;
 using Kernel.RamSystem;
-using System.ComponentModel;
 
 namespace Kernel.ControllersData;
 
 public class PortBus(SizePort ports, SizePortOnDevice portsOnDev, NameDeviceToken nameDevice, ReadOnlySpan<char> name)
 {
-    private readonly ulong _totalPorts = (ulong)ports;
-    private readonly uint _portsOnDevice = (uint)portsOnDev;
-    private readonly uint _sectorCount = (uint)ports / (uint)portsOnDev;
-    private readonly Device[] _devices = new Device[(uint)ports / (uint)portsOnDev];
+    private readonly ulong _totalPorts = 1UL << (byte)ports;
+    private readonly uint _portsOnDevice = 1U << (byte)portsOnDev;
+
+    private readonly uint _sectorCount = 1U << ((byte)ports - (byte)portsOnDev);
+    private readonly Device[] _devices = new Device[1U << ((byte)ports - (byte)portsOnDev)];
+
     private readonly NameDeviceToken _nameDevice = nameDevice.CreateChild(name);
+
+    private readonly byte _deviceShift = (byte)portsOnDev;
+    private readonly ulong _offsetMask = (1U << (byte)portsOnDev) - 1U;
 
     public NameDeviceToken NameDevice => _nameDevice;
     public uint SectorCount => _sectorCount;
+    public uint PortsOnDevice => _portsOnDevice;
+    public ulong TotalPorts => _totalPorts;
+
     public int AllocateFreeSector()
     {
         for (int i = 0; i < _sectorCount; i++)
@@ -38,13 +45,13 @@ public class PortBus(SizePort ports, SizePortOnDevice portsOnDev, NameDeviceToke
 
     private (Device? device, ulong offset) ResolveAddress(ulong address)
     {
-        uint sector = (uint)(address / _portsOnDevice);
+        uint sector = (uint)(address >> _deviceShift);
         if (sector >= _sectorCount) return (null, 0);
 
         var dev = _devices[sector];
         if (dev != null)
         {
-            ulong offset = address % _portsOnDevice;
+            ulong offset = address & _offsetMask;
             return (dev, offset);
         }
         else

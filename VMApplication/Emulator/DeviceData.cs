@@ -56,6 +56,7 @@ public class DeviceData : IDisposable
         GC.SuppressFinalize(this);
     }
 
+    public void ResetMemoryRam() => _device.ResetMemoryRam();
     public byte ReadPort(ulong offset) => _device.ReadPort(offset);
 
 }

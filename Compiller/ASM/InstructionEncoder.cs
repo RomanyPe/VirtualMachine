@@ -243,42 +243,45 @@ public static class InstructionEncoder
         };
     }
 
-    private static string RegName(this RegType r) => r switch
+    extension(RegType r)
     {
-        RegType.rZ => "rZ",
-        RegType.r0 => "r0",
-        RegType.r1 => "r1",
-        RegType.r2 => "r2",
-        RegType.r3 => "r3",
-        RegType.r4 => "r4",
-        RegType.r5 => "r5",
-        RegType.r6 => "r6",
-        RegType.r7 => "r7",
-        RegType.r8 => "r8",
-        RegType.r9 => "r9",
-        RegType.r10 => "r10",
-        RegType.r11 => "r11",
-        RegType.r12 => "r12",
-        RegType.r13 => "r13",
-        RegType.r14 => "r14",
-        RegType.r15 => "r15",
-        RegType.r16 => "r16",
-        RegType.r17 => "r17",
-        RegType.r18 => "r18",
-        RegType.r19 => "r19",
-        RegType.r20 => "r20",
-        RegType.r21 => "r21",
-        RegType.rTB => "rTB",
-        RegType.rCD => "rCD",
-        RegType.rFL => "rFL",
-        RegType.rLP => "rLP",
-        RegType.rCL => "rCL",
-        RegType.rRT => "rRT",
-        RegType.rSP => "rSP",
-        RegType.rHP => "rHP",
-        RegType.rIP => "rIP",
-        _ => $"r?"
-    };
+        private string RegName() => r switch
+        {
+            RegType.rZ => "rZ",
+            RegType.r0 => "r0",
+            RegType.r1 => "r1",
+            RegType.r2 => "r2",
+            RegType.r3 => "r3",
+            RegType.r4 => "r4",
+            RegType.r5 => "r5",
+            RegType.r6 => "r6",
+            RegType.r7 => "r7",
+            RegType.r8 => "r8",
+            RegType.r9 => "r9",
+            RegType.r10 => "r10",
+            RegType.r11 => "r11",
+            RegType.r12 => "r12",
+            RegType.r13 => "r13",
+            RegType.r14 => "r14",
+            RegType.r15 => "r15",
+            RegType.r16 => "r16",
+            RegType.r17 => "r17",
+            RegType.r18 => "r18",
+            RegType.r19 => "r19",
+            RegType.r20 => "r20",
+            RegType.r21 => "r21",
+            RegType.rTB => "rTB",
+            RegType.rCD => "rCD",
+            RegType.rFL => "rFL",
+            RegType.rLP => "rLP",
+            RegType.rCL => "rCL",
+            RegType.rRT => "rRT",
+            RegType.rSP => "rSP",
+            RegType.rHP => "rHP",
+            RegType.rIP => "rIP",
+            _ => $"r?"
+        };
+    }
 
     #endregion
 

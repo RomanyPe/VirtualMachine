@@ -1,4 +1,6 @@
-﻿namespace Compiller.C;
+﻿using System.Collections.Frozen;
+
+namespace Compiller.C;
 
 // ============================================================
 // 1. ЛЕКСИЧЕСКИЙ АНАЛИЗАТОР (без изменений)
@@ -7,7 +9,7 @@ public enum TokenType
 {
     Identifier, Number, String, Char,
     Keyword, Operator, Punctuation,
-    Comment, Whitespace, EOF
+    Comment, Whitespace, EOF, Arrow   // оператор ->
 }
 
 public class Token(TokenType type, string value, int line, int column)
@@ -28,19 +30,19 @@ public class Lexer(string source)
     private int _column = 1;
     private readonly List<Token> _tokens = [];
 
-    private static readonly HashSet<string> Keywords =
+    private static readonly FrozenSet<string> Keywords =
     [
         "int", "char", "void", "if", "else", "while", "for", "return",
         "break", "continue", "sizeof", "struct", "typedef", "enum",
         "byte", "ushort", "ulong", "new", "asm", "extern"
     ];
 
-    private static readonly HashSet<char> Operators =
+    private static readonly FrozenSet<char> Operators =
     [
         '+', '-', '*', '/', '%', '=', '!', '<', '>', '&', '|', '^', '~','#'
     ];
 
-    private static readonly HashSet<char> Punctuation = ['(', ')', '{', '}', '[', ']', ';', ',', '.', ':'];
+    private static readonly FrozenSet<char> Punctuation = ['(', ')', '{', '}', '[', ']', ';', ',', '.', ':'];
     public List<Token> Tokenize()
     {
         while (_position < _source.Length)
@@ -241,6 +243,15 @@ public class Lexer(string source)
             _position += 2;
             _column += 2;
             _tokens.Add(new Token(TokenType.Operator, _source.Substring(start, 2), _line, startCol));
+            return;
+        }
+
+        // Обработка ->
+        if (c == '-' && Peek() == '>')
+        {
+            _position += 2;
+            _column += 2;
+            _tokens.Add(new Token(TokenType.Arrow, "->", _line, startCol));
             return;
         }
         // Одиночные операторы

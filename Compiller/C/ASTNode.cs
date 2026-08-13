@@ -7,6 +7,7 @@ public abstract class ASTNode { }
 
 public class ProgramNode : ASTNode
 {
+    public List<StructDeclNode> Structs { get; } = [];
     public List<FunctionNode> Functions { get; } = [];
     public List<VariableNode> Globals { get; } = [];
     public List<string> Includes { get; } = [];   // <-- новое
@@ -37,6 +38,7 @@ public class BlockNode : ASTNode
 
 public class VariableNode(string type, string name, ASTNode? initializer = null) : ASTNode
 {
+    public string? StructTypeName { get; } = null;
     public string Type { get; } = type;
     public string Name { get; } = name;
     public ASTNode? Initializer { get; } = initializer;
@@ -133,4 +135,17 @@ public class NewArrayNode(string type, ASTNode size) : ASTNode
 public class InlineAsmNode(string asmCode) : ASTNode
 {
     public string AsmCode = asmCode;   // текст между { и }
+}
+
+public class StructDeclNode(string name, List<(string type, string fieldName)> fields) : ASTNode
+{
+    public string Name = name;
+    public List<(string type, string fieldName)> Fields = fields;
+}
+
+public class MemberAccessNode(ASTNode @object, string fieldName, bool isArrow) : ASTNode
+{
+    public ASTNode Object = @object;       // выражение, дающее объект (или указатель)
+    public string FieldName = fieldName;
+    public bool IsArrow = isArrow;         // true: ->, false: .
 }

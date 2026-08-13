@@ -15,7 +15,7 @@ public class FunctionContext
     public List<RegType> UsedRegisters { get; private set; } = [];
 
 
-    public static FunctionContext Create(FunctionNode func, Dictionary<string, VariableNode> localVarNodes)
+    public static FunctionContext Create(FunctionNode func, Dictionary<string, VariableNode> localVarNodes, Dictionary<string, StructLayout> structTable)
     {
         var ctx = new FunctionContext
         {
@@ -42,24 +42,48 @@ public class FunctionContext
 
         foreach (var (name, type, isArray, arraySize, isPointer, pointedType) in allVars)
         {
-            var size = CodeGenUtils.GetSizeForType(type);
+            StructLayout layout = null!;
+            bool isStruct = !isPointer && structTable.TryGetValue(type, out layout!);
             int varSize;
+            OpCodeSize size = OpCodeSize.S64;
 
-            if (isArray)
+            if (isPointer)
             {
-                varSize = CodeGenUtils.GetSizeInBytes(size) * arraySize;
-                varSize = (varSize + 7) & ~7;   // выравниваем размер массива до 8
+                varSize = 8;
+                size = OpCodeSize.S64;
+            }
+            else if (isStruct)
+            {
+                varSize = layout.Size;
             }
             else
             {
-                varSize = 8;                     // скаляр/указатель
+                // Обычные типы (int, char, …)
+                size = CodeGenUtils.GetSizeForType(type);
+                if (isArray)
+                {
+                    varSize = CodeGenUtils.GetSizeInBytes(size) * arraySize;
+                    varSize = (varSize + 7) & ~7;   // выравнивание
+                }
+                else
+                {
+                    varSize = 8; // скалярное значение на стеке/регистре занимает 8 байт (выравнивание)
+                }
             }
 
-            int myOffset = stackOffset;          // начало текущей переменной
-            stackOffset += varSize;              // сдвигаем для следующей
+            int myOffset = stackOffset;
+            stackOffset += varSize;
 
-            if (nextReg <= 21 && !isArray)
+            if (isArray && structTable.TryGetValue(type, out StructLayout? layoutArr))
             {
+                varSize = layoutArr.Size * arraySize;
+                varSize = (varSize + 7) & ~7;
+            }
+
+            // Выделение регистра или стека
+            if (nextReg <= 21 && !isArray && !isStruct)
+            {
+                // Только для простых типов (не массивы и не структуры)
                 varMap[name] = new VarLocation
                 {
                     IsRegister = true,
@@ -72,13 +96,26 @@ public class FunctionContext
                 };
                 nextReg++;
             }
+            else if (isStruct)
+            {
+                varMap[name] = new VarLocation
+                {
+                    IsRegister = false,
+                    StackOffset = myOffset,
+                    TypeSize = OpCodeSize.S64,
+                    StructTypeName = type,        
+                    IsArray = false,
+                    IsPointer = false
+                };
+            }
             else
             {
                 varMap[name] = new VarLocation
                 {
                     IsRegister = false,
-                    StackOffset = myOffset,        // ← ВОТ ЗДЕСЬ правильное смещение
+                    StackOffset = myOffset,
                     TypeSize = isPointer ? OpCodeSize.S64 : size,
+                    StructTypeName = null,
                     IsArray = isArray,
                     ArraySize = arraySize,
                     IsPointer = isPointer,

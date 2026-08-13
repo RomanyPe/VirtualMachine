@@ -1,4 +1,5 @@
 ﻿using Kernel.Common;
+using System.Collections.Frozen;
 using static Kernel.ProcessorSystem.Processor;
 
 namespace Compiller.ASM;
@@ -16,8 +17,7 @@ namespace Compiller.ASM;
 /// </summary>
 public class AssemblerParser
 {
-    private Assembler _asm = null!;
-    private readonly Dictionary<string, RegType> _regMap = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly Dictionary<string, RegType> _regMapLex = new(StringComparer.OrdinalIgnoreCase)
     {
         { "rZ", RegType.rZ },
         { "r0", RegType.r0 },
@@ -53,7 +53,8 @@ public class AssemblerParser
         { "rIP", RegType.rIP }
     };
 
-    private readonly Dictionary<string, OpCode> _opMap = new(StringComparer.OrdinalIgnoreCase)
+
+    private static readonly Dictionary<string, OpCode> _opMapLex = new(StringComparer.OrdinalIgnoreCase)
     {
         { "NOP", OpCode.NOP },
         { "HALT", OpCode.HALT },
@@ -85,12 +86,16 @@ public class AssemblerParser
         { "ALLOC", OpCode.ALLOC },
         { "IN", OpCode.IN },
         { "OUT", OpCode.OUT },
-        { "INT", OpCode.INT }, 
+        { "INT", OpCode.INT },
         { "IRET", OpCode.IRET },
         { "SHR", OpCode.SHR },
         { "MULT_INT", OpCode.MULT_INT },
         { "DIV", OpCode.DIV }
     };
+
+    private Assembler _asm = null!;
+    private readonly FrozenDictionary<string, RegType> _regMap = _regMapLex.ToFrozenDictionary();
+    private readonly FrozenDictionary<string, OpCode> _opMap = _opMapLex.ToFrozenDictionary();
 
     public byte[] Assemble(string code, ulong baseAddress = 0)
     {
@@ -153,27 +158,23 @@ public class AssemblerParser
         // Обработка суффиксов размера для LOAD/STORE
         if (mnemonic.StartsWith("LOAD."))
         {
-            baseMnemonic = "LOAD";
-            string sizeStr = mnemonic[4..];
-            size = ParseSize(sizeStr);
+            baseMnemonic = mnemonic[..4]; // Выделяем "LOAD" как срез (0 аллокаций!)
+            size = ParseSize(mnemonic[5..]); // Передаем в парсер всё, что после точки
         }
         else if (mnemonic.StartsWith("STORE."))
         {
-            baseMnemonic = "STORE";
-            string sizeStr = mnemonic[5..];
-            size = ParseSize(sizeStr);
+            baseMnemonic = mnemonic[..5]; // "STORE"
+            size = ParseSize(mnemonic[6..]);
         }
         else if (mnemonic.StartsWith("LOAD_IND."))
         {
-            baseMnemonic = "LOAD_IND";
-            string sizeStr = mnemonic[9..]; // длина "LOAD_IND." = 10
-            size = ParseSize(sizeStr);
+            baseMnemonic = mnemonic[..8]; // "LOAD_IND"
+            size = ParseSize(mnemonic[9..]);
         }
         else if (mnemonic.StartsWith("STORE_IND."))
         {
-            baseMnemonic = "STORE_IND";
-            string sizeStr = mnemonic[10..]; // длина "STORE_IND." = 11
-            size = ParseSize(sizeStr);
+            baseMnemonic = mnemonic[..9]; // "STORE_IND"
+            size = ParseSize(mnemonic[10..]); // Точка на 9-й позиции, размер начинается с 10
         }
 
         if (!_opMap.TryGetValue(baseMnemonic, out OpCode opCode))

@@ -1,7 +1,6 @@
 ﻿using Kernel.BiosSystem;
 using Kernel.Common;
 using Kernel.ControllersData;
-using Kernel.RamSystem;
 
 namespace Kernel.Utilites;
 
@@ -11,8 +10,6 @@ public class ManagerDevices
 
     // Плотные массивы данных (Dense Arrays)
     private readonly RamSize[] _size = new RamSize[MaxCountElements];
-    private readonly SizePort[] _sizePort = new SizePort[MaxCountElements];
-    private readonly SizePortOnDevice[] _sizeDev = new SizePortOnDevice[MaxCountElements];
 
     private readonly uint[] _sectorByDenseIndex = new uint[MaxCountElements];
 
@@ -33,7 +30,7 @@ public class ManagerDevices
 
     public int Count => _count;
     public DeviceInfo FirstDeviceData => new(_denseToId[0],_devices[0]!,_size[0],
-                                             _sizeDev[0],_sectorByDenseIndex[0],
+            (SizePortOnDevice)_portBus.PortsOnDevice, _sectorByDenseIndex[0],
                                              _name[0],_devices[0]!.CreatedAt);
     public ManagerDevices(PortBus portBus)
     {
@@ -47,7 +44,7 @@ public class ManagerDevices
         if (dev != null) return null;
         
         return new(_denseToId[i], _devices[i]!, _size[i], 
-                   _sizeDev[i], _sectorByDenseIndex[i], 
+                   (SizePortOnDevice)_portBus.PortsOnDevice, _sectorByDenseIndex[i], 
                    _name[i], _devices[i]!.CreatedAt);
         
     }
@@ -73,7 +70,7 @@ public class ManagerDevices
                     _denseToId[i],
                     _devices[i]!,
                     _size[i],
-                    _sizeDev[i],
+                    (SizePortOnDevice)_portBus.PortsOnDevice,
                     _sectorByDenseIndex[i],
                     _name[i],
                     _devices[i]!.CreatedAt);
@@ -91,8 +88,6 @@ public class ManagerDevices
 
     public int CreateNewDevice(
         RamSize size,
-        SizePort sizePort,
-        SizePortOnDevice sizeDev,
         string? name,
         string? nameProc,
         string? nameRam,
@@ -107,8 +102,6 @@ public class ManagerDevices
 
         // Запись конфигурации
         _size[denseIndex] = size;
-        _sizePort[denseIndex] = sizePort;
-        _sizeDev[denseIndex] = sizeDev;
         _name[denseIndex] = name;
         _nameProc[denseIndex] = nameProc;
         _nameRam[denseIndex] = nameRam;
@@ -174,8 +167,6 @@ public class ManagerDevices
         {
             // Копируем данные из последней записи в удаляемую позицию
             _size[denseIndex] = _size[lastDenseIndex];
-            _sizePort[denseIndex] = _sizePort[lastDenseIndex];
-            _sizeDev[denseIndex] = _sizeDev[lastDenseIndex];
             _name[denseIndex] = _name[lastDenseIndex];
             _nameProc[denseIndex] = _nameProc[lastDenseIndex];
             _nameRam[denseIndex] = _nameRam[lastDenseIndex];
@@ -191,8 +182,6 @@ public class ManagerDevices
 
         // 5. Очищаем последнюю запись (для GC и предотвращения утечек)
         _size[lastDenseIndex] = default;
-        _sizePort[lastDenseIndex] = default;
-        _sizeDev[lastDenseIndex] = default;
         _name[lastDenseIndex] = null;
         _nameProc[lastDenseIndex] = null;
         _nameRam[lastDenseIndex] = null;
@@ -207,13 +196,22 @@ public class ManagerDevices
         _count--;
     }
 
-    public void ClearAllDevices()
+    public void Clear()
     {
         for (int i = _count - 1; i >= 0; i--)
         {
-            int id = _denseToId[i];
-            RemoveDevice(id);
+            _name[i] = null;
+            _nameProc[i] = null;
+            _nameRam[i] = null;
+            _namePortBus[i] = null;
+            _devices[i]?.Dispose();
+            _devices[i] = null;
         }
+
+        _count = 0;
+
+        // 3. Важно для генерации новых ID (опционально, но логично для полного сброса)
+        _nextId = 0;
     }
 
     public bool ChangeSector(int id, uint newSector)

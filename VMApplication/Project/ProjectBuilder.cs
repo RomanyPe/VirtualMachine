@@ -1,6 +1,7 @@
 ﻿using Compiller.ASM;
 using Compiller.C;
 using Compiller.C.CodeGenerator;
+using Compiller.C.Optimizators;
 using Kernel.Common;
 
 namespace VMApplication.Project;
@@ -12,7 +13,7 @@ public static class ProjectBuilder
 
     public const int BaseAdressProgramm = 0x0;
 
-    public static byte[] Build(IEnumerable<SourceFile> files, IProjectFilesConfig path, ulong baseAddress)
+    internal static (byte[] ByteCode, OutPutOptimizeText ResLog) Build(List<SourceFile> files, IProjectFilesConfig path, ulong baseAddress, bool optimize)
     {
         var assembler = new Assembler(baseAddress: baseAddress);
         var asmParser = new AssemblerParser();
@@ -40,7 +41,19 @@ public static class ProjectBuilder
         {
             combinedAst.Functions.AddRange(ast.Functions);
             combinedAst.Globals.AddRange(ast.Globals);
+            combinedAst.Structs.AddRange(ast.Structs);
         }
+        // Оптимизация AST перед кодогенерацией
+        OutPutOptimizeText resLog = default;
+
+        if (optimize)
+            resLog = AstOptimizer.Optimize(combinedAst);
+
+        var allStructDecls = new List<StructDeclNode>();
+        foreach (var ast in cAsts)
+            allStructDecls.AddRange(ast.Structs);
+
+        var structLayouts = StructLayout.Resolve(allStructDecls);
 
         // Перемещаем main в начало
         var mainFunc = combinedAst.Functions.FirstOrDefault(f => f.Name == "main");
@@ -85,16 +98,16 @@ public static class ProjectBuilder
         }
 
         // 6. Генерируем код всех C‑функций (определит метку func_main)
-        var funcGen = new FunctionGenerator(assembler);
+        var funcGen = new FunctionGenerator(assembler, structLayouts);
         funcGen.Generate(combinedAst);
 
         // 7. Один завершающий HALT
         assembler.EmitInstruction(InstructionEncoder.EncodeHALT());
 
-        return assembler.Build();
+        return (assembler.Build(), resLog);
     }
 
-    public static byte[] BuildProject(IFileService fileService, IEditorService editorService,IProjectFilesConfig paths, ulong baseAddress)
+    internal static(byte[] ByteCode, OutPutOptimizeText ResLog) BuildProject(IFileService fileService, IEditorService editorService,IProjectFilesConfig paths, ulong baseAddress, bool optimize)
     {
         var files = new List<SourceFile>();
 
@@ -108,7 +121,7 @@ public static class ProjectBuilder
         }
 
         // Вызываем существующий метод Build с базовым адресом (можно параметризовать)
-        return Build(files, paths, baseAddress: baseAddress);
+        return Build(files, paths, baseAddress: baseAddress, optimize);
     }
 
     private static bool Has(string[] extens, string name) 

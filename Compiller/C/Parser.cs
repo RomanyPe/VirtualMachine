@@ -2,12 +2,10 @@
 
 namespace Compiller.C;
 
-// ============================================================
-// 3. ПАРСЕР (без изменений)
-// ============================================================
 public class Parser(List<Token> tokens)
 {
     private readonly List<Token> _tokens = tokens;
+    private readonly HashSet<string> _structNames = new(StringComparer.Ordinal);
     private int _position;
     private Token Current => _tokens[_position];
     public Token CurrentToken => Current;
@@ -17,6 +15,27 @@ public class Parser(List<Token> tokens)
         var program = new ProgramNode();
         while (Current.Type != TokenType.EOF)
         {
+            if (Current.Type == TokenType.Keyword && Current.Value == "struct")
+            {
+                Advance();
+                string name = Expect(TokenType.Identifier).Value;
+                _structNames.Add(name);
+
+                Expect(TokenType.Punctuation, "{");
+                var fields = new List<(string, string)>();
+                while (Current.Value != "}")
+                {
+                    string ftype = ParseType();
+                    string fname = Expect(TokenType.Identifier).Value;
+                    fields.Add((ftype, fname));
+                    Expect(TokenType.Punctuation, ";");
+                }
+                Expect(TokenType.Punctuation, "}");
+                if (Current.Type == TokenType.Punctuation && Current.Value == ";")
+                    Advance();
+                program.Structs.Add(new StructDeclNode(name, fields));
+                continue;
+            }
             if (Current.Type == TokenType.Operator && Current.Value == "#")
             {
                 Expect(TokenType.Operator, "#");
@@ -147,12 +166,34 @@ public class Parser(List<Token> tokens)
 
     private bool IsTypeSpecifier()
     {
-        return Current.Type == TokenType.Keyword &&
-               (Current.Value == "int" || Current.Value == "char" || Current.Value == "void" ||
-                Current.Value == "byte" || Current.Value == "ushort" || Current.Value == "ulong");
-    }
-    private string ParseType() => Expect(TokenType.Keyword).Value;
+        if (Current.Type == TokenType.Keyword &&
+            (Current.Value == "int" || Current.Value == "char" || Current.Value == "void" ||
+             Current.Value == "byte" || Current.Value == "ushort" || Current.Value == "ulong"))
+            return true;
 
+        if (Current.Type == TokenType.Identifier && _structNames.Contains(Current.Value))
+            return true;
+
+        // Разрешаем "struct TypeName"
+        if (Current.Type == TokenType.Keyword && Current.Value == "struct")
+            return true;
+
+        return false;
+    }
+    private string ParseType()
+    {
+        if (Current.Type == TokenType.Keyword && Current.Value == "struct")
+        {
+            Advance();
+            string name = Expect(TokenType.Identifier).Value;
+            if (!_structNames.Contains(name))
+                throw new Exception($"Unknown struct type '{name}'");
+            return name;
+        }
+        if (Current.Type == TokenType.Identifier && _structNames.Contains(Current.Value))
+            return Expect(TokenType.Identifier).Value;
+        return Expect(TokenType.Keyword).Value;
+    }
     private FunctionNode ParseFunction(string returnType, string name)
     {
         Expect(TokenType.Punctuation, "(");
@@ -412,6 +453,7 @@ public class Parser(List<Token> tokens)
             {
                 IdentifierNode id => new AssignmentNode(id.Name, right) { LValue = left },
                 ArrayAccessNode arr => new AssignmentNode(arr.ArrayName, right, arr.Index) { LValue = left },
+                MemberAccessNode => new AssignmentNode(null!, right) { LValue = left },
                 DereferenceNode => new AssignmentNode(null!, right) { LValue = left },
                 _ => throw new Exception("Invalid assignment target"),
             };
@@ -516,19 +558,37 @@ public class Parser(List<Token> tokens)
 
     private ASTNode ParsePrimary()
     {
+        ASTNode expr;
 
-        // Проверяем встроенные функции ввода-вывода
+        // --- Базовые первичные выражения ---
         if (Current.Type == TokenType.Keyword && Current.Value == "new")
         {
             Advance(); // съедаем "new"
             string type = ParseType();
-            Expect(TokenType.Punctuation, "[");
-            ASTNode sizeExpr = ParseExpression();
-            Expect(TokenType.Punctuation, "]");
-            return new NewArrayNode(type, sizeExpr);
-        }
 
-        if (Current.Type == TokenType.Number)
+            if (Current.Type == TokenType.Punctuation && Current.Value == "[")
+            {
+                // массив: new Type[размер]
+                Expect(TokenType.Punctuation, "[");
+                ASTNode sizeExpr = ParseExpression();
+                Expect(TokenType.Punctuation, "]");
+                expr = new NewArrayNode(type, sizeExpr);
+            }
+            else if (Current.Type == TokenType.Punctuation && Current.Value == "(")
+            {
+                // вызов конструктора: new Type()
+                Expect(TokenType.Punctuation, "(");
+                // Аргументы конструктора пока не поддерживаются – просто ждём закрывающую скобку
+                Expect(TokenType.Punctuation, ")");
+                expr = new NewArrayNode(type, new NumberNode(1));
+            }
+            else
+            {
+                // на случай `new Type` без скобок (нежелательно, но оставлено для совместимости)
+                expr = new NewArrayNode(type, new NumberNode(1));
+            }
+        }
+        else if (Current.Type == TokenType.Number)
         {
             string numStr = Current.Value;
             long value;
@@ -537,10 +597,9 @@ public class Parser(List<Token> tokens)
             else
                 value = long.Parse(numStr);
             Advance();
-            return new NumberNode(value);
+            expr = new NumberNode(value);
         }
-
-        if (Current.Type == TokenType.Identifier)
+        else if (Current.Type == TokenType.Identifier)
         {
             string name = Current.Value;
             Advance();
@@ -550,11 +609,11 @@ public class Parser(List<Token> tokens)
                 Expect(TokenType.Punctuation, "[");
                 ASTNode index = ParseExpression();
                 Expect(TokenType.Punctuation, "]");
-                return new ArrayAccessNode(name, index);
+                expr = new ArrayAccessNode(name, index);
             }
             else if (Current.Type == TokenType.Punctuation && Current.Value == "(")
             {
-                // Обычный вызов функции
+                // вызов функции
                 var call = new FunctionCallNode(name);
                 Expect(TokenType.Punctuation, "(");
                 if (Current.Value != ")")
@@ -567,21 +626,35 @@ public class Parser(List<Token> tokens)
                     }
                 }
                 Expect(TokenType.Punctuation, ")");
-                return call;
+                expr = call;
             }
             else
             {
-                return new IdentifierNode(name);
+                expr = new IdentifierNode(name);
             }
         }
-        if (Current.Value == "(")
+        else if (Current.Value == "(")
         {
             Advance();
-            ASTNode expr = ParseExpression();
+            expr = ParseExpression();
             Expect(TokenType.Punctuation, ")");
-            return expr;
         }
-        throw new Exception($"Unexpected token: {Current}");
+        else
+        {
+            throw new Exception($"Unexpected token: {Current}");
+        }
+
+        // --- ЦИКЛ ПОСТФИКСНЫХ ОПЕРАТОРОВ: . и -> ---
+        while (Current.Type == TokenType.Punctuation && Current.Value == "."
+               || Current.Type == TokenType.Arrow)
+        {
+            bool isArrow = Current.Type == TokenType.Arrow;
+            Advance(); // пропускаем '.' или '->'
+            string fieldName = Expect(TokenType.Identifier).Value;
+            expr = new MemberAccessNode(expr, fieldName, isArrow);
+        }
+
+        return expr;
     }
     private Token Expect(TokenType type, string? value = null)
     {

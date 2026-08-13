@@ -12,19 +12,27 @@ public sealed class VMHostProject(IProjectFilesConfig paths, IProjectService pro
 
     public void OpenProject() => _projectService.OpenProject();
 
-    public CompilationResult Compile(ulong baseAddress = ProjectBuilder.BaseAdressProgramm)
+    public CompilationResult Compile(ulong baseAddress, bool optimize)
     {
         try
         {
-            byte[] program = ProjectBuilder.BuildProject(
+            var (program, resLog) = ProjectBuilder.BuildProject(
                 _projectService.FileService,
-                _projectService.EditorService, _projectPaths, baseAddress);
-            return new CompilationResult(program, baseAddress, null);
+                _projectService.EditorService,
+                _projectPaths, 
+                baseAddress, 
+                optimize);
+
+            OptimizationResultLog? res = optimize 
+                ? new(resLog.InlinedFunc, resLog.RemovedNodes) 
+                : null;
+
+            return new CompilationResult(program, baseAddress, null, res);
         }
         catch (Exception ex)
         {
             _logger.Append(ex.Message, LogLevel.Error);
-            return new CompilationResult(null, 0, [ex.Message]);
+            return new CompilationResult(null, 0, [ex.Message], null);
         }
     }
 }

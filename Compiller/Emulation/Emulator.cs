@@ -12,20 +12,17 @@ namespace Compiller.Emulation;
 /// </summary>
 public class Emulator
 {
-    private PortBus _portBus;
+    private readonly PortBus _portBus;
     private readonly ManagerDevices _manager;
 
     private int _mainDeviceId = -1;
 
     public Emulator(SizePort totalPorts = SizePort.Size16KB, SizePortOnDevice portsPerDevice = SizePortOnDevice.Size16B)
     {
-        _portBus = new PortBus(totalPorts, portsPerDevice, new NameDeviceToken("System"), "PortBus");
+        _portBus = new PortBus(totalPorts, portsPerDevice, new NameDeviceToken("Emulator"), "PortBus");
         _manager = new ManagerDevices(_portBus);
     }
-    public void ReloadEmulator(SizePort totalPorts = SizePort.Size16KB, SizePortOnDevice portsPerDevice = SizePortOnDevice.Size16B)
-    {
-        _portBus = new PortBus(totalPorts, portsPerDevice, new NameDeviceToken("System"), "PortBus");
-    }
+
     public Device? CurrentDevice => MainDevice;
     public int MainDeviceId => _mainDeviceId;
     public int CountDevice => _manager.Count;
@@ -45,8 +42,6 @@ public class Emulator
     {
         int id = _manager.CreateNewDevice(
             size,
-            SizePort.Size16KB,
-            SizePortOnDevice.Size16B,
             name,
             nameProc,
             nameRam,
@@ -75,9 +70,9 @@ public class Emulator
 
     public void Reset()
     {
-        _manager.ClearAllDevices();
+        _manager.Clear();
         _mainDeviceId = -1;
     }
 
-    public bool ChangeDeviceSector(int deviceId, uint newSector) => _manager.ChangeSector(deviceId, newSector);
+    public bool ChangeDeviceSector(int id, uint newSector) => _manager.ChangeSector(id, newSector);
 }
