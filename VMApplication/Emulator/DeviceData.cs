@@ -1,4 +1,5 @@
 ﻿using Kernel.BiosSystem;
+using VMApplication.CallBacks;
 using VMApplication.Project;
 
 namespace VMApplication.Emulator;
@@ -15,7 +16,14 @@ public class DeviceData : IDisposable
     public bool HaveBios => _device.HaveBios;
     public DateTime CreatedAt => _device.CreatedAt;
 
-    public void Stop() => _device.StopDevice();
+    public void Stop(int stopTime = 3000, CallBackOnStop callBack = default)
+    {
+        _device.StopDevice(stopTime,
+                           callBack.OnThreadIsLiveTrue,
+                           callBack.OnThreadIsLiveFalse,
+                           callBack.OnThreadStopedTrue,
+                           callBack.OnThreadIsLiveFalse);
+    }
 
     public LaunchModeDevice LoadProgram(byte[] program, ulong loadAddress = ProjectBuilder.BaseAdressProgramm)
     {

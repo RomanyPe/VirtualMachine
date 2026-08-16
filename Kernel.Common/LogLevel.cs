@@ -1,6 +1,6 @@
 ﻿namespace Kernel.Common;
 
-public enum LogLevelKernel
+public enum LogLevel
 {
     Log,
     Warning,

@@ -1,6 +1,7 @@
 ﻿using Kernel.BiosSystem;
 using Kernel.Common;
 using Kernel.ControllersData;
+using Kernel.LocalMemorySystem;
 using Kernel.Utilites;
 using static Kernel.Utilites.ManagerDevices;
 
@@ -14,6 +15,7 @@ public class Emulator
 {
     private readonly PortBus _portBus;
     private readonly ManagerDevices _manager;
+    private readonly DiskManager _diskManager;
 
     private int _mainDeviceId = -1;
 
@@ -21,6 +23,7 @@ public class Emulator
     {
         _portBus = new PortBus(totalPorts, portsPerDevice, new NameDeviceToken("Emulator"), "PortBus");
         _manager = new ManagerDevices(_portBus);
+        _diskManager = new DiskManager(_portBus);
     }
 
     public Device? CurrentDevice => MainDevice;
@@ -74,5 +77,9 @@ public class Emulator
         _mainDeviceId = -1;
     }
 
+    public int CreateDisk(string imagePath) => _diskManager.CreateDisk(imagePath);
+    public bool RemoveDisk(uint sector) => _diskManager.RemoveDisk(sector);
+    public DiskDevice? GetDisk(uint sector) => _diskManager.GetDisk(sector);
     public bool ChangeDeviceSector(int id, uint newSector) => _manager.ChangeSector(id, newSector);
+    public IEnumerable<int> GetDiskSectors() => _diskManager.GetAllDisks();
 }

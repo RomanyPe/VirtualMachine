@@ -6,6 +6,6 @@ public interface IProjectService
     void SaveAllFiles();
     IEnumerable<SourceFile> GetSourceFiles();
     string ProjectPath { get; }
-    IFileService FileService { get; } 
+    IFileService FileService { get; }
     IEditorService EditorService { get; }
 }

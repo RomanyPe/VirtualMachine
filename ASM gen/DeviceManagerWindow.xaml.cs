@@ -1,5 +1,6 @@
 ﻿using ASM_gen.Information_Window;
 using ASM_gen.ViewModels;
+using Kernel.Common;
 using Microsoft.Win32;
 using System.Collections.ObjectModel;
 using System.Windows;
@@ -127,7 +128,7 @@ public partial class DeviceManagerWindow : Window
             _outputView.Append($" {NameSystem} Сначала выберите устройство.", LogLevel.Error);
             return;
         }
-        
+
         _host.SetMainDevice(_selectedDevice.Value.Id);
         DeviceData? d = _host.GetDeviceData(_selectedDevice.Value.Id);
         _device = d;
@@ -136,7 +137,7 @@ public partial class DeviceManagerWindow : Window
             _outputView.Append($" {NameSystem} Выбранное устройство не имеет технической логики в программе, возврат из API вернул null", LogLevel.Error);
             return;
         }
-        
+
         CurrentDevice.Invoke(d);
         _outputView.Append($" {NameSystem} Устройство {_selectedDevice.Value.Id} теперь основное.");
     }
@@ -158,7 +159,7 @@ public partial class DeviceManagerWindow : Window
             DeviceCreationResult? res = dialog.ViewModel.Result;
             if (res != null)
             {
-                int deviceId = _host.CreateDevice(res.Bios, res.RamSize, res.Sector, 
+                int deviceId = _host.CreateDevice(res.Bios, res.RamSize, res.Sector,
                                                   res.DeviceName, res.ProcName,
                                                   res.RamName, res.PortBusName);
                 if (deviceId != -1)
@@ -175,6 +176,6 @@ public partial class DeviceManagerWindow : Window
 
     private void BtnUpdateGrid_Click(object sender, RoutedEventArgs e)
     {
-        
+
     }
 }

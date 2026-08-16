@@ -1,5 +1,4 @@
-﻿using Kernel.BiosSystem;
-using Kernel.Common;
+﻿using Kernel.Common;
 
 namespace Kernel.RamSystem;
 

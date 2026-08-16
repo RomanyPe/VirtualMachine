@@ -1,6 +1,5 @@
 ﻿using Kernel.Common;
 using System.Text;
-using static Kernel.ProcessorSystem.Processor;
 
 namespace Compiller.ASM;
 
@@ -35,17 +34,7 @@ public static class Disassembler
             }
 
             uint instruction = BitConverter.ToUInt32(program, pos);
-            var opcode = (OpCode)(instruction & 0xFF);
-
-            bool hasData = opcode is OpCode.LDI or
-                           OpCode.LOAD or
-                           OpCode.STORE or
-                           OpCode.CALL or
-                           OpCode.JMP or
-                           OpCode.JZ or
-                           OpCode.JNZ or
-                           OpCode.JG or
-                           OpCode.JL;
+            var opcode = InstructionDecoder.GetOpCode(instruction);
 
             string decoded = InstructionEncoder.Decode(instruction);
             sb.Append($"{currentIp:X8}: {instruction:X8}   {decoded}");
@@ -54,7 +43,7 @@ public static class Disassembler
             ulong nextIp = currentIp + 4;
             int nextPos = pos + 4;
 
-            if (hasData)
+            if (InstructionDecoder.HasNeed64IntData(opcode))
             {
                 // Выравнивание строго по абсолютному адресу IP, как в CPU
                 ulong alignedIp = (nextIp + 7) & ~7UL;
@@ -106,18 +95,9 @@ public static class Disassembler
                 sb.AppendLine($"{currentIp:X8}: <неполная инструкция, пропущено {size - pos} байт>");
                 break;
             }
-            uint instruction = BitConverter.ToUInt32(program.Span.Slice(pos, 4)); 
-            var opcode = (OpCode)(instruction & 0xFF);
+            uint instruction = BitConverter.ToUInt32(program.Span.Slice(pos, 4));
+            var opcode = InstructionDecoder.GetOpCode(instruction);
 
-            bool hasData = opcode is OpCode.LDI or
-                           OpCode.LOAD or
-                           OpCode.STORE or
-                           OpCode.CALL or
-                           OpCode.JMP or
-                           OpCode.JZ or
-                           OpCode.JNZ or
-                           OpCode.JG or
-                           OpCode.JL;
 
             string decoded = InstructionEncoder.Decode(instruction);
             sb.Append($"{currentIp:X8}: {instruction:X8}   {decoded}");
@@ -126,7 +106,7 @@ public static class Disassembler
             ulong nextIp = currentIp + 4;
             int nextPos = pos + 4;
 
-            if (hasData)
+            if (InstructionDecoder.HasNeed64IntData(opcode))
             {
                 // Выравнивание строго по абсолютному адресу IP, как в CPU
                 ulong alignedIp = (nextIp + 7) & ~7UL;
@@ -179,18 +159,9 @@ public static class Disassembler
                 break;
             }
 
-            uint instruction = BitConverter.ToUInt32(program.Slice(pos,4));
-            var opcode = (OpCode)(instruction & 0xFF);
+            uint instruction = BitConverter.ToUInt32(program.Slice(pos, 4));
+            var opcode = InstructionDecoder.GetOpCode(instruction);
 
-            bool hasData = opcode is OpCode.LDI or
-                           OpCode.LOAD or
-                           OpCode.STORE or
-                           OpCode.CALL or
-                           OpCode.JMP or
-                           OpCode.JZ or
-                           OpCode.JNZ or
-                           OpCode.JG or
-                           OpCode.JL;
 
             string decoded = InstructionEncoder.Decode(instruction);
             sb.Append($"{currentIp:X8}: {instruction:X8}   {decoded}");
@@ -199,7 +170,7 @@ public static class Disassembler
             ulong nextIp = currentIp + 4;
             int nextPos = pos + 4;
 
-            if (hasData)
+            if (InstructionDecoder.HasNeed64IntData(opcode))
             {
                 // Выравнивание строго по абсолютному адресу IP, как в CPU
                 ulong alignedIp = (nextIp + 7) & ~7UL;
@@ -211,7 +182,7 @@ public static class Disassembler
 
                 if (nextPos + 8 <= size)
                 {
-                    ulong data = BitConverter.ToUInt64(program.Slice(nextPos,8));
+                    ulong data = BitConverter.ToUInt64(program.Slice(nextPos, 8));
                     sb.Append($"  data = 0x{data:X16} ({data})");
                     nextPos += 8;
                     nextIp += 8;

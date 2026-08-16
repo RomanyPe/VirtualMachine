@@ -1,8 +1,6 @@
-﻿using ASM_gen.StartWindow;
-using System.IO;
+﻿using System.IO;
 using System.Reflection;
 using System.Windows;
-using VMApplication;
 
 namespace ASM_gen
 {

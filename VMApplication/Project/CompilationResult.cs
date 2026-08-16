@@ -3,7 +3,7 @@
 namespace VMApplication.Project;
 
 // Результат компиляции
-public readonly struct CompilationResult(byte[]? program,ulong startAdress, IReadOnlyList<string>? errors, OptimizationResultLog? log)
+public readonly struct CompilationResult(byte[]? program, ulong startAdress, IReadOnlyList<string>? errors, OptimizationResultLog? log)
 {
     public byte[]? Program { get; } = program;
     public ulong StartAdress { get; } = startAdress;

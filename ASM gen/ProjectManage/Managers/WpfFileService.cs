@@ -1,5 +1,4 @@
 ﻿using System.IO;
-using VMApplication;
 using VMApplication.Logger;
 using VMApplication.Project;
 
@@ -7,7 +6,7 @@ namespace ASM_gen.ProjectManage.Managers;
 
 public class WpfFileService(string projectPath, IOutputView outputView) : IFileService
 {
-    private readonly string _binDir = Path.Combine(projectPath,"bin");
+    private readonly string _binDir = Path.Combine(projectPath, "bin");
     private readonly IOutputView _outputView = outputView;
 
     public string ProjectPath { get; set; } = projectPath;

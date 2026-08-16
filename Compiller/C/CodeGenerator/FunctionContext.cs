@@ -1,5 +1,4 @@
 ﻿using Kernel.Common;
-using static Kernel.ProcessorSystem.Processor;
 
 namespace Compiller.C.CodeGenerator;
 
@@ -103,7 +102,7 @@ public class FunctionContext
                     IsRegister = false,
                     StackOffset = myOffset,
                     TypeSize = OpCodeSize.S64,
-                    StructTypeName = type,        
+                    StructTypeName = type,
                     IsArray = false,
                     IsPointer = false
                 };

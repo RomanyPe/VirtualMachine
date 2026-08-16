@@ -1,5 +1,4 @@
-﻿using VMApplication;
-using VMApplication.Project;
+﻿using VMApplication.Project;
 
 namespace ASM_gen.Utils;
 

@@ -1,4 +1,5 @@
 ﻿using Kernel.Common;
+using static Kernel.Common.InstructionDecoder;
 
 namespace Compiller.ASM;
 
@@ -96,34 +97,31 @@ public static class InstructionEncoder
     /// <summary>
     /// Кодирует инструкцию CALL (вызов подпрограммы)
     /// </summary>
-    public static uint EncodeCALL()
-    {
-        return EncodeJ(OpCode.CALL.Uint);
-    }
+    public static uint EncodeCALL() => EncodeJ(OpCode.CALL.Uint);
 
     /// <summary>
     /// Кодирует инструкцию RET (возврат из подпрограммы)
     /// </summary>
-    public static uint EncodeRET()
-    {
-        return OpCode.RET.Uint;
-    }
+    public static uint EncodeRET() => OpCode.RET.Uint;
 
     /// <summary>
-    /// Кодирует HALT
+    /// Кодирует инструкцию HALT (вызов сна)
     /// </summary>
-    public static uint EncodeHALT()
-    {
-        return OpCode.HALT.Uint;
-    }
+    public static uint EncodeHALT() => OpCode.HALT.Uint;
+
+    /// <summary>
+    /// Кодирует инструкцию WAKE (возврат из сна)
+    /// </summary>
+    public static uint EncodeWAKE() => OpCode.WAKE.Uint;
+    /// <summary>
+    /// Кодирует END
+    /// </summary>
+    public static uint EncodeEND() => OpCode.END.Uint;
 
     /// <summary>
     /// Кодирует NOP
     /// </summary>
-    public static uint EncodeNOP()
-    {
-        return OpCode.NOP.Uint;
-    }
+    public static uint EncodeNOP() => OpCode.NOP.Uint;
 
     #endregion
 
@@ -183,42 +181,33 @@ public static class InstructionEncoder
     /// </summary>
     public static string Decode(uint instruction)
     {
-        OpCode opcode = (OpCode)(instruction & 0xFF);
-        RegType reg1 = (RegType)((instruction >> 8) & 0x1F);
-        RegType reg2 = (RegType)((instruction >> 13) & 0x1F);
-        uint size = (instruction >> 18) & 0x3;
-
-        string sizeStr = size switch
-        {
-            (uint)OpCodeSize.S8 => "S8",
-            (uint)OpCodeSize.S16 => "S16",
-            (uint)OpCodeSize.S32 => "S32",
-            (uint)OpCodeSize.S64 => "S64",
-            _ => "???"
-        };
+        OpCode opcode = GetOpCode(instruction);
 
         return opcode switch
         {
             OpCode.NOP => "NOP",
+            OpCode.END => "END",
+            OpCode.PRINT => $"PRINT {GetReg1(instruction).Name}",
             OpCode.HALT => "HALT",
-            OpCode.PRINT => $"PRINT {reg1.RegName()}", // ТОЛЬКО ДЛЯ ОТЛАДКИ
+            OpCode.WAKE => "WAKE",
+            OpCode.WAKE_INT => $"WAKE_INT {GetReg1(instruction).Name}",
 
-            OpCode.MOV => $"MOV {reg1.RegName()}, {reg2.RegName()}",
-            OpCode.LOAD => $"LOAD.{sizeStr} {reg1.RegName()}, [data64]",
-            OpCode.STORE => $"STORE.{sizeStr} [data64], {reg1.RegName()}",
-            OpCode.LOAD_IND => $"LOAD_IND.{sizeStr} {reg1.RegName()}, {reg2.RegName()}",
-            OpCode.STORE_IND => $"STORE_IND.{sizeStr} {reg1.RegName()}, {reg2.RegName()}",
-            OpCode.LDI => $"LDI {reg1.RegName()}, data64",
+            OpCode.MOV => $"MOV {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
+            OpCode.LOAD => $"LOAD.{GetDataSizeCode(instruction).SizeName} {GetReg1(instruction).Name}, [data64]",
+            OpCode.STORE => $"STORE.{GetDataSizeCode(instruction).SizeName} [data64], {GetReg1(instruction).Name}",
+            OpCode.LOAD_IND => $"LOAD_IND.{GetDataSizeCode(instruction).SizeName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
+            OpCode.STORE_IND => $"STORE_IND.{GetDataSizeCode(instruction).SizeName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
+            OpCode.LDI => $"LDI {GetReg1(instruction).Name}, data64",
 
-            OpCode.ADD => $"ADD {reg1.RegName()}, {reg2.RegName()}",
-            OpCode.SUB => $"SUB {reg1.RegName()}, {reg2.RegName()}",
-            OpCode.INC => $"INC {reg1.RegName()}",
-            OpCode.DEC => $"DEC {reg1.RegName()}",
+            OpCode.ADD => $"ADD {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
+            OpCode.SUB => $"SUB {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
+            OpCode.INC => $"INC {GetReg1(instruction).Name}",
+            OpCode.DEC => $"DEC {GetReg1(instruction).Name}",
 
-            OpCode.AND => $"AND {reg1.RegName()}, {reg2.RegName()}",
-            OpCode.OR => $"OR {reg1.RegName()}, {reg2.RegName()}",
-            OpCode.XOR => $"XOR {reg1.RegName()}, {reg2.RegName()}",
-            OpCode.NOT => $"NOT {reg1.RegName()}",
+            OpCode.AND => $"AND {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
+            OpCode.OR => $"OR {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
+            OpCode.XOR => $"XOR {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
+            OpCode.NOT => $"NOT {GetReg1(instruction).Name}",
 
             OpCode.JMP => $"JMP data64",
             OpCode.JZ => $"JZ data64",
@@ -226,26 +215,36 @@ public static class InstructionEncoder
             OpCode.JG => $"JG data64",
             OpCode.JL => $"JL data64",
 
-            OpCode.PUSH => $"PUSH {reg1.RegName()}",
-            OpCode.POP => $"POP {reg1.RegName()}",
+            OpCode.PUSH => $"PUSH {GetReg1(instruction).Name}",
+            OpCode.POP => $"POP {GetReg1(instruction).Name}",
             OpCode.CALL => $"CALL data64",
             OpCode.RET => $"RET",
 
-            OpCode.IN => $"IN {reg1.RegName()}, {reg2.RegName()}",
-            OpCode.OUT => $"OUT {reg1.RegName()}, {reg2.RegName()}",
+            OpCode.IN => $"IN {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
+            OpCode.OUT => $"OUT {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
 
-            OpCode.PRINT_INT => $"PRINT_INT {reg1.RegName()}", // ТОЛЬКО ДЛЯ ОТЛАДКИ
-            OpCode.ALLOC => $"ALLOC {reg1.RegName()}",
-            OpCode.INT => $"INT {reg1.RegName()}",
+            OpCode.PRINT_INT => $"PRINT_INT {GetReg1(instruction).Name}",
+            OpCode.ALLOC => $"ALLOC {GetReg1(instruction).Name}",
+            OpCode.INT => $"INT {GetReg1(instruction).Name}",
             OpCode.IRET => "IRET",
 
             _ => $"UNKNOWN 0x{opcode:X2}"
         };
     }
-
+    extension(OpCodeSize size)
+    {
+        private string SizeName => size switch
+        {
+            OpCodeSize.S8 => "S8",
+            OpCodeSize.S16 => "S16",
+            OpCodeSize.S32 => "S32",
+            OpCodeSize.S64 => "S64",
+            _ => "???"
+        };
+    }
     extension(RegType r)
     {
-        private string RegName() => r switch
+        private string Name => r switch
         {
             RegType.rZ => "rZ",
             RegType.r0 => "r0",

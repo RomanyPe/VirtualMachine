@@ -1,107 +1,107 @@
 ﻿using Kernel.Common;
+using System.Collections.Immutable;
 using static Kernel.ProcessorSystem.Processor;
 
-namespace Kernel.ProcessorSystem
+namespace Kernel.ProcessorSystem;
+
+internal static class ProcessorHelpers
 {
-    internal static class ProcessorHelpers
+    public static bool TryContinueAfterStatus(ResultInstruction dat, ulong ip, Lock regLock)
     {
-        public static bool TryContinueAfterStatus(ResultInstruction dat, ulong ip, Lock regLock)
+        if (dat.BiosStatus == BiosStatus.EndProgramm)
         {
-            if (dat.BiosStatus == BiosStatus.EndProgramm)
+            lock (regLock)
             {
-                lock (regLock)
-                {
-                    LoggerProvider.Info($"\n [INFO] Программа успешно завершила работу (HALT). Ip [{ip}]");
-                    return false;
-                }
+                LoggerProvider.Info($"\n [INFO] Программа успешно завершила работу (HALT). Ip [{ip}]");
+                return false;
             }
-
-            string errorMessage = dat.BiosStatus switch
-            {
-                BiosStatus.ReadViolation => $"Попытка чтения из защищенной области памяти, адрес [{dat.Adress}]",
-                BiosStatus.AlignmentFault => $"Попытка прочесть целочисленные данные по невыравненной памяти, адрес [{dat.Adress}]",
-                BiosStatus.SegmentationFault => $"Ошибка выхода за границы ОЗУ, по обращению, адрес [{dat.Adress}]",
-                BiosStatus.NotImplementedOpCode => $"Неизвестный код операции OpCode [{dat.Adress}]",
-                BiosStatus.NullDeviceOutput => $"Попытка записать данные в отсутствующий девайс, адрес обращения [{dat.Adress}],\n проверьте таблицу секторов портов, формула: [Adress / AdressPerSector]",
-                BiosStatus.NullDeviceInput => $"Попытка прочесть данные из отсутсвующего девайса, адрес обращения [{dat.Adress}],\n проверьте таблицу секторов портов, формула: [Adress / AdressPerSector]",
-                _ => $"НЕПРЕДВИДЕННАЯ ОШИБКА СИМУЛЯЦИИ адрес [{dat.Adress}]"
-            };
-
-            return OutputLog(dat.BiosStatus, regLock, errorMessage, ip);
         }
 
-
-        public static LogLevelKernel TypeNotification(BiosStatus status) => status switch
+        string errorMessage = dat.BiosStatus switch
         {
-            BiosStatus.Success => LogLevelKernel.Log,
-            BiosStatus.SegmentationFault => LogLevelKernel.Error,
-            BiosStatus.AlignmentFault => LogLevelKernel.Error,
-            BiosStatus.ReadViolation => LogLevelKernel.Error,
-            BiosStatus.EndProgramm => LogLevelKernel.Log,
-            BiosStatus.NotImplementedOpCode => LogLevelKernel.Error,
-            BiosStatus.NullDeviceInput => LogLevelKernel.Warning,
-            BiosStatus.NullDeviceOutput => LogLevelKernel.Error,
-            _ => LogLevelKernel.Error
+            BiosStatus.ReadViolation => $"Попытка чтения из защищенной области памяти, адрес [{dat.Adress}]",
+            BiosStatus.AlignmentFault => $"Попытка прочесть целочисленные данные по невыравненной памяти, адрес [{dat.Adress}]",
+            BiosStatus.SegmentationFault => $"Ошибка выхода за границы ОЗУ, по обращению, адрес [{dat.Adress}]",
+            BiosStatus.NotImplementedOpCode => $"Неизвестный код операции OpCode [{dat.Adress}]",
+            BiosStatus.NullDeviceOutput => $"Попытка записать данные в отсутствующий девайс, адрес обращения [{dat.Adress}],\n проверьте таблицу секторов портов, формула: [Adress / AdressPerSector]",
+            BiosStatus.NullDeviceInput => $"Попытка прочесть данные из отсутсвующего девайса, адрес обращения [{dat.Adress}],\n проверьте таблицу секторов портов, формула: [Adress / AdressPerSector]",
+            _ => $"НЕПРЕДВИДЕННАЯ ОШИБКА СИМУЛЯЦИИ адрес [{dat.Adress}]"
         };
 
-        public static bool CanContinue(BiosStatus status) => status switch
+        return OutputLog(dat.BiosStatus, regLock, errorMessage, ip);
+    }
+
+
+    public static LogLevel TypeNotification(BiosStatus status) => status switch
+    {
+        BiosStatus.Success => LogLevel.Log,
+        BiosStatus.SegmentationFault => LogLevel.Error,
+        BiosStatus.AlignmentFault => LogLevel.Error,
+        BiosStatus.ReadViolation => LogLevel.Error,
+        BiosStatus.EndProgramm => LogLevel.Log,
+        BiosStatus.NotImplementedOpCode => LogLevel.Error,
+        BiosStatus.NullDeviceInput => LogLevel.Warning,
+        BiosStatus.NullDeviceOutput => LogLevel.Error,
+        _ => LogLevel.Error
+    };
+
+    public static bool CanContinue(BiosStatus status) => status switch
+    {
+        BiosStatus.ReadViolation => false,
+        BiosStatus.AlignmentFault => false,
+        BiosStatus.SegmentationFault => false,
+        BiosStatus.NotImplementedOpCode => false,
+        BiosStatus.NullDeviceInput => true,
+        BiosStatus.NullDeviceOutput => false,
+        BiosStatus.EndProgramm => false,
+        _ => false
+    };
+
+    public static bool OutputLog(BiosStatus status, Lock regLock, string text, ulong ip)
+    {
+        bool can = CanContinue(status);
+        var logLevel = TypeNotification(status);
+        return logLevel switch
         {
-            BiosStatus.ReadViolation => false,
-            BiosStatus.AlignmentFault => false,
-            BiosStatus.SegmentationFault => false,
-            BiosStatus.NotImplementedOpCode => false,
-            BiosStatus.NullDeviceInput => true,
-            BiosStatus.NullDeviceOutput => false,
-            BiosStatus.EndProgramm => false,
-            _ => false
+            LogLevel.Log => LogNotification(regLock, text, ip, can),
+            LogLevel.Warning => WarningNotification(regLock, text, ip, can),
+            LogLevel.Error => ErrorNotification(regLock, text, ip, can),
+            _ => NoneNotification(regLock, text, can),
         };
+    }
+    public static bool ErrorNotification(Lock regLock, string errorMessage, ulong ip, bool canContinue)
+    {
+        lock (regLock)
+        {
+            LoggerProvider.Error($"\n [КРИТИЧЕСКАЯ ОШИБКА ПРОЦЕССОРА] {errorMessage}, Ip [{ip}]");
+        }
+        return canContinue;
+    }
 
-        public static bool OutputLog(BiosStatus status, Lock regLock, string text, ulong ip)
+    public static bool WarningNotification(Lock regLock, string errorMessage, ulong ip, bool canContinue)
+    {
+        lock (regLock)
         {
-            bool can = CanContinue(status);
-            var logLevel = TypeNotification(status);
-            return logLevel switch
-            {
-                LogLevelKernel.Log => LogNotification(regLock, text, ip, can),
-                LogLevelKernel.Warning => WarningNotification(regLock, text, ip, can),
-                LogLevelKernel.Error => ErrorNotification(regLock, text, ip, can),
-                _ => NoneNotification(regLock, text, can),
-            };
+            LoggerProvider.Warning($"\n [ПРЕДУПРЕЖДЕНИЕ РАБОТЫ ПРОГРАММЫ] {errorMessage}, Ip [{ip}]");
         }
-        public static bool ErrorNotification(Lock regLock, string errorMessage, ulong ip, bool canContinue)
-        {
-            lock (regLock)
-            {
-                LoggerProvider.Error($"\n [КРИТИЧЕСКАЯ ОШИБКА ПРОЦЕССОРА] {errorMessage}, Ip [{ip}]");
-            }
-            return canContinue;
-        }
+        return canContinue;
+    }
 
-        public static bool WarningNotification(Lock regLock, string errorMessage, ulong ip, bool canContinue)
+    public static bool LogNotification(Lock regLock, string errorMessage, ulong ip, bool canContinue)
+    {
+        lock (regLock)
         {
-            lock (regLock)
-            {
-                LoggerProvider.Warning($"\n [ПРЕДУПРЕЖДЕНИЕ РАБОТЫ ПРОГРАММЫ] {errorMessage}, Ip [{ip}]");
-            }
-            return canContinue;
+            LoggerProvider.Info($"\n [ВЫПОЛНЕНИЕ УСПЕШНО] {errorMessage}, Ip [{ip}]");
         }
+        return canContinue;
+    }
 
-        public static bool LogNotification(Lock regLock, string errorMessage, ulong ip, bool canContinue)
+    public static bool NoneNotification(Lock regLock, string text, bool canContinue)
+    {
+        lock (regLock)
         {
-            lock (regLock)
-            {
-                LoggerProvider.Info($"\n [ВЫПОЛНЕНИЕ УСПЕШНО] {errorMessage}, Ip [{ip}]");
-            }
-            return canContinue;
+            LoggerProvider.Info(text);
         }
-
-        public static bool NoneNotification(Lock regLock, string text, bool canContinue)
-        {
-            lock (regLock)
-            {
-                LoggerProvider.Info(text);
-            }
-            return canContinue;
-        }
+        return canContinue;
     }
 }

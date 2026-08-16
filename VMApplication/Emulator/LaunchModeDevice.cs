@@ -1,4 +1,5 @@
 ﻿using Kernel.BiosSystem;
+using Kernel.Common;
 using VMApplication.CallBacks;
 using VMApplication.Project;
 
@@ -18,18 +19,29 @@ public class LaunchModeDevice
                              bool showTimer = false,
                              CallBackOnLaunch callBack = default)
     {
-        _device.LaunchDevice(startAddress, debug, delayMs, showTimer, callBack.OnLaunch!, callBack.OnStep!, callBack.OnEnd!);
+        _device.LaunchDevice(startAddress,
+                             debug,
+                             delayMs,
+                             showTimer,
+                             callBack.OnTileLaunch,
+                             callBack.OnStart,
+                             callBack.OnStep,
+                             callBack.OnEnd);
     }
 
-    public DeviceData StopAndReset()
+    public DeviceData StopAndReset(int stopTime = 3000, CallBackOnStop callBack = default)
     {
-        _device.StopDevice();
+        _device.StopDevice(stopTime,
+                           callBack.OnThreadIsLiveTrue,
+                           callBack.OnThreadIsLiveFalse,
+                           callBack.OnThreadStopedTrue,
+                           callBack.OnThreadIsLiveFalse);
         return new DeviceData(_device);
     }
 
-    public DeviceStepMode StepMode(ulong startAddress = ProjectBuilder.BaseAdressProgramm)
+    public DeviceStepMode StepMode(ulong startAddress = ProjectBuilder.BaseAdressProgramm, Action<Action<string, LogLevel>>? titleAct = null)
     {
-        _device.BreakPointerLaunchDevice(startAddress);
+        _device.BreakPointerLaunchDevice(startAddress, titleAct);
         return new DeviceStepMode(_device);
     }
 }

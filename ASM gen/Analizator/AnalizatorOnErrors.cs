@@ -1,4 +1,5 @@
-﻿using VMApplication;
+﻿using Kernel.Common;
+using VMApplication;
 using VMApplication.Logger;
 using VMApplication.Project;
 

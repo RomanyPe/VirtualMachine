@@ -24,7 +24,7 @@ public class GlobalMemoryManager(Dictionary<string, StructLayout> structTable)
             size = 8;
         else
             size = CodeGenUtils.GetSizeInBytes(CodeGenUtils.GetSizeForType(type));
-        
+
         if (isArray)
             size *= arraySize;
 

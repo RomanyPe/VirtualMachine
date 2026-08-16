@@ -4,7 +4,6 @@ using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
-using VMApplication;
 
 namespace ASM_gen.ViewModels;
 

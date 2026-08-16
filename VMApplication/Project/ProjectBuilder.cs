@@ -102,12 +102,12 @@ public static class ProjectBuilder
         funcGen.Generate(combinedAst);
 
         // 7. Один завершающий HALT
-        assembler.EmitInstruction(InstructionEncoder.EncodeHALT());
+        assembler.EmitInstruction(InstructionEncoder.EncodeEND());
 
         return (assembler.Build(), resLog);
     }
 
-    internal static(byte[] ByteCode, OutPutOptimizeText ResLog) BuildProject(IFileService fileService, IEditorService editorService,IProjectFilesConfig paths, ulong baseAddress, bool optimize)
+    internal static (byte[] ByteCode, OutPutOptimizeText ResLog) BuildProject(IFileService fileService, IEditorService editorService, IProjectFilesConfig paths, ulong baseAddress, bool optimize)
     {
         var files = new List<SourceFile>();
 
@@ -124,7 +124,7 @@ public static class ProjectBuilder
         return Build(files, paths, baseAddress: baseAddress, optimize);
     }
 
-    private static bool Has(string[] extens, string name) 
+    private static bool Has(string[] extens, string name)
     {
         foreach (var ext in extens)
             if (name.EndsWith(ext, StringComparison.OrdinalIgnoreCase))

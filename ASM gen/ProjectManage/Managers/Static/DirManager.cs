@@ -2,7 +2,6 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows;
-using VMApplication;
 using VMApplication.Project;
 
 namespace ASM_gen.ProjectManage.Managers.Static;

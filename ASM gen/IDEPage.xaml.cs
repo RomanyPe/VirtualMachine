@@ -68,7 +68,7 @@ public partial class IDEPage : Page
                     .WithPortBusSize(totalPorts)
                     .WithPortsPerDevice(portsPerDevice)
                     .Build();
-            
+
 
         _analizator = new(editorService, _outputView);
 
@@ -219,7 +219,7 @@ public partial class IDEPage : Page
         bool optimize = OptimizationCode;
         _projectManager.SaveAllFiles();
         CompilationResult result = _hostProject.Compile(baseAddress, optimize);
-        
+
 
         if (result.Success)
         {
@@ -228,7 +228,7 @@ public partial class IDEPage : Page
         }
         else
         {
-            
+
             foreach (var err in result.Errors!)
                 _outputView.Append(err, LogLevel.Error);
         }
@@ -238,7 +238,7 @@ public partial class IDEPage : Page
     {
         _projectManager.SaveAllFiles();
         _device = _hostEmulator.CreateDeviceContext();
-        
+
         if (_device == null)
         {
             _outputView.Append("Устройство не подготовлено к запуску", LogLevel.Error);
@@ -249,7 +249,7 @@ public partial class IDEPage : Page
 
         if (result.Success)
         {
-            CallBackOnLaunch callBackOnLaunch = new(end: OnEndLaunch);
+            CallBackOnLaunch callBackOnLaunch = new(onEnd: OnEndLaunch);
             LogSystemData(result, optimize);
             ulong startAdress = (ulong)result.Program!.Length + result.StartAdress;
             _device.ResetMemoryRam();
@@ -263,10 +263,10 @@ public partial class IDEPage : Page
                 _outputView.Append(err, LogLevel.Error);
         }
     }
-    
-    private void OnEndLaunch()
+
+    private void OnEndLaunch(Action<string, LogLevel> logger)
     {
-        _outputView.Append(_hostEmulator.GetDumpRegisters());
+        logger.Invoke(_hostEmulator.GetDumpRegisters(), LogLevel.Log);
     }
     private void NewFile_Click(object sender, RoutedEventArgs e) => this.NewFile(_projectPath, _projectManager);
 
@@ -300,6 +300,6 @@ public partial class IDEPage : Page
             _outputView.Append("Попытка остановить не запущенного устройства", LogLevel.Error);
             return;
         }
-        _device.Stop();        
+        _device.Stop();
     }
 }

@@ -1,11 +1,12 @@
 // std.asm – Standard library for Mini-C VM
-// Requires sys.asm for get_program_end and set_int_table_base
+// Requires sys.vma for get_program_end and set_int_table_base
 
 // -------------------------------------------------------------------
 // Инициализация таблицы векторов прерываний
 // Размещает таблицу сразу за кодом программы и сдвигает кучу
-// Должна быть вызвана ДО main
+// Должна быть вызвана в main до использования импортированных прерываний
 // -------------------------------------------------------------------
+
 func_init_vectors:
     CALL get_program_end       // r0 = текущий rHP (конец программы)
     // Выровнять адрес вверх до 8 байт
@@ -24,6 +25,9 @@ func_init_vectors:
     CALL func_set_int_vector_dyn
     LDI r0, 2
     LDI r1, int2_handler
+    CALL func_set_int_vector_dyn
+    LDI r0, 3
+    LDI r1, int3_handler
     CALL func_set_int_vector_dyn
 
     // Сдвинуть кучу на 256 байт после таблицы
@@ -81,6 +85,9 @@ int2_handler:
     IN r0, r0
     IRET
 
+int3_handler:
+    IN r0, r0
+    IRET
 // -------------------------------------------------------------------
 // Публичные обёртки для системных вызовов
 // -------------------------------------------------------------------
@@ -96,6 +103,11 @@ func_out_port:
 
 func_in_port:
     LDI r2, 2
+    INT r2
+    RET
+
+func_wake_processor:
+    LDI r2, 3
     INT r2
     RET
 

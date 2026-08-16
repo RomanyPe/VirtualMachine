@@ -1,6 +1,4 @@
-﻿using Kernel.BiosSystem;
-
-namespace Compiller.ASM;
+﻿namespace Compiller.ASM;
 
 /// <summary>
 /// Сборщик машинного кода с поддержкой меток и выравнивания по 8 байт для 64-битных данных.

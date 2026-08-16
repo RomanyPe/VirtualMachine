@@ -27,7 +27,7 @@ public class FunctionGenerator(Assembler asm, Dictionary<string, StructLayout> s
         {
             _globalMem.Allocate(global.Name, global.Type, global.IsArray, global.IsPointer, global.PointedType, global.ArraySize);
         }
-        
+
 
         _functionTable.Clear();
         foreach (var func in program.Functions)
@@ -135,7 +135,7 @@ public class FunctionGenerator(Assembler asm, Dictionary<string, StructLayout> s
         // Эпилог
         if (isMain)
         {
-            _asm.EmitInstruction(InstructionEncoder.EncodeHALT());
+            _asm.EmitInstruction(InstructionEncoder.EncodeEND());
         }
         else
         {

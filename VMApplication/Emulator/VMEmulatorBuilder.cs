@@ -31,6 +31,6 @@ public class VMEmulatorBuilder
     {
         return _logger == null
             ? throw new InvalidOperationException("Logger обязателен")
-            : new VMEmulator(new(_portBusSize, _portsPerDevice),_logger);
+            : new VMEmulator(new(_portBusSize, _portsPerDevice), _logger, _portsPerDevice);
     }
 }

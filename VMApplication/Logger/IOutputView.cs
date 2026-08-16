@@ -1,4 +1,6 @@
-﻿namespace VMApplication.Logger;
+﻿using Kernel.Common;
+
+namespace VMApplication.Logger;
 
 public interface IOutputView
 {

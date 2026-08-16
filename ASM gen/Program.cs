@@ -44,9 +44,9 @@ public static class AppPaths
         public string ProjectPath => projectPath;
         public string IncludePath => include;
 
-        public string[] ExtensionsAsm => [".asm",".soe",".vma"];
+        public string[] ExtensionsAsm => [".asm", ".soe", ".vma"];
 
-        public string[] ExtensionsMiniC => [".c",".mic",".cll"];
+        public string[] ExtensionsMiniC => [".c", ".mic", ".cll"];
     }
 
     public static IProjectFilesConfig ProjectSystemPaths(string path) => new PathSystem(path, sharedIncludePath);

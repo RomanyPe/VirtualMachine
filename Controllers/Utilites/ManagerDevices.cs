@@ -1,6 +1,7 @@
 ﻿using Kernel.BiosSystem;
 using Kernel.Common;
 using Kernel.ControllersData;
+using Kernel.LocalMemorySystem;
 
 namespace Kernel.Utilites;
 
@@ -29,9 +30,9 @@ public class ManagerDevices
     private readonly PortBus _portBus;
 
     public int Count => _count;
-    public DeviceInfo FirstDeviceData => new(_denseToId[0],_devices[0]!,_size[0],
+    public DeviceInfo FirstDeviceData => new(_denseToId[0], _devices[0]!, _size[0],
             (SizePortOnDevice)_portBus.PortsOnDevice, _sectorByDenseIndex[0],
-                                             _name[0],_devices[0]!.CreatedAt);
+                                             _name[0], _devices[0]!.CreatedAt);
     public ManagerDevices(PortBus portBus)
     {
         _portBus = portBus;
@@ -42,11 +43,11 @@ public class ManagerDevices
     {
         var dev = _devices[i];
         if (dev != null) return null;
-        
-        return new(_denseToId[i], _devices[i]!, _size[i], 
-                   (SizePortOnDevice)_portBus.PortsOnDevice, _sectorByDenseIndex[i], 
+
+        return new(_denseToId[i], _devices[i]!, _size[i],
+                   (SizePortOnDevice)_portBus.PortsOnDevice, _sectorByDenseIndex[i],
                    _name[i], _devices[i]!.CreatedAt);
-        
+
     }
     public struct DeviceInfo(int id, Device device, RamSize ramSize, SizePortOnDevice portSize, uint sector, string? name, DateTime createdAt)
     {
@@ -234,4 +235,43 @@ public class ManagerDevices
         }
         return false;
     }
+}
+
+public class DiskManager(PortBus portBus)
+{
+    private readonly PortBus _portBus = portBus;
+    private readonly Dictionary<uint, DiskDevice> _disks = []; // ключ – номер сектора
+
+    /// <summary>
+    /// Создаёт диск и регистрирует его. Возвращает номер сектора или -1.
+    /// </summary>
+    public int CreateDisk(string imagePath)
+    {
+        int sector = _portBus.AllocateFreeSector();
+        if (sector == -1) return -1;
+
+        var disk = new DiskDevice(imagePath);
+        if (!_portBus.RegisterDevice(disk, (uint)sector))
+        {
+            disk.Dispose();
+            return -1;
+        }
+
+        _disks[(uint)sector] = disk;
+        return sector;
+    }
+
+    public bool RemoveDisk(uint sector)
+    {
+        if (!_disks.TryGetValue(sector, out var disk))
+            return false;
+        _portBus.UnregisterDevice(sector);
+        disk.Dispose();
+        _disks.Remove(sector);
+        return true;
+    }
+
+    public IEnumerable<int> GetAllDisks() => from KeyValuePair<uint, DiskDevice> disk in _disks
+                                             select (int)disk.Key;
+    public DiskDevice? GetDisk(uint sector) => _disks.GetValueOrDefault(sector);
 }

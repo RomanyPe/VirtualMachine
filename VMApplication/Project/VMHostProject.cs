@@ -1,4 +1,5 @@
-﻿using VMApplication.Logger;
+﻿using Kernel.Common;
+using VMApplication.Logger;
 
 namespace VMApplication.Project;
 
@@ -19,12 +20,12 @@ public sealed class VMHostProject(IProjectFilesConfig paths, IProjectService pro
             var (program, resLog) = ProjectBuilder.BuildProject(
                 _projectService.FileService,
                 _projectService.EditorService,
-                _projectPaths, 
-                baseAddress, 
+                _projectPaths,
+                baseAddress,
                 optimize);
 
-            OptimizationResultLog? res = optimize 
-                ? new(resLog.InlinedFunc, resLog.RemovedNodes) 
+            OptimizationResultLog? res = optimize
+                ? new(resLog.InlinedFunc, resLog.RemovedNodes)
                 : null;
 
             return new CompilationResult(program, baseAddress, null, res);

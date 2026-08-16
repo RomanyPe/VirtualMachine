@@ -1,6 +1,5 @@
 ﻿using Compiller.ASM;
 using Kernel.Common;
-using static Kernel.ProcessorSystem.Processor;
 
 namespace Compiller.C.CodeGenerator;
 
@@ -390,7 +389,7 @@ public class StatementGenerator(Assembler asm, ExpressionGenerator exprGen, Func
         if (ret.Value != null)
             _exprGen.GenerateExpression(ret.Value);
         if (_funcCtx.FunctionName == "main")
-            _asm.EmitInstruction(InstructionEncoder.EncodeHALT());
+            _asm.EmitInstruction(InstructionEncoder.EncodeEND());
         else
             _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JMP.Uint), _funcCtx.EpilogueLabel);
     }

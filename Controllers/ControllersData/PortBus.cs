@@ -1,16 +1,22 @@
-﻿using Kernel.BiosSystem;
-using Kernel.Common;
+﻿using Kernel.Common;
 using Kernel.RamSystem;
 
 namespace Kernel.ControllersData;
 
-public class PortBus(SizePort ports, SizePortOnDevice portsOnDev, NameDeviceToken nameDevice, ReadOnlySpan<char> name)
+public interface IPortUse
+{
+    public byte ReadPort(ulong offset);
+    public void WritePort(ulong offset, byte value);
+    public void WakeProcessor();
+}
+
+public sealed class PortBus(SizePort ports, SizePortOnDevice portsOnDev, NameDeviceToken nameDevice, ReadOnlySpan<char> name)
 {
     private readonly ulong _totalPorts = 1UL << (byte)ports;
     private readonly uint _portsOnDevice = 1U << (byte)portsOnDev;
 
     private readonly uint _sectorCount = 1U << ((byte)ports - (byte)portsOnDev);
-    private readonly Device[] _devices = new Device[1U << ((byte)ports - (byte)portsOnDev)];
+    private readonly IPortUse[] _devices = new IPortUse[1U << ((byte)ports - (byte)portsOnDev)];
 
     private readonly NameDeviceToken _nameDevice = nameDevice.CreateChild(name);
 
@@ -29,7 +35,7 @@ public class PortBus(SizePort ports, SizePortOnDevice portsOnDev, NameDeviceToke
         return -1;
     }
 
-    public bool RegisterDevice(Device device, uint sector)
+    public bool RegisterDevice(IPortUse device, uint sector)
     {
         if (sector >= _sectorCount || _devices[sector] != null) return false;
 
@@ -43,7 +49,7 @@ public class PortBus(SizePort ports, SizePortOnDevice portsOnDev, NameDeviceToke
             _devices[sector] = null!;
     }
 
-    private (Device? device, ulong offset) ResolveAddress(ulong address)
+    private (IPortUse? device, ulong offset) ResolveAddress(ulong address)
     {
         uint sector = (uint)(address >> _deviceShift);
         if (sector >= _sectorCount) return (null, 0);
@@ -54,17 +60,16 @@ public class PortBus(SizePort ports, SizePortOnDevice portsOnDev, NameDeviceToke
             ulong offset = address & _offsetMask;
             return (dev, offset);
         }
-        else
-        {
-            return (null, address);
-        }
+        return (null, address);
     }
+
 
     public RAMResultInt8 ReadPort(ulong address)
     {
         var (device, offset) = ResolveAddress(address);
-        if (device != null) return new(device.ReadPort(offset));
-        else return new RAMResultInt8(BiosStatus.NullDeviceOutput, address, _nameDevice);
+        return device != null
+            ? new(device.ReadPort(offset))
+            : new(BiosStatus.NullDeviceOutput, address, _nameDevice);
     }
 
     public RAMResultInt8 WritePort(ulong address, byte value)
@@ -75,6 +80,19 @@ public class PortBus(SizePort ports, SizePortOnDevice portsOnDev, NameDeviceToke
             device.WritePort(offset, value);
             return new(value);
         }
-        else return new RAMResultInt8(BiosStatus.NullDeviceInput, address, _nameDevice);
+        return new(BiosStatus.NullDeviceInput, address, _nameDevice);
     }
+
+    public bool WakeProcessor(ulong address)
+    {
+        var (device, _) = ResolveAddress(address);
+        if (device != null)
+        {
+            device.WakeProcessor();
+            return true;
+        }
+        return false;
+    }
+
+    public IPortUse? GetDevice(uint sector) => _devices[sector];
 }

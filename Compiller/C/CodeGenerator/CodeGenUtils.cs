@@ -1,6 +1,5 @@
 ﻿using Compiller.ASM;
 using Kernel.Common;
-using static Kernel.ProcessorSystem.Processor;
 
 namespace Compiller.C.CodeGenerator;
 
@@ -20,7 +19,7 @@ public static class CodeGenUtils
         "byte" or "char" => OpCodeSize.S8,
         "ushort" => OpCodeSize.S16,
         "ulong" => OpCodeSize.S64,
-        "int"  => OpCodeSize.S32,
+        "int" => OpCodeSize.S32,
         _ => throw new Exception($"Unknown type '{type}' for memory size")
     };
 

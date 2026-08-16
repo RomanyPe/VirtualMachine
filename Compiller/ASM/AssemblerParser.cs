@@ -1,13 +1,12 @@
 ﻿using Kernel.Common;
 using System.Collections.Frozen;
-using static Kernel.ProcessorSystem.Processor;
 
 namespace Compiller.ASM;
 
 /// <summary>
 /// Парсер ассемблерного текста, преобразующий его в байт-код.
 /// Поддерживаемые инструкции:
-///   NOP, HALT, RET,
+///   NOP, END, RET,
 ///   MOV, ADD, SUB, AND, OR, XOR (два регистра),
 ///   INC, DEC, NOT, PUSH, POP (один регистр),
 ///   LDI (регистр, константа),
@@ -57,7 +56,7 @@ public class AssemblerParser
     private static readonly Dictionary<string, OpCode> _opMapLex = new(StringComparer.OrdinalIgnoreCase)
     {
         { "NOP", OpCode.NOP },
-        { "HALT", OpCode.HALT },
+        { "END", OpCode.END },
         { "RET", OpCode.RET },
         { "PRINT", OpCode.PRINT },
         { "MOV", OpCode.MOV },
@@ -90,7 +89,10 @@ public class AssemblerParser
         { "IRET", OpCode.IRET },
         { "SHR", OpCode.SHR },
         { "MULT_INT", OpCode.MULT_INT },
-        { "DIV", OpCode.DIV }
+        { "DIV", OpCode.DIV },
+        { "HALT", OpCode.HALT },
+        { "WAKE", OpCode.WAKE},
+        { "WAKE_INT", OpCode.WAKE_INT}
     };
 
     private Assembler _asm = null!;
@@ -183,16 +185,11 @@ public class AssemblerParser
         switch (baseMnemonic)
         {
             // Без операндов
-            case "NOP":
-                _asm.EmitInstruction(InstructionEncoder.EncodeNOP());
-                break;
-            case "HALT":
-                _asm.EmitInstruction(InstructionEncoder.EncodeHALT());
-                break;
-            case "RET":
-                _asm.EmitInstruction(InstructionEncoder.EncodeRET());
-                break;
-
+            case "NOP": _asm.EmitInstruction(InstructionEncoder.EncodeNOP()); break;
+            case "END": _asm.EmitInstruction(InstructionEncoder.EncodeEND()); break;
+            case "RET": _asm.EmitInstruction(InstructionEncoder.EncodeRET()); break;
+            case "HALT": _asm.EmitInstruction(InstructionEncoder.EncodeHALT()); break;
+            case "WAKE": _asm.EmitInstruction(InstructionEncoder.EncodeWAKE()); break;
             // Формат R (два регистра)
             case "MOV":
             case "ADD":
@@ -213,6 +210,7 @@ public class AssemblerParser
                 break;
 
             // Формат U (один регистр)
+            case "WAKE_INT":
             case "PRINT":
             case "INC":
             case "DEC":
@@ -242,7 +240,7 @@ public class AssemblerParser
                     // Операнд — метка, откладываем разрешение адреса
                     uint encodedldi = InstructionEncoder.EncodeLDI((uint)rLdi);
                     _asm.EmitInstruction64(encodedldi, 0UL);  // временный 0
-                                                           // Добавляем патч: (позиция в потоке, где записан 0, метка)
+                                                              // Добавляем патч: (позиция в потоке, где записан 0, метка)
                     long patchPos = _asm.GetStreamPosition() - 8; // нужно получить позицию в MemoryStream
                     _asm.AddPatch(patchPos, operand);
                 }

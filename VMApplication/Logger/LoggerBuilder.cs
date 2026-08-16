@@ -22,7 +22,7 @@ public class LoggerBuilder
         {
             throw new InvalidOperationException("OutputView обязателен");
         }
-        
+
         var logger = new VMHostLogger(_outputView, _nameLogger!);
         logger.RegistryLogger(_nameLogger, _outputView);
         logger.ChoiceLogger(_nameLogger);
