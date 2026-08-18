@@ -6,10 +6,9 @@ namespace ASM_gen.Information_Window;
 
 public class MemoryDataProvider(ReadOnlyMemory<byte> rawMemory) : IList
 {
-    private readonly ReadOnlyMemory<byte> _rawMemory = rawMemory;
     private const int BytesPerRow = 16;
 
-    // Кэш для активных UI объектов строк, чтобы иметь к ним доступ из таймера
+    private ReadOnlyMemory<byte> _rawMemory = rawMemory;
     private readonly Dictionary<int, RowViewModel> _activeRows = [];
 
     public int Count => (int)Math.Ceiling((double)_rawMemory.Length / BytesPerRow);
@@ -46,7 +45,11 @@ public class MemoryDataProvider(ReadOnlyMemory<byte> rawMemory) : IList
     public bool IsSynchronized => false;
     public object SyncRoot => this;
     public int Add(object? value) => -1;
-    public void Clear() { }
+    public void Clear() 
+    { 
+        _rawMemory = default;
+        _activeRows.Clear();
+    }
     public bool Contains(object? value) => false;
     public int IndexOf(object? value) => -1;
     public void Insert(int index, object? value) { }

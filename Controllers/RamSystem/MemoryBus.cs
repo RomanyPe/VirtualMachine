@@ -7,16 +7,22 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
 {
     private readonly NameDeviceToken _nameDevice = nameDevice.CreateChild(name);
 
-    private byte[] _memory = MemoryPoolEmulator.Rent(size);
-    private readonly byte[] _biosRom = biosRom;
-    private readonly RamSize _ramSizeEn = size;
+    private NativeMemoryBuffer _memory = new (size);
+    private byte[] _biosRom = biosRom;
+    private ulong _biosRomSize = (ulong)biosRom.Length;
     private readonly ulong _ramSize = (ulong)size;
-    private readonly ulong _biosRomSize = (ulong)biosRom.Length;
     private readonly ulong _biosRomStartCode = (ulong)size;
 
     public bool HaveBios => _biosRom != null && _biosRom.Length > 0;
     public ulong RamSize => _ramSize;
-    public byte[] Memory => _memory;
+
+    public Span<byte> Span => _memory.AsSpan();
+    public Span<byte> AsSpan(int start, int length) => _memory.AsSpan(start, length);
+    public Memory<byte> Memory => _memory.AsMemory();
+    public Memory<byte> AsMemory() => _memory.AsMemory();
+    public Memory<byte> AsMemory(int start, int length) => _memory.AsMemory(start, length);
+
+    public ReadOnlyMemory<byte> ReadOnlyMemory => _memory.AsMemory();
 
     /// <summary>
     /// Метод для чтения 8 битового целого числа (Int8)
@@ -220,18 +226,20 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
     /// <summary>
     /// API для очистки памяти
     /// </summary>
-    public void ClearMemory()
-    {
-        Array.Clear(_memory, 0, _memory.Length);
-    }
+    public void ClearMemory() => _memory.Clear();
 
+    public void SetBios(byte[] bios)
+    {
+        _biosRom = bios ?? [];
+        _biosRomSize = (ulong)_biosRom.Length;
+    }
 
     public void Dispose()
     {
         if (_memory != null)
         {
             ClearMemory();
-            MemoryPoolEmulator.Return(_memory, _ramSizeEn);
+            _memory.Dispose();
             _memory = null!;
         }
         GC.SuppressFinalize(this);

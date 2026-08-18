@@ -73,6 +73,7 @@ public partial class InformationWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _refreshTimer.Stop(); // Обязательно останавливаем таймер при закрытии окна IW
+        _provider?.Clear();
         base.OnClosed(e);
     }
 }

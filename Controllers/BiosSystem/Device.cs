@@ -23,7 +23,13 @@ public sealed class Device : IDisposable, IPortUse
 
     public DateTime CreatedAt { get; } = DateTime.Now;
 
-    public byte[] RamArray => _ram.Memory;
+    public Span<byte> AsRamSpan(int start, int length) => _ram.AsSpan(start, length);
+    public Span<byte> RamSpan => _ram.Span;
+    
+    public Memory<byte> AsRamMemory() => _ram.Memory;
+    public Memory<byte> AsRamMemory(int start, int length) => _ram.AsMemory(start, length);
+
+    public ReadOnlyMemory<byte> RamArray => _ram.ReadOnlyMemory;
     public bool IsRunning => _processor.IsRunning;
     public bool HaveBios => _ram.HaveBios;
     public ulong MaxRamSize => _ram.RamSize;
@@ -61,7 +67,7 @@ public sealed class Device : IDisposable, IPortUse
 
     public bool TryLoadProgramFast(ReadOnlySpan<byte> program, ulong loadAddress)
     {
-        var ram = _ram.Memory;
+        Memory<byte> ram = _ram.Memory;
         ulong ramLength = (ulong)ram.Length;
         ulong programLength = (ulong)program.Length;
 
@@ -70,7 +76,7 @@ public sealed class Device : IDisposable, IPortUse
             return false;
         }
 
-        Span<byte> target = ram.AsSpan((int)loadAddress, program.Length);
+        Span<byte> target = ram.Span.Slice((int)loadAddress, program.Length);
         program.CopyTo(target);
 
         return true;
@@ -100,7 +106,6 @@ public sealed class Device : IDisposable, IPortUse
 
         _simulationThread.Start();
     }
-
 
     public void BreakPointerLaunchDevice(ulong? start, 
                             Action<Action<string, LogLevel>>? titleAct)
@@ -236,7 +241,6 @@ public sealed class Device : IDisposable, IPortUse
             _ioMemory[offset] = value;
     }
 
-
     public void WakeProcessor()
     {
         _wakeSignal.Set();
@@ -278,6 +282,11 @@ public sealed class Device : IDisposable, IPortUse
         ConsoleLock($"r0: {_processor.GetRegValue(RegType.r0)} | r1: {_processor.GetRegValue(RegType.r1)} | rFL: {_processor.GetRegValue(RegType.rFL)}");
     }
 
+    public void UpdateBios(byte[] newBios)
+    {
+        _ram.SetBios(newBios);
+    }
+
     public void ResetMemoryRam()
     {
         _ram.ClearMemory();
@@ -289,4 +298,9 @@ public sealed class Device : IDisposable, IPortUse
         ProcessorPoolEmulator.Return(_processor);
         GC.SuppressFinalize(this);
     }
+}
+
+public static class DeviceHelper
+{
+
 }

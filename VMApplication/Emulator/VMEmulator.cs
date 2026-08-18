@@ -1,4 +1,5 @@
 ﻿using Kernel.Common;
+using Kernel.LocalMemorySystem;
 using VMApplication.Logger;
 using static Kernel.Utilites.ManagerDevices;
 
@@ -83,10 +84,60 @@ public sealed class VMEmulator(Compiller.Emulation.Emulator emulator, VMHostLogg
     {
         int sector = _emulator.CreateDisk(imagePath);
         if (sector != -1)
-            _outputView.Append($"Диск создан в секторе {sector} (базовый адрес портов: {sector * (int)_portsPerDevice})", LogLevel.Log);
+            _outputView.Append($"Disk created in sector {sector} (base port address: {sector * (int)_portsPerDevice})", LogLevel.Log);
         else
-            _outputView.Append("Не удалось создать диск (нет свободных секторов портов)", LogLevel.Error);
+            _outputView.Append("Failed to create disk (no free port sectors available)", LogLevel.Error);
         return sector;
+    }
+
+    public bool CreateDisk(string imagePath, uint sector)
+    {
+        bool flag = _emulator.CreateDisk(imagePath, sector);
+        if (flag)
+            _outputView.Append($"Disk created in sector {sector} (base port address: {sector * (int)_portsPerDevice})", LogLevel.Log);
+        else
+            _outputView.Append("Failed to create disk (sector is occupied)", LogLevel.Error);
+        return flag;
+    }
+
+
+    public bool RemoveDevice(int id)
+    {
+        bool removed = _emulator.RemoveDevice(id);
+        if (removed)
+            DeviceListChanged?.Invoke(_emulator.AllDevices);
+        return removed;
+    }
+
+    public bool UpdateDeviceBios(int id, byte[] bios)
+    {
+        var device = _emulator.GetDevice(id);
+        if (device == null) return false;
+
+        device.UpdateBios(bios);
+        DeviceListChanged?.Invoke(_emulator.AllDevices);
+        return true;
+    }
+
+    /// <summary>
+    /// Создаёт файл образа диска заданного размера и регистрирует его в эмуляторе.
+    /// </summary>
+    /// <param name="imagePath">Путь к файлу образа.</param>
+    /// <param name="sectorCount">Количество секторов (размер сектора 512 байт).</param>
+    /// <returns>Номер сектора, выделенного под диск, или -1 при ошибке.</returns>
+    public int CreateDisk(string imagePath, int sectorCount)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sectorCount);
+
+        long diskSize = DiskDevice.SectorSize * sectorCount;
+
+        // Создаём файл нужного размера (можно перезаписать существующий)
+        using (var fs = new FileStream(imagePath, FileMode.Create, FileAccess.Write))
+        {
+            fs.SetLength(diskSize);
+        }
+
+        return _emulator.CreateDisk(imagePath);
     }
 
     // Получение обёртки диска
@@ -116,5 +167,32 @@ public sealed class VMEmulator(Compiller.Emulation.Emulator emulator, VMHostLogg
         // Нужен метод в Compiller.Emulation.Emulator или DiskManager для перечисления
         // Можно добавить в DiskManager метод GetSectors()
         return _emulator.GetDiskSectors(); // пример
+    }
+}
+
+public static class DiskImageWriter
+{
+    /// <summary>
+    /// Создаёт загрузочный образ диска: первые 8 байт — размер программы (ulong), затем сама программа.
+    /// Файл образа создаётся/перезаписывается.
+    /// </summary>
+    /// <param name="imagePath">Путь к образу.</param>
+    /// <param name="program">Скомпилированные байты программы.</param>
+    /// <param name="sectorCount">Количество секторов образа (по умолчанию 1).</param>
+    public static void WriteBootableImage(string imagePath, byte[] program, int sectorCount = 1)
+    {
+        long diskSize = DiskDevice.SectorSize * sectorCount;
+        using var fs = new FileStream(imagePath, FileMode.Create, FileAccess.Write);
+        fs.SetLength(diskSize);
+
+        // Записываем размер программы (8 байт, little-endian)
+        ulong length = (ulong)program.Length;
+        Span<byte> lengthBytes = stackalloc byte[8];
+        BitConverter.TryWriteBytes(lengthBytes, length);
+        fs.Write(lengthBytes);
+
+        // Записываем программу
+        fs.Write(program, 0, program.Length);
+        // Остальная часть образа заполнена нулями
     }
 }

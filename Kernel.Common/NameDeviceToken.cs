@@ -9,7 +9,7 @@ public readonly struct NameDeviceToken
     public NameDeviceToken(ReadOnlySpan<char> name)
     {
         // Если имя пустое — записываем ссылку на константу, иначе — очищенную строку
-        _cachedName = !name.IsEmpty ? UnknownName : name.ToString();
+        _cachedName = name.IsEmpty ? UnknownName : name.ToString();
     }
 
     public NameDeviceToken()

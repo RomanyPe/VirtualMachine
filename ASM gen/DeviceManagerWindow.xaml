@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:ASM_gen"
+        xmlns:local="clr-namespace:ASM_gen" xmlns:viewmodels="clr-namespace:ASM_gen.ViewModels" d:DataContext="{d:DesignInstance Type=viewmodels:CreateDeviceViewModel}"
         mc:Ignorable="d"
-        Title="Device Manager" Height="400" Width="750"
+        Title="Device Manager" Height="400" Width="950"
         WindowStartupLocation="CenterOwner" Loaded="Window_Loaded">
     <Grid Margin="10">
         <Grid.RowDefinitions>
@@ -18,11 +18,11 @@
                   SelectionMode="Single" SelectionChanged="DeviceGrid_SelectionChanged">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50"/>
-                <DataGridTextColumn Header="Имя" Binding="{Binding Name}" Width="130"/>
-                <DataGridTextColumn Header="Размер RAM" Binding="{Binding RamSize}" Width="90"/>
-                <DataGridTextColumn Header="Сектор" Binding="{Binding Sector}" Width="70"/>
-                <DataGridTextColumn Header="Диапазон портов" Binding="{Binding PortRange}" Width="140"/>
-                <DataGridTextColumn Header="Создан" Binding="{Binding CreatedAt, StringFormat='{}{0:HH:mm:ss}'}" Width="110"/>
+                <DataGridTextColumn Header="Имя" Binding="{Binding Name}" Width="180"/>
+                <DataGridTextColumn Header="Размер RAM" Binding="{Binding RamSize}" Width="100"/>
+                <DataGridTextColumn Header="Сектор" Binding="{Binding Sector}" Width="90"/>
+                <DataGridTextColumn Header="Диапазон портов" Binding="{Binding PortRange}" Width="170"/>
+                <DataGridTextColumn Header="Создан" Binding="{Binding CreatedAt, StringFormat='{}{0:HH:mm:ss}'}" Width="140"/>
             </DataGrid.Columns>
         </DataGrid>
 
@@ -34,7 +34,8 @@
             <Button Content="Сделать основным" Click="SetMainDevice_Click" Padding="10,5" Margin="10,5,5,5"/>
             <Button x:Name="BtnCreateDevice" Click="BtnCreateDevice_Click" 
                     Content="Создать устройство" Padding="10,5" Margin="10,5,5,5" />
-
+            <Button Content="Обновить BIOS" Click="UpdateBios_Click" Padding="10,5" Margin="5,5"/>
+            <Button Content="Удалить устройство" Click="RemoveDevice_Click" Padding="10,5" Margin="5,5"/>
         </StackPanel>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,10" HorizontalAlignment="Right">

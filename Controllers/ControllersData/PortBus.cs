@@ -1,4 +1,5 @@
-﻿using Kernel.Common;
+﻿using Kernel.BiosSystem;
+using Kernel.Common;
 using Kernel.RamSystem;
 
 namespace Kernel.ControllersData;
@@ -35,9 +36,11 @@ public sealed class PortBus(SizePort ports, SizePortOnDevice portsOnDev, NameDev
         return -1;
     }
 
+    public bool IsFreeSector(uint sector) => sector < _sectorCount && _devices[sector] == null;
+
     public bool RegisterDevice(IPortUse device, uint sector)
     {
-        if (sector >= _sectorCount || _devices[sector] != null) return false;
+        if (IsFreeSector(sector)) return false;
 
         _devices[sector] = device;
         return true;

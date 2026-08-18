@@ -34,6 +34,7 @@ public partial class IDEPage : Page
     private int _delayDeviceThred = 0;
     private int _countStepsBreakDown = 5;
 
+    public bool BiosMode => UseBiosMode.IsChecked ?? false;
     public bool IsDebugMode => DebugMode.IsChecked ?? false;
     public bool UseConsole => ConsoleMode.IsChecked ?? false;
     public bool SnowAssemler => DisassembleMode.IsChecked ?? false;
@@ -244,11 +245,66 @@ public partial class IDEPage : Page
             _outputView.Append("Устройство не подготовлено к запуску", LogLevel.Error);
             return;
         }
-        bool optimize = OptimizationCode;
-        CompilationResult result = _hostProject.Compile(baseAddress, optimize);
 
-        if (result.Success)
+        if (BiosMode)
         {
+            // Проверяем наличие BIOS
+            if (!_device.HaveBios)
+            {
+                _outputView.Append("Устройство не имеет BIOS. Создайте устройство с BIOS через Device Manager.", LogLevel.Error);
+                return;
+            }
+
+            bool optimize = OptimizationCode;
+            CompilationResult result = _hostProject.Compile(baseAddress, optimize);
+
+            if (!result.Success)
+            {
+                foreach (var err in result.Errors!)
+                    _outputView.Append(err, LogLevel.Error);
+                return;
+            }
+
+            // Создаём загрузочный диск
+            string imagePath = Path.Combine(_projectPath, "disk.img");
+            try
+            {
+                // 1 сектор достаточно для теста, но можно вычислить нужное количество
+                int sectorCount = (result.Program!.Length + 8 + DiskData.SectorSize - 1) / DiskData.SectorSize;
+                DiskImageWriter.WriteBootableImage(imagePath, result.Program, sectorCount);
+                int diskSector = _hostEmulator.CreateDisk(imagePath, sectorCount);
+                if (diskSector == -1)
+                {
+                    _outputView.Append("Не удалось создать диск", LogLevel.Error);
+                    return;
+                }
+                _outputView.Append($"Диск создан в секторе {diskSector}, размер {sectorCount} секторов", LogLevel.Log);
+            }
+            catch (Exception ex)
+            {
+                _outputView.Append($"Ошибка создания диска: {ex.Message}", LogLevel.Error);
+                return;
+            }
+
+            // Запускаем с BIOS (стартовый адрес = конец RAM, где расположен BIOS)
+            CallBackOnLaunch callBackOnLaunch = new(onEnd: OnEndLaunch);
+            _device.ResetMemoryRam();
+            _launchModeDevice = _device.LoadProgram([]);
+            _launchModeDevice.SetHeapAddress((ulong)result.Program!.Length);
+            _launchModeDevice.LaunchDevice(_device.MaxRamSize, IsDebugMode, _delayDeviceThred, SnowTimer, callBackOnLaunch);
+        }
+        else
+        {
+            bool optimize = OptimizationCode;
+            CompilationResult result = _hostProject.Compile(baseAddress, optimize);
+
+            if (!result.Success)
+            {
+                foreach (var err in result.Errors!)
+                    _outputView.Append(err, LogLevel.Error);
+                return;
+            }
+
             CallBackOnLaunch callBackOnLaunch = new(onEnd: OnEndLaunch);
             LogSystemData(result, optimize);
             ulong startAdress = (ulong)result.Program!.Length + result.StartAdress;
@@ -257,13 +313,7 @@ public partial class IDEPage : Page
             _launchModeDevice.SetHeapAddress(startAdress);
             _launchModeDevice.LaunchDevice(ProjectBuilder.BaseAdressProgramm, IsDebugMode, _delayDeviceThred, SnowTimer, callBackOnLaunch);
         }
-        else
-        {
-            foreach (var err in result.Errors!)
-                _outputView.Append(err, LogLevel.Error);
-        }
     }
-
     private void OnEndLaunch(Action<string, LogLevel> logger)
     {
         logger.Invoke(_hostEmulator.GetDumpRegisters(), LogLevel.Log);

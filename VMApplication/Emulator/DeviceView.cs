@@ -3,7 +3,7 @@
 public readonly struct DeviceView(int id,
                                   uint ramSize,
                                   uint portSize,
-                                  uint sector, byte[] ram,
+                                  uint sector, ReadOnlyMemory<byte> ram,
                                   DateTime createdAt,
                                   string? name = null)
 {
@@ -11,7 +11,7 @@ public readonly struct DeviceView(int id,
     public uint RamSize { get; init; } = ramSize;
     public uint PortSize { get; init; } = portSize;
     public uint Sector { get; init; } = sector;
-    public ReadOnlyMemory<byte> Ram { get; init; } = new(ram);
+    public ReadOnlyMemory<byte> Ram { get; init; } = ram;
     public string? Name { get; init; } = name;
     public DateTime CreatedAt { get; init; } = createdAt;
     public string PortRange { get; init; } = CreatePortRange(sector, portSize);

@@ -1,13 +1,12 @@
 ﻿using Kernel.BiosSystem;
 using Kernel.Common;
 using Kernel.ControllersData;
-using Kernel.LocalMemorySystem;
 
 namespace Kernel.Utilites;
 
 public class ManagerDevices
 {
-    private const int MaxCountElements = 64;
+    public const int MaxCountElements = 64;
 
     // Плотные массивы данных (Dense Arrays)
     private readonly RamSize[] _size = new RamSize[MaxCountElements];
@@ -23,6 +22,7 @@ public class ManagerDevices
 
     private readonly int[] _denseToId = new int[MaxCountElements];  // Отображает внутренний индекс в ID
     private readonly int[] _sparse = new int[MaxCountElements];     // Отображает ID во внутренний индекс
+    private readonly Queue<int> _freeIds = new();
 
     private int _count = 0;
     private int _nextId = 0;
@@ -30,9 +30,6 @@ public class ManagerDevices
     private readonly PortBus _portBus;
 
     public int Count => _count;
-    public DeviceInfo FirstDeviceData => new(_denseToId[0], _devices[0]!, _size[0],
-            (SizePortOnDevice)_portBus.PortsOnDevice, _sectorByDenseIndex[0],
-                                             _name[0], _devices[0]!.CreatedAt);
     public ManagerDevices(PortBus portBus)
     {
         _portBus = portBus;
@@ -96,10 +93,14 @@ public class ManagerDevices
         uint sector,
         byte[] biosFirmware = null!)
     {
-        if (_count >= MaxCountElements || _nextId >= MaxCountElements) return -1;
+        if (_count >= MaxCountElements) return -1;
+        if (!_portBus.IsFreeSector(sector)) return -1;
+
+        int deviceId = _freeIds.Count > 0 ? _freeIds.Dequeue() : _nextId++;
+        if (deviceId >= MaxCountElements)
+            return -1;
 
         int denseIndex = _count;
-        int deviceId = _nextId++;
 
         // Запись конфигурации
         _size[denseIndex] = size;
@@ -110,21 +111,15 @@ public class ManagerDevices
         _sectorByDenseIndex[denseIndex] = sector;
 
         // Создаём само устройство
-        var device = new Device(
-            biosFirmware,
-            _portBus,
-            size,
-            name ?? NameDeviceToken.UnknownName,
-            nameProc ?? NameDeviceToken.UnknownName,
-            nameRam ?? NameDeviceToken.UnknownName
-        );
-
+        
+        var device = new Device(biosFirmware, _portBus, size, name, nameProc, nameRam);
         // Регистрируем в PortBus
         if (!_portBus.RegisterDevice(device, sector))
         {
             device.Dispose();
             return -1;
         }
+
 
         _devices[denseIndex] = device;
 
@@ -140,15 +135,15 @@ public class ManagerDevices
     /// Использует алгоритм Swap-And-Pop для O(1) удаления без сдвигов.
     /// </summary>
     /// <param name="id">ID устройства, которое нужно удалить.</param>
-    public void RemoveDevice(int id)
+    public bool RemoveDevice(int id)
     {
         // 1. Проверка валидности ID
         if (id < 0 || id >= MaxCountElements)
-            return;
+            return false;
 
         int denseIndex = _sparse[id];
         if (denseIndex == -1 || denseIndex >= _count)
-            return; // устройство уже удалено или не существует
+            return false; // устройство уже удалено или не существует
 
         // 2. Отключаем устройство от шины портов
         uint sector = _sectorByDenseIndex[denseIndex];
@@ -192,9 +187,10 @@ public class ManagerDevices
 
         // 6. Инвалидируем разреженный индекс для удалённого ID
         _sparse[id] = -1;
-
+        _freeIds.Enqueue(id);
         // 7. Уменьшаем счётчик
         _count--;
+        return true;
     }
 
     public void Clear()
@@ -209,6 +205,7 @@ public class ManagerDevices
             _devices[i] = null;
         }
 
+        _freeIds.Clear();
         _count = 0;
 
         // 3. Важно для генерации новых ID (опционально, но логично для полного сброса)
@@ -235,43 +232,4 @@ public class ManagerDevices
         }
         return false;
     }
-}
-
-public class DiskManager(PortBus portBus)
-{
-    private readonly PortBus _portBus = portBus;
-    private readonly Dictionary<uint, DiskDevice> _disks = []; // ключ – номер сектора
-
-    /// <summary>
-    /// Создаёт диск и регистрирует его. Возвращает номер сектора или -1.
-    /// </summary>
-    public int CreateDisk(string imagePath)
-    {
-        int sector = _portBus.AllocateFreeSector();
-        if (sector == -1) return -1;
-
-        var disk = new DiskDevice(imagePath);
-        if (!_portBus.RegisterDevice(disk, (uint)sector))
-        {
-            disk.Dispose();
-            return -1;
-        }
-
-        _disks[(uint)sector] = disk;
-        return sector;
-    }
-
-    public bool RemoveDisk(uint sector)
-    {
-        if (!_disks.TryGetValue(sector, out var disk))
-            return false;
-        _portBus.UnregisterDevice(sector);
-        disk.Dispose();
-        _disks.Remove(sector);
-        return true;
-    }
-
-    public IEnumerable<int> GetAllDisks() => from KeyValuePair<uint, DiskDevice> disk in _disks
-                                             select (int)disk.Key;
-    public DiskDevice? GetDisk(uint sector) => _disks.GetValueOrDefault(sector);
 }

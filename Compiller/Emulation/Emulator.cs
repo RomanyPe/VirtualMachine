@@ -21,7 +21,7 @@ public class Emulator
 
     public Emulator(SizePort totalPorts = SizePort.Size16KB, SizePortOnDevice portsPerDevice = SizePortOnDevice.Size16B)
     {
-        _portBus = new PortBus(totalPorts, portsPerDevice, new NameDeviceToken("Emulator"), "PortBus");
+        _portBus = new PortBus(totalPorts, portsPerDevice, new NameDeviceToken("Emulator".AsSpan()), "PortBus");
         _manager = new ManagerDevices(_portBus);
         _diskManager = new DiskManager(_portBus);
     }
@@ -30,7 +30,6 @@ public class Emulator
     public int MainDeviceId => _mainDeviceId;
     public int CountDevice => _manager.Count;
     public DeviceInfo? GetDeviceInfo(int i) => _manager.GetDeviceInfo(i);
-    public DeviceInfo FirstDevice => _manager.FirstDeviceData;
     public IEnumerable<DeviceInfo> AllDevices => _manager.GetAllDevices();
     public void SetMainDevice(int id) => _mainDeviceId = id;
 
@@ -77,7 +76,25 @@ public class Emulator
         _mainDeviceId = -1;
     }
 
-    public int CreateDisk(string imagePath) => _diskManager.CreateDisk(imagePath);
+    public int CreateDisk(string imagePath)
+    {
+        if (!Path.Exists(imagePath)) return -2;
+        return _diskManager.CreateDisk(imagePath);
+    }
+
+    public bool CreateDisk(string imagePath, uint sector)
+    {
+        if (!Path.Exists(imagePath)) return false;
+        return _diskManager.CreateDisk(imagePath, sector);
+    }
+
+    public bool RemoveDevice(int id)
+    {
+        bool removed = _manager.RemoveDevice(id);
+        if (removed && _mainDeviceId == id)
+            _mainDeviceId = -1;
+        return removed;
+    }
     public bool RemoveDisk(uint sector) => _diskManager.RemoveDisk(sector);
     public DiskDevice? GetDisk(uint sector) => _diskManager.GetDisk(sector);
     public bool ChangeDeviceSector(int id, uint newSector) => _manager.ChangeSector(id, newSector);
