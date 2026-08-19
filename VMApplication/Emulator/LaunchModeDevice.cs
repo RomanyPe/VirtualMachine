@@ -23,9 +23,8 @@ public class LaunchModeDevice
                              debug,
                              delayMs,
                              showTimer,
-                             callBack.OnTileLaunch,
+                             callBack.OnTitleLaunch,
                              callBack.OnStart,
-                             callBack.OnStep,
                              callBack.OnEnd);
     }
 

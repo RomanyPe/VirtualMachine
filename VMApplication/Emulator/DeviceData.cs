@@ -67,6 +67,11 @@ public class DeviceData : IDisposable
         return new LaunchModeDevice(_device);
     }
 
+    public LaunchModeDevice GetLaunchMode()
+    {
+        return new LaunchModeDevice(_device);
+    }
+
     public ReadOnlyMemory<byte> ReadMemory(ulong address, int length)
     {
         if (_device.IsRunning)

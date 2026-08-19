@@ -31,8 +31,8 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
     private Lock _regLock = regLock;
 
     private volatile bool _isRunning = false;
-    private volatile bool _externalCommandAdded = false;
     private volatile bool _hasSimulationStatus = false;
+    private volatile bool _hasExternalCommand = false;
     private bool _sleeping = false;
 
     private Action<ulong, uint, OpCode>? _snowOpcodeCallback;
@@ -122,19 +122,24 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         _registers[RegType.rSP.Int] = stackTop;
     }
 
-    public void Step()
+    public void ExternalCommandExecute()
     {
-        if (_sleeping) return;
-
-        if (_externalCommandAdded)
-        {
+        if (_hasExternalCommand)
+        {        
             while (_externalCommands.TryDequeue(out uint cmd))
             {
                 ExecuteExternalCommand(cmd);
                 if (!_isRunning) return;   // если команда остановила процессор
             }
-            _externalCommandAdded = false;
+            _hasExternalCommand = false;
         }
+    }
+    public void Step()
+    {
+        if (_sleeping) return;
+
+        ExternalCommandExecute();
+
         if (_hasSimulationStatus)
         {
             while (_statusFromSimulation.TryDequeue(out BiosStatus result))
@@ -190,64 +195,61 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         }
     }
 
-    
-    public ResultInstruction DecodeInstruction(uint rawInst, ulong data)
+
+    public ResultInstruction DecodeInstruction(uint rawInst, ulong data) => GetOpCode(rawInst) switch
     {
-        return GetOpCode(rawInst) switch
-        {
-            // === 1. Системные команды ===
-            OpCode.NOP => ResultInstruction.IsSucced,
-            OpCode.END => EndProgramm(),
-            OpCode.PRINT => InstructionPRINT(GetReg1(rawInst)),
-            // === 2. Работа с памятью (Указатели и регистры) ===
-            OpCode.MOV => InstructionMOV(GetReg1(rawInst), GetReg2(rawInst)),
-            OpCode.LOAD => InstructionLOAD(GetDataSizeCode(rawInst), GetReg1(rawInst), data),
-            OpCode.STORE => InstructionSTORE(GetDataSizeCode(rawInst), GetReg1(rawInst), data),
-            OpCode.STORE_IND => InstructionSTORE_IND(GetDataSizeCode(rawInst), GetReg1(rawInst), GetReg2(rawInst)),
-            OpCode.LOAD_IND => InstructionLOAD_IND(GetDataSizeCode(rawInst), GetReg1(rawInst), GetReg2(rawInst)),
-            OpCode.LDI => InstructionLDI(GetReg1(rawInst), data),
+        // === 1. Системные команды ===
+        OpCode.NOP => ResultInstruction.IsSucced,
+        OpCode.END => EndProgramm(),
+        OpCode.PRINT => InstructionPRINT(GetReg1(rawInst)),
+        // === 2. Работа с памятью (Указатели и регистры) ===
+        OpCode.MOV => InstructionMOV(GetReg1(rawInst), GetReg2(rawInst)),
+        OpCode.LOAD => InstructionLOAD(GetDataSizeCode(rawInst), GetReg1(rawInst), data),
+        OpCode.STORE => InstructionSTORE(GetDataSizeCode(rawInst), GetReg1(rawInst), data),
+        OpCode.STORE_IND => InstructionSTORE_IND(GetDataSizeCode(rawInst), GetReg1(rawInst), GetReg2(rawInst)),
+        OpCode.LOAD_IND => InstructionLOAD_IND(GetDataSizeCode(rawInst), GetReg1(rawInst), GetReg2(rawInst)),
+        OpCode.LDI => InstructionLDI(GetReg1(rawInst), data),
 
-            // === 3. Арифметика и Логика (Тьюринг-базис) ===
-            OpCode.ADD => InstructionADD(GetReg1(rawInst), GetReg2(rawInst)),
-            OpCode.SUB => InstructionSUB(GetReg1(rawInst), GetReg2(rawInst)),
-            OpCode.INC => InstructionINC(GetReg1(rawInst)),
-            OpCode.DEC => InstructionDEC(GetReg1(rawInst)),
-            OpCode.MULT_INT => InstructionMULT_INT(GetReg1(rawInst), GetReg2(rawInst)),
-            OpCode.SHR => InstructionSHR(GetReg1(rawInst), GetReg2(rawInst)),
-            OpCode.DIV => InstructionDIV(GetReg1(rawInst), GetReg2(rawInst)),
+        // === 3. Арифметика и Логика (Тьюринг-базис) ===
+        OpCode.ADD => InstructionADD(GetReg1(rawInst), GetReg2(rawInst)),
+        OpCode.SUB => InstructionSUB(GetReg1(rawInst), GetReg2(rawInst)),
+        OpCode.INC => InstructionINC(GetReg1(rawInst)),
+        OpCode.DEC => InstructionDEC(GetReg1(rawInst)),
+        OpCode.MULT_INT => InstructionMULT_INT(GetReg1(rawInst), GetReg2(rawInst)),
+        OpCode.SHR => InstructionSHR(GetReg1(rawInst), GetReg2(rawInst)),
+        OpCode.DIV => InstructionDIV(GetReg1(rawInst), GetReg2(rawInst)),
 
-            // === 4. Логика ===
-            OpCode.AND => InstructionAND(GetReg1(rawInst), GetReg2(rawInst)),
-            OpCode.OR => InstructionOR(GetReg1(rawInst), GetReg2(rawInst)),
-            OpCode.XOR => InstructionXOR(GetReg1(rawInst), GetReg2(rawInst)),
-            OpCode.NOT => InstructionNOT(GetReg1(rawInst)),
+        // === 4. Логика ===
+        OpCode.AND => InstructionAND(GetReg1(rawInst), GetReg2(rawInst)),
+        OpCode.OR => InstructionOR(GetReg1(rawInst), GetReg2(rawInst)),
+        OpCode.XOR => InstructionXOR(GetReg1(rawInst), GetReg2(rawInst)),
+        OpCode.NOT => InstructionNOT(GetReg1(rawInst)),
 
-            // === 5. Управление потоком ===
-            OpCode.JMP => InstructionJMP(data),
-            OpCode.JZ => InstructionJZ(data),
-            OpCode.JNZ => InstructionJNZ(data),
-            OpCode.JG => InstructionJG(data),
-            OpCode.JL => InstructionJL(data),
+        // === 5. Управление потоком ===
+        OpCode.JMP => InstructionJMP(data),
+        OpCode.JZ => InstructionJZ(data),
+        OpCode.JNZ => InstructionJNZ(data),
+        OpCode.JG => InstructionJG(data),
+        OpCode.JL => InstructionJL(data),
 
-            // === 6. Работа со Стеком ===
-            OpCode.PUSH => InstructionPUSH(GetReg1(rawInst)),
-            OpCode.POP => InstructionPOP(GetReg1(rawInst)),
-            OpCode.CALL => InstructionCALL(data),
-            OpCode.RET => InstructionRET(),
+        // === 6. Работа со Стеком ===
+        OpCode.PUSH => InstructionPUSH(GetReg1(rawInst)),
+        OpCode.POP => InstructionPOP(GetReg1(rawInst)),
+        OpCode.CALL => InstructionCALL(data),
+        OpCode.RET => InstructionRET(),
 
-            // === 7. Ввод-вывод ===
-            OpCode.IN => InstructionIN(GetReg1(rawInst), GetReg2(rawInst)),
-            OpCode.OUT => InstructionOUT(GetReg1(rawInst), GetReg2(rawInst)),
-            OpCode.INT => InstructionINT(GetReg1(rawInst)),   // GetReg1(rawInst) содержит номер вектора
-            OpCode.IRET => InstructionIRET(),
+        // === 7. Ввод-вывод ===
+        OpCode.IN => InstructionIN(GetReg1(rawInst), GetReg2(rawInst)),
+        OpCode.OUT => InstructionOUT(GetReg1(rawInst), GetReg2(rawInst)),
+        OpCode.INT => InstructionINT(GetReg1(rawInst)),   // GetReg1(rawInst) содержит номер вектора
+        OpCode.IRET => InstructionIRET(),
 
-            OpCode.PRINT_INT => InstructionPRINT_INT(GetReg1(rawInst)),
-            OpCode.ALLOC => InstructionALLOC(GetReg1(rawInst)),
-            OpCode.WAKE_INT => InstructionWAKE_INT(GetReg1(rawInst)),
-            OpCode.HALT => InstructionHALT(),
-            _ => new ResultInstruction(BiosStatus.NotImplementedOpCode, (ulong)GetOpCode(rawInst))
-        };
-    }
+        OpCode.PRINT_INT => InstructionPRINT_INT(GetReg1(rawInst)),
+        OpCode.ALLOC => InstructionALLOC(GetReg1(rawInst)),
+        OpCode.WAKE_INT => InstructionWAKE_INT(GetReg1(rawInst)),
+        OpCode.HALT => InstructionHALT(),
+        _ => new ResultInstruction(BiosStatus.NotImplementedOpCode, (ulong)GetOpCode(rawInst))
+    };
 
     private ResultInstruction InstructionHALT()
     {
@@ -790,6 +792,10 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
             _isRunning = false;
             _sleeping = false;
             ClearRegs();
+            while (_externalCommands.TryDequeue(out _));
+            while (_statusFromSimulation.TryDequeue(out _));
+            _hasExternalCommand = false;
+            _hasSimulationStatus = false;
         }
     }
 
@@ -798,29 +804,24 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         for (int i = 0; i < CountReg; i++) _registers[i] = 0UL;
     }
 
-    public void InitReg(ulong hpInit) => _registers[RegType.rHP.Int] = hpInit;
-
-    public bool TryDequeueExternalCommand(out uint cmd)
-    {
-        return _externalCommands.TryDequeue(out cmd);
-    }
+    public void InitRegHP(ulong hpInit) => _registers[RegType.rHP.Int] = hpInit;
 
     public void EnqueueExternalCommand(uint instruction)
     {
-        _externalCommandAdded = true;
+        _hasExternalCommand = true;
         _externalCommands.Enqueue(instruction);
     }
 
     public void ExecuteExternalCommand(uint rawInst)
     {
-        OpCode opCode = (OpCode)(rawInst & 0xFF);
+        OpCode opCode = GetOpCode(rawInst);
         switch (opCode)
         {
-            case OpCode.END: _isRunning = false; break;
-            case OpCode.HALT: _sleeping = true; break;
-            case OpCode.WAKE: _sleeping = false; break;
+            case OpCode.END: _isRunning = false; return;
+            case OpCode.HALT: _sleeping = true; return;
+            case OpCode.WAKE: _sleeping = false; return;
 
-            default: break;
+            default: return;
         }
     }
 }

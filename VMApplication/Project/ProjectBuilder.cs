@@ -69,7 +69,6 @@ public static class ProjectBuilder
             assembler.EmitJump(InstructionEncoder.EncodeJ(OpCode.JMP.Uint), "func_main");
         }
 
-        // 3. Сначала добавляем библиотеки из #include (они могут содержать init_vectors)
         foreach (string inc in includes)
         {
             string localPath = Path.Combine(path.ProjectPath, inc);

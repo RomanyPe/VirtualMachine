@@ -21,19 +21,19 @@ public sealed class Device : IDisposable, IPortUse
     private readonly Lock _consoleLock = new();
     private long stepCounter = 0;
 
+    public Action<Action<string, LogLevel>>? ActionOnWake = null;
     public DateTime CreatedAt { get; } = DateTime.Now;
-
     public Span<byte> AsRamSpan(int start, int length) => _ram.AsSpan(start, length);
     public Span<byte> RamSpan => _ram.Span;
-    
     public Memory<byte> AsRamMemory() => _ram.Memory;
     public Memory<byte> AsRamMemory(int start, int length) => _ram.AsMemory(start, length);
-
     public ReadOnlyMemory<byte> RamArray => _ram.ReadOnlyMemory;
     public bool IsRunning => _processor.IsRunning;
+    public bool IsSleeping => _processor.IsSleeping;
     public bool HaveBios => _ram.HaveBios;
     public ulong MaxRamSize => _ram.RamSize;
     public long? StepCount => _processor.IsRunning ? null : stepCounter;
+    public ulong CurrentIP => _processor.GetRegValue(RegType.rIP);
 
     public Device(byte[] biosFirmware, PortBus portBus, RamSize size, string? name = null!, string? nameProc = null!, string? nameRam = null!)
     {
@@ -88,7 +88,6 @@ public sealed class Device : IDisposable, IPortUse
                              bool snowTimer,
                              Action<Action<string, LogLevel>>? titleAct,
                              Action<Action<string, LogLevel>>? startAct,
-                             Action<Action<string, LogLevel>>? everyStep,
                              Action<Action<string, LogLevel>>? endAct)
     {
 
@@ -98,7 +97,7 @@ public sealed class Device : IDisposable, IPortUse
         stepCounter = 0;
         // Создаем новый поток и передаем ему метод выполнения
         _simulationThread = new Thread(() =>
-        RunSimulationLoop(startIndex, isDebug, delay, snowTimer, startAct, everyStep, endAct))
+        RunSimulationLoop(startIndex, isDebug, delay, snowTimer, startAct, endAct))
         {
             Name = $"VM_Thread_{_nameDevice}",
             IsBackground = true
@@ -146,14 +145,13 @@ public sealed class Device : IDisposable, IPortUse
         _simulationThread = null;
     }
 
-    public void InitHeap(ulong hp) => _processor.InitReg(hp);
+    public void InitHeap(ulong hp) => _processor.InitRegHP(hp);
 
     public void RunSimulationLoop(ulong start,
                                   bool isDebug,
                                   int delay,
                                   bool launchTimer,
                                   Action<Action<string, LogLevel>>? startAct,
-                                  Action<Action<string, LogLevel>>? everyStep,
                                   Action<Action<string, LogLevel>>? endAct)
     {
         startAct?.Invoke(ConsoleLock);
@@ -168,6 +166,7 @@ public sealed class Device : IDisposable, IPortUse
 
         while (_processor.IsRunning)
         {
+            _processor.ExternalCommandExecute();
             if (_processor.IsSleeping)
             {
                 _wakeSignal.Wait(10);
@@ -179,9 +178,6 @@ public sealed class Device : IDisposable, IPortUse
 
             if (isDebug) DebugOutput();
             if (useSleepMode) Thread.Sleep(delay);
-
-            everyStep?.Invoke(ConsoleLock);
-
         }
 
         if (sw != null)
@@ -243,10 +239,10 @@ public sealed class Device : IDisposable, IPortUse
 
     public void WakeProcessor()
     {
+        _processor.EnqueueExternalCommand((uint)OpCode.WAKE);
+        ActionOnWake?.Invoke(ConsoleLock);
         _wakeSignal.Set();
     }
-
-    public bool TryDequeueExternalCommand(out uint cmd) => _processor.TryDequeueExternalCommand(out cmd);
 
     public void EnqueueExternalCommand(uint instruction)
     {
@@ -292,15 +288,25 @@ public sealed class Device : IDisposable, IPortUse
         _ram.ClearMemory();
     }
 
+    private int _disposed;
+
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            return;
+
+        // Попросим поток остановиться, если он ещё жив
+        var simulationThread = _simulationThread;
+        if (simulationThread != null && simulationThread.IsAlive)
+        {
+            _processor.EnqueueBiosStatus(BiosStatus.EndProgramm);
+            _processor.EnqueueExternalCommand((uint)OpCode.WAKE);
+            _wakeSignal.Set();
+            simulationThread.Join(TimeSpan.FromSeconds(10));
+        }
+
         _ram?.Dispose();
         ProcessorPoolEmulator.Return(_processor);
         GC.SuppressFinalize(this);
     }
-}
-
-public static class DeviceHelper
-{
-
 }

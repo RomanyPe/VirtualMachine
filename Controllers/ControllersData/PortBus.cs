@@ -40,7 +40,7 @@ public sealed class PortBus(SizePort ports, SizePortOnDevice portsOnDev, NameDev
 
     public bool RegisterDevice(IPortUse device, uint sector)
     {
-        if (IsFreeSector(sector)) return false;
+        if (!IsFreeSector(sector)) return false;
 
         _devices[sector] = device;
         return true;

@@ -90,13 +90,11 @@ public sealed class VMEmulator(Compiller.Emulation.Emulator emulator, VMHostLogg
         return sector;
     }
 
-    public bool CreateDisk(string imagePath, uint sector)
+    public int CreateDisk(string imagePath, uint sector)
     {
-        bool flag = _emulator.CreateDisk(imagePath, sector);
-        if (flag)
-            _outputView.Append($"Disk created in sector {sector} (base port address: {sector * (int)_portsPerDevice})", LogLevel.Log);
-        else
-            _outputView.Append("Failed to create disk (sector is occupied)", LogLevel.Error);
+        int flag = _emulator.CreateDisk(imagePath, sector);
+        if (flag < 0)
+            _outputView.Append($"Failed to create disk (sector is occupied), Code Error {flag}", LogLevel.Error);
         return flag;
     }
 
@@ -118,14 +116,22 @@ public sealed class VMEmulator(Compiller.Emulation.Emulator emulator, VMHostLogg
         DeviceListChanged?.Invoke(_emulator.AllDevices);
         return true;
     }
+    public void WriteBootableProgram(string imagePath, byte[] program)
+    {
+        int sectorCount = Math.Max(1, (program.Length + 8 + DiskDevice.SectorSize - 1) / DiskDevice.SectorSize);
 
-    /// <summary>
-    /// Создаёт файл образа диска заданного размера и регистрирует его в эмуляторе.
-    /// </summary>
-    /// <param name="imagePath">Путь к файлу образа.</param>
-    /// <param name="sectorCount">Количество секторов (размер сектора 512 байт).</param>
-    /// <returns>Номер сектора, выделенного под диск, или -1 при ошибке.</returns>
-    public int CreateDisk(string imagePath, int sectorCount)
+        using (var fs = File.Create(imagePath))
+        {
+            fs.SetLength(DiskDevice.SectorSize * sectorCount);
+        }
+
+        using var stream = new FileStream(imagePath, FileMode.Open, FileAccess.Write);
+        Span<byte> lengthBytes = stackalloc byte[8];
+        BitConverter.TryWriteBytes(lengthBytes, (ulong)program.Length);
+        stream.Write(lengthBytes);
+        stream.Write(program);
+    }
+    public int CreateDisk(string imagePath, int sectorCount, uint sector)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sectorCount);
 
@@ -136,6 +142,17 @@ public sealed class VMEmulator(Compiller.Emulation.Emulator emulator, VMHostLogg
         {
             fs.SetLength(diskSize);
         }
+
+        return _emulator.CreateDisk(imagePath, sector);
+    }
+
+    public int CreateDisk(string imagePath, int sectorCount)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sectorCount);
+
+        long size = DiskDevice.SectorSize * sectorCount;
+        using var fs = File.Create(imagePath);
+        fs.SetLength(size);
 
         return _emulator.CreateDisk(imagePath);
     }
@@ -164,35 +181,11 @@ public sealed class VMEmulator(Compiller.Emulation.Emulator emulator, VMHostLogg
     // Список всех дисков (секторов)
     public IEnumerable<int> ListDisks()
     {
-        // Нужен метод в Compiller.Emulation.Emulator или DiskManager для перечисления
-        // Можно добавить в DiskManager метод GetSectors()
-        return _emulator.GetDiskSectors(); // пример
+        return _emulator.GetDiskSectors();
     }
-}
 
-public static class DiskImageWriter
-{
-    /// <summary>
-    /// Создаёт загрузочный образ диска: первые 8 байт — размер программы (ulong), затем сама программа.
-    /// Файл образа создаётся/перезаписывается.
-    /// </summary>
-    /// <param name="imagePath">Путь к образу.</param>
-    /// <param name="program">Скомпилированные байты программы.</param>
-    /// <param name="sectorCount">Количество секторов образа (по умолчанию 1).</param>
-    public static void WriteBootableImage(string imagePath, byte[] program, int sectorCount = 1)
+    public void Reset()
     {
-        long diskSize = DiskDevice.SectorSize * sectorCount;
-        using var fs = new FileStream(imagePath, FileMode.Create, FileAccess.Write);
-        fs.SetLength(diskSize);
-
-        // Записываем размер программы (8 байт, little-endian)
-        ulong length = (ulong)program.Length;
-        Span<byte> lengthBytes = stackalloc byte[8];
-        BitConverter.TryWriteBytes(lengthBytes, length);
-        fs.Write(lengthBytes);
-
-        // Записываем программу
-        fs.Write(program, 0, program.Length);
-        // Остальная часть образа заполнена нулями
+        _emulator.Reset();
     }
 }

@@ -4,7 +4,7 @@ using static Kernel.ProcessorSystem.Processor;
 
 namespace Kernel.ProcessorSystem;
 
-internal static class ProcessorHelpers
+public static class ProcessorHelpers
 {
     public static bool TryContinueAfterStatus(ResultInstruction dat, ulong ip, Lock regLock)
     {
@@ -23,8 +23,8 @@ internal static class ProcessorHelpers
             BiosStatus.AlignmentFault => $"Попытка прочесть целочисленные данные по невыравненной памяти, адрес [{dat.Adress}]",
             BiosStatus.SegmentationFault => $"Ошибка выхода за границы ОЗУ, по обращению, адрес [{dat.Adress}]",
             BiosStatus.NotImplementedOpCode => $"Неизвестный код операции OpCode [{dat.Adress}]",
-            BiosStatus.NullDeviceOutput => $"Попытка записать данные в отсутствующий девайс, адрес обращения [{dat.Adress}],\n проверьте таблицу секторов портов, формула: [Adress / AdressPerSector]",
-            BiosStatus.NullDeviceInput => $"Попытка прочесть данные из отсутсвующего девайса, адрес обращения [{dat.Adress}],\n проверьте таблицу секторов портов, формула: [Adress / AdressPerSector]",
+            BiosStatus.NullDeviceInput => $"Попытка записать данные в отсутствующий девайс, адрес обращения [{dat.Adress}],\n проверьте таблицу секторов портов, формула: [Adress / AdressPerSector]",
+            BiosStatus.NullDeviceOutput => $"Попытка прочесть данные из отсутсвующего девайса, адрес обращения [{dat.Adress}],\n проверьте таблицу секторов портов, формула: [Adress / AdressPerSector]",
             _ => $"НЕПРЕДВИДЕННАЯ ОШИБКА СИМУЛЯЦИИ адрес [{dat.Adress}]"
         };
 

@@ -14,8 +14,8 @@ public class DiskManager(PortBus portBus)
     public int CreateDisk(string imagePath)
     {
         int sector = _portBus.AllocateFreeSector();
-        if (sector == -1) return -1;
-        if (!_portBus.IsFreeSector((uint)sector)) return -1;
+        if (sector < 0) return sector;
+        if (!_portBus.IsFreeSector((uint)sector)) return -5;
 
         var disk = new DiskDevice(imagePath);
         if (!_portBus.RegisterDevice(disk, (uint)sector))
@@ -28,19 +28,19 @@ public class DiskManager(PortBus portBus)
         return sector;
     }
 
-    public bool CreateDisk(string imagePath, uint sector)
+    public int CreateDisk(string imagePath, uint sector)
     {
-        if (!_portBus.IsFreeSector(sector)) return false;
+        if (!_portBus.IsFreeSector(sector)) return -1;
 
         var disk = new DiskDevice(imagePath);
         if (!_portBus.RegisterDevice(disk, sector))
         {
             disk.Dispose();
-            return false;
+            return -2;
         }
 
         _disks[sector] = disk;
-        return true;
+        return 0;
     }
 
     public bool RemoveDisk(uint sector)

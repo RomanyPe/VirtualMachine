@@ -197,11 +197,11 @@ public partial class IDEPage : Page
         CompileAndRun();
     }
 
-    private void LogSystemData(CompilationResult res, bool optim)
+    private void LogSystemData(in CompilationResult res, bool optim)
     {
         if (SnowAssemler)
         {
-            var text = VMHostHelper.DisassemblCode(res.Program!);
+            var text = VMHostHelper.DisassemblCode(res.Program.AsSpan());
             _outputView.Append(text.TextAsm);
         }
         var resultOpt = res.OptimizationResultLog;
@@ -224,7 +224,7 @@ public partial class IDEPage : Page
 
         if (result.Success)
         {
-            LogSystemData(result, optimize);
+            LogSystemData(in result, optimize);
             _projectManager.FileService.SaveProgramFile(result.Program!);
         }
         else
@@ -265,31 +265,14 @@ public partial class IDEPage : Page
                 return;
             }
 
-            // Создаём загрузочный диск
-            string imagePath = Path.Combine(_projectPath, "disk.img");
-            try
-            {
-                // 1 сектор достаточно для теста, но можно вычислить нужное количество
-                int sectorCount = (result.Program!.Length + 8 + DiskData.SectorSize - 1) / DiskData.SectorSize;
-                DiskImageWriter.WriteBootableImage(imagePath, result.Program, sectorCount);
-                int diskSector = _hostEmulator.CreateDisk(imagePath, sectorCount);
-                if (diskSector == -1)
-                {
-                    _outputView.Append("Не удалось создать диск", LogLevel.Error);
-                    return;
-                }
-                _outputView.Append($"Диск создан в секторе {diskSector}, размер {sectorCount} секторов", LogLevel.Log);
-            }
-            catch (Exception ex)
-            {
-                _outputView.Append($"Ошибка создания диска: {ex.Message}", LogLevel.Error);
+            string? diskImagePath = PrepareBootDisk(result.Program!, out int diskSector);
+            if (diskImagePath == null || diskSector == -1)
                 return;
-            }
 
             // Запускаем с BIOS (стартовый адрес = конец RAM, где расположен BIOS)
             CallBackOnLaunch callBackOnLaunch = new(onEnd: OnEndLaunch);
             _device.ResetMemoryRam();
-            _launchModeDevice = _device.LoadProgram([]);
+            _launchModeDevice = _device.GetLaunchMode();
             _launchModeDevice.SetHeapAddress((ulong)result.Program!.Length);
             _launchModeDevice.LaunchDevice(_device.MaxRamSize, IsDebugMode, _delayDeviceThred, SnowTimer, callBackOnLaunch);
         }
@@ -306,7 +289,7 @@ public partial class IDEPage : Page
             }
 
             CallBackOnLaunch callBackOnLaunch = new(onEnd: OnEndLaunch);
-            LogSystemData(result, optimize);
+            LogSystemData(in result, optimize);
             ulong startAdress = (ulong)result.Program!.Length + result.StartAdress;
             _device.ResetMemoryRam();
             _launchModeDevice = _device.LoadProgram(result.Program!);
@@ -314,6 +297,24 @@ public partial class IDEPage : Page
             _launchModeDevice.LaunchDevice(ProjectBuilder.BaseAdressProgramm, IsDebugMode, _delayDeviceThred, SnowTimer, callBackOnLaunch);
         }
     }
+    private string? PrepareBootDisk(byte[] program, out int diskSector)
+    {
+        diskSector = -1;
+        string imagePath = Path.Combine(_projectPath, $"boot_{Guid.NewGuid():N}.vmg");
+        try
+        {
+            _hostEmulator.WriteBootableProgram(imagePath, program); // пишет заголовок + программу
+            int sectorCount = Math.Max(1, (program.Length + 8 + DiskData.SectorSize - 1) / DiskData.SectorSize);
+            diskSector = _hostEmulator.CreateDisk(imagePath, sectorCount);
+            return imagePath;
+        }
+        catch (Exception ex)
+        {
+            _outputView.Append($"Ошибка подготовки загрузочного диска: {ex.Message}", LogLevel.Error);
+            return null;
+        }
+    }
+
     private void OnEndLaunch(Action<string, LogLevel> logger)
     {
         logger.Invoke(_hostEmulator.GetDumpRegisters(), LogLevel.Log);
@@ -326,6 +327,7 @@ public partial class IDEPage : Page
     {
         _device?.Stop();
         _device?.Dispose();
+        _hostEmulator.Reset();
         _projectManager.SaveAllFiles();
         NavigationService.Navigate(new MainMenu());
     }

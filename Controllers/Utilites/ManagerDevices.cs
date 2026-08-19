@@ -94,11 +94,11 @@ public class ManagerDevices
         byte[] biosFirmware = null!)
     {
         if (_count >= MaxCountElements) return -1;
-        if (!_portBus.IsFreeSector(sector)) return -1;
+        if (!_portBus.IsFreeSector(sector)) return -2;
 
         int deviceId = _freeIds.Count > 0 ? _freeIds.Dequeue() : _nextId++;
         if (deviceId >= MaxCountElements)
-            return -1;
+            return -3;
 
         int denseIndex = _count;
 
@@ -117,7 +117,7 @@ public class ManagerDevices
         if (!_portBus.RegisterDevice(device, sector))
         {
             device.Dispose();
-            return -1;
+            return -4;
         }
 
 

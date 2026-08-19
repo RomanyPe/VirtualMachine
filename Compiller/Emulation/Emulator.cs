@@ -26,6 +26,7 @@ public class Emulator
         _diskManager = new DiskManager(_portBus);
     }
 
+    public PortBus PortBus => _portBus;
     public Device? CurrentDevice => MainDevice;
     public int MainDeviceId => _mainDeviceId;
     public int CountDevice => _manager.Count;
@@ -82,9 +83,9 @@ public class Emulator
         return _diskManager.CreateDisk(imagePath);
     }
 
-    public bool CreateDisk(string imagePath, uint sector)
+    public int CreateDisk(string imagePath, uint sector)
     {
-        if (!Path.Exists(imagePath)) return false;
+        if (!Path.Exists(imagePath)) return -3;
         return _diskManager.CreateDisk(imagePath, sector);
     }
 

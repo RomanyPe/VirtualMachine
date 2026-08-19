@@ -15,6 +15,7 @@ public unsafe sealed class NativeMemoryBuffer : IDisposable
     {
         _length = (nuint)size;
         _ptr = (byte*)NativeMemory.Alloc(_length);
+        NativeMemory.Clear(_ptr, _length);
         _manager = new(this);
     }
 
@@ -27,12 +28,6 @@ public unsafe sealed class NativeMemoryBuffer : IDisposable
 
     public Span<byte> AsSpan(int start, int length) => new(_ptr + start, length);
     public ReadOnlySpan<byte> AsReadOnlySpan(int start, int length) => new(_ptr + start, length);
-
-    public byte this[int index]
-    {
-        get => _ptr[index];
-        set => _ptr[index] = value;
-    }
 
     public byte this[ulong index]
     {

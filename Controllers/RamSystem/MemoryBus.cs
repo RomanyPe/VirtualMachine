@@ -234,14 +234,20 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
         _biosRomSize = (ulong)_biosRom.Length;
     }
 
+    private int _disposed;
+
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+            return;
+
         if (_memory != null)
         {
             ClearMemory();
             _memory.Dispose();
             _memory = null!;
         }
+
         GC.SuppressFinalize(this);
     }
 }

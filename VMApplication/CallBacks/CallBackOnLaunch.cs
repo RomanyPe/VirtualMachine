@@ -4,12 +4,10 @@ namespace VMApplication.CallBacks;
 
 public readonly struct CallBackOnLaunch(Action<Action<string, LogLevel>>? onLaunch = null,
                                         Action<Action<string, LogLevel>>? onStart = null,
-                                        Action<Action<string, LogLevel>>? onStep = null,
                                         Action<Action<string, LogLevel>>? onEnd = null)
 {
-    public readonly Action<Action<string, LogLevel>>? OnTileLaunch = onLaunch;
+    public readonly Action<Action<string, LogLevel>>? OnTitleLaunch = onLaunch;
     public readonly Action<Action<string, LogLevel>>? OnStart = onStart;
-    public readonly Action<Action<string, LogLevel>>? OnStep = onStep;
     public readonly Action<Action<string, LogLevel>>? OnEnd = onEnd;
 }
 

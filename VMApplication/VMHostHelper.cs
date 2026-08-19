@@ -23,10 +23,13 @@ public static class VMHostHelper
 
     extension(DeviceInfo d)
     {
-        public DeviceView ConvertDeviceInfo()
-        {
-            return new(d.Id, (uint)d.RamSize, (uint)d.PortSize, d.Sector, d.Device.RamArray, d.CreatedAt, d.Name);
-        }
+        public DeviceView ConvertDeviceInfo() => new(d.Id,
+                                                     (uint)d.RamSize,
+                                                     (uint)d.PortSize,
+                                                     d.Sector,
+                                                     d.Device.RamArray,
+                                                     d.CreatedAt,
+                                                     d.Name);
     }
 
     public static ResultDeCompilation DisassemblCode(ReadOnlyMemory<byte> prog, ulong baseAddress = 0UL)
