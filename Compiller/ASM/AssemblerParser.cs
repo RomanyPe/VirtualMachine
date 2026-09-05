@@ -1,5 +1,7 @@
-﻿using Kernel.Common;
+﻿using Compiller.ASM.Optimizators;
+using Kernel.Common;
 using System.Collections.Frozen;
+using System.Text.RegularExpressions;
 
 namespace Compiller.ASM;
 
@@ -41,12 +43,12 @@ public class AssemblerParser
         { "r19", RegType.r19 },
         { "r20", RegType.r20 },
         { "r21", RegType.r21 },
+        { "r22", RegType.r22 },
+        { "r23", RegType.r23 },
         { "rTB", RegType.rTB },
         { "rCD", RegType.rCD },
         { "rFL", RegType.rFL },
-        { "rLP", RegType.rLP },
         { "rCL", RegType.rCL },
-        { "rRT", RegType.rRT },
         { "rSP", RegType.rSP },
         { "rHP", RegType.rHP },
         { "rIP", RegType.rIP }
@@ -92,10 +94,16 @@ public class AssemblerParser
         { "DIV", OpCode.DIV },
         { "HALT", OpCode.HALT },
         { "WAKE", OpCode.WAKE},
-        { "WAKE_INT", OpCode.WAKE_INT}
+        { "WAKE_INT", OpCode.WAKE_INT },
+        { "LOAD_IND_UNSAFE", OpCode.LOAD_IND_UNSAFE},
+        { "LOAD_UNSAFE", OpCode.LOAD_UNSAFE},
+        { "STORE_IND_UNSAFE", OpCode.STORE_IND_UNSAFE},
+        { "STORE_UNSAFE", OpCode.STORE_UNSAFE},
+        { "PUSH_UNSAFE", OpCode.PUSH_UNSAFE},
+        { "POP_UNSAFE", OpCode.POP_UNSAFE}
     };
 
-    private Assembler _asm = null!;
+    private AssemblerBase _asm = null!;
     private readonly FrozenDictionary<string, RegType> _regMap = _regMapLex.ToFrozenDictionary();
     private readonly FrozenDictionary<string, OpCode> _opMap = _opMapLex.ToFrozenDictionary();
 
@@ -106,7 +114,13 @@ public class AssemblerParser
         return asm.Build();
     }
 
-    public void Assemble(string code, Assembler asm)
+    public byte[] Build(string code, AssemblerBase asm)
+    {
+        Assemble(code, asm);
+        return asm.Build();
+    }
+
+    public void Assemble(string code, AssemblerBase asm)
     {
         _asm = asm;
         ProcessLines(code);
@@ -180,7 +194,7 @@ public class AssemblerParser
         }
 
         if (!_opMap.TryGetValue(baseMnemonic, out OpCode opCode))
-            throw new Exception($"Неизвестная инструкция: {mnemonic}");
+            ThrowHelper.ThrowMiniC(ErrorCode.Asm_InvalidInstruction, baseMnemonic);
 
         switch (baseMnemonic)
         {
@@ -190,6 +204,7 @@ public class AssemblerParser
             case "RET": _asm.EmitInstruction(InstructionEncoder.EncodeRET()); break;
             case "HALT": _asm.EmitInstruction(InstructionEncoder.EncodeHALT()); break;
             case "WAKE": _asm.EmitInstruction(InstructionEncoder.EncodeWAKE()); break;
+
             // Формат R (два регистра)
             case "MOV":
             case "ADD":
@@ -202,11 +217,7 @@ public class AssemblerParser
             case "SHR":
             case "DIV":
             case "MULT_INT":
-                if (tokens.Length < 3)
-                    throw new Exception($"Инструкция {baseMnemonic} требует два регистра");
-                RegType r1 = ParseReg(tokens[1]);
-                RegType r2 = ParseReg(tokens[2]);
-                _asm.EmitInstruction(InstructionEncoder.EncodeR((uint)opCode, (uint)r1, (uint)r2));
+                FormatR(tokens, baseMnemonic, opCode);
                 break;
 
             // Формат U (один регистр)
@@ -217,59 +228,32 @@ public class AssemblerParser
             case "NOT":
             case "PUSH":
             case "POP":
+            case "PUSH_UNSAFE":
+            case "POP_UNSAFE":
             case "PRINT_INT":
-                if (tokens.Length < 2)
-                    throw new Exception($"Инструкция {baseMnemonic} требует один регистр");
-                RegType rU = ParseReg(tokens[1]);
-                _asm.EmitInstruction(InstructionEncoder.EncodeU((uint)opCode, (uint)rU));
+                FormatU(tokens, baseMnemonic, opCode);
                 break;
 
             // LDI: регистр, константа
             case "LDI":
-                if (tokens.Length < 3)
-                    throw new Exception("LDI требует регистр и значение");
-                RegType rLdi = ParseReg(tokens[1]);
-                string operand = tokens[2];
-                if (IsNumber(operand))
-                {
-                    ulong value = ParseNumber(operand);
-                    _asm.EmitInstruction64(InstructionEncoder.EncodeLDI((uint)rLdi), value);
-                }
-                else
-                {
-                    // Операнд — метка, откладываем разрешение адреса
-                    uint encodedldi = InstructionEncoder.EncodeLDI((uint)rLdi);
-                    _asm.EmitInstruction64(encodedldi, 0UL);  // временный 0
-                                                              // Добавляем патч: (позиция в потоке, где записан 0, метка)
-                    long patchPos = _asm.GetStreamPosition() - 8; // нужно получить позицию в MemoryStream
-                    _asm.AddPatch(patchPos, operand);
-                }
+                FormatLDI(tokens, baseMnemonic);
                 break;
 
             // LOAD/STORE: регистр, адрес (константа)
             case "LOAD":
             case "STORE":
-                if (tokens.Length < 3)
-                    throw new Exception($"{baseMnemonic} требует регистр и адрес");
-                RegType rMem = ParseReg(tokens[1]);
-                ulong addr = ParseNumber(tokens[2]);
-                uint encoded;
-                if (baseMnemonic == "LOAD")
-                    encoded = InstructionEncoder.EncodeLOAD((uint)rMem, (uint)size);
-                else
-                    encoded = InstructionEncoder.EncodeSTORE((uint)rMem, (uint)size);
-                _asm.EmitInstruction64(encoded, addr);
+            case "LOAD_UNSAFE":
+            case "STORE_UNSAFE":
+                FormatLOAD__STORE(tokens, size, baseMnemonic);
                 break;
 
             case "LOAD_IND":
             case "STORE_IND":
-                if (tokens.Length < 3)
-                    throw new Exception($"{baseMnemonic} требует два регистра");
-                RegType rInd1 = ParseReg(tokens[1]);
-                RegType rInd2 = ParseReg(tokens[2]);
-                // EncodeR теперь принимает размер (добавьте соответствующий метод в InstructionEncoder)
-                _asm.EmitInstruction(InstructionEncoder.EncodeRS((uint)opCode, (uint)rInd1, (uint)rInd2, (uint)size));
+            case "LOAD_IND_UNSAFE":
+            case "STORE_IND_UNSAFE":
+                FormateLOAD_IND__STORE_IND(tokens, size, baseMnemonic, opCode);
                 break;
+
             // Переходы и CALL: метка или абсолютный адрес
             case "JMP":
             case "JZ":
@@ -277,43 +261,108 @@ public class AssemblerParser
             case "JG":
             case "JL":
             case "CALL":
-                if (tokens.Length < 2)
-                    throw new Exception($"{baseMnemonic} требует целевой адрес");
-                string target = tokens[1];
-                uint jmpOpcode = InstructionEncoder.EncodeJ((uint)opCode);
-                if (IsNumber(target))
-                {
-                    ulong absTarget = ParseNumber(target);
-                    _asm.EmitJumpToAbsolute(jmpOpcode, absTarget);
-                }
-                else
-                {
-                    _asm.EmitJump(jmpOpcode, target);
-                }
+                FormatJumpType(tokens, baseMnemonic, opCode);
                 break;
+
             case "ALLOC":
-                _asm.EmitInstruction(InstructionEncoder.EncodeU((uint)OpCode.ALLOC, 0));
+                _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.ALLOC.Uint, 0));
                 break;
 
             case "INT":
-                if (tokens.Length < 2) throw new Exception("INT требует регистр с номером прерывания");
+                if (tokens.Length < 2)
+                    ThrowHelper.ThrowMiniC(ErrorCode.Asm_InvalidInstruction,baseMnemonic);
                 RegType rInt = ParseReg(tokens[1]);
-                _asm.EmitInstruction(InstructionEncoder.EncodeU((uint)OpCode.INT, (uint)rInt));
+                _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.INT.Uint, (uint)rInt));
                 break;
+
             case "IRET":
-                _asm.EmitInstruction(InstructionEncoder.EncodeU((uint)OpCode.IRET, 0));
+                _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.IRET.Uint, 0));
                 break;
 
             default:
-                throw new Exception($"Инструкция {baseMnemonic} не реализована в парсере");
+                ThrowHelper.ThrowMiniC(ErrorCode.Asm_UnknownMnemonic,baseMnemonic);
+                break;
         }
+    }
+
+    private void FormatJumpType(string[] tokens, string baseMnemonic, OpCode opCode)
+    {
+        if (tokens.Length < 2)
+            ThrowHelper.ThrowMiniC(ErrorCode.Asm_InvalidInstruction, baseMnemonic);
+        string target = tokens[1];
+        uint jmpOpcode = InstructionEncoder.EncodeJ(opCode.Uint);
+        if (IsNumber(target))
+        {
+            ulong absTarget = ParseNumber(target);
+            _asm.EmitJumpToAbsolute(jmpOpcode, absTarget);
+        }
+        else
+        {
+            _asm.EmitJump(jmpOpcode, target);
+        }
+    }
+
+    private void FormateLOAD_IND__STORE_IND(string[] tokens, OpCodeSize size, string baseMnemonic, OpCode opCode)
+    {
+        if (tokens.Length < 3)
+            ThrowHelper.ThrowMiniC(ErrorCode.Asm_InvalidInstruction, baseMnemonic);
+        RegType rInd1 = ParseReg(tokens[1]);
+        RegType rInd2 = ParseReg(tokens[2]);
+        _asm.EmitInstruction(InstructionEncoder.EncodeRS(opCode.Uint, (uint)rInd1, (uint)rInd2, size.Uint));
+    }
+
+    private void FormatLOAD__STORE(string[] tokens, OpCodeSize size, string baseMnemonic)
+    {
+        if (tokens.Length < 3)
+            ThrowHelper.ThrowMiniC(ErrorCode.Asm_InvalidInstruction, baseMnemonic);
+        RegType rMem = ParseReg(tokens[1]);
+        ulong addr = ParseNumber(tokens[2]);
+        uint encoded = baseMnemonic == "LOAD"
+            ? InstructionEncoder.EncodeLOAD((uint)rMem, size.Uint)
+            : InstructionEncoder.EncodeSTORE((uint)rMem, size.Uint);
+        _asm.EmitInstruction64(encoded, addr);
+    }
+
+    private void FormatLDI(string[] tokens, string baseMnemonic)
+    {
+        if (tokens.Length < 3)
+            ThrowHelper.ThrowMiniC(ErrorCode.Asm_InvalidInstruction, baseMnemonic);
+        RegType rLdi = ParseReg(tokens[1]);
+        string operand = tokens[2];
+        if (IsNumber(operand))
+        {
+            ulong value = ParseNumber(operand);
+            _asm.EmitInstruction64(InstructionEncoder.EncodeLDI((uint)rLdi), value);
+        }
+        else
+        {
+            uint encodedldi = InstructionEncoder.EncodeLDI((uint)rLdi);
+            _asm.EmitInstruction64WithLabel(encodedldi, operand);
+        }
+    }
+
+    private void FormatU(string[] tokens, string baseMnemonic, OpCode opCode)
+    {
+        if (tokens.Length < 2)
+            ThrowHelper.ThrowMiniC(ErrorCode.Asm_InvalidInstruction, baseMnemonic);
+        RegType rU = ParseReg(tokens[1]);
+        _asm.EmitInstruction(InstructionEncoder.EncodeU(opCode.Uint, (uint)rU));
+    }
+
+    private void FormatR(string[] tokens, string baseMnemonic, OpCode opCode)
+    {
+        if (tokens.Length < 3)
+            ThrowHelper.ThrowMiniC(ErrorCode.Asm_InvalidInstruction, baseMnemonic);
+        RegType r1 = ParseReg(tokens[1]);
+        RegType r2 = ParseReg(tokens[2]);
+        _asm.EmitInstruction(InstructionEncoder.EncodeR(opCode.Uint, (uint)r1, (uint)r2));
     }
 
     private RegType ParseReg(string s)
     {
         if (_regMap.TryGetValue(s, out RegType reg))
             return reg;
-        throw new Exception($"Неизвестный регистр: {s}");
+        return ThrowHelper.ThrowMiniC<RegType>(ErrorCode.Asm_UnknownRegister, s);
     }
 
     private static ulong ParseNumber(string s)
@@ -338,6 +387,44 @@ public class AssemblerParser
         "S16" => OpCodeSize.S16,
         "S32" => OpCodeSize.S32,
         "S64" => OpCodeSize.S64,
-        _ => throw new Exception($"Некорректный размер данных: {s}")
+        _ => ThrowHelper.ThrowMiniC<OpCodeSize>(ErrorCode.CodeGen_UnknownOpCodeSize,s)
     };
+}
+
+public static class AsmLanguageDefinition
+{
+    private static readonly Regex _mnemonicsRegex;
+    private static readonly Regex regex;
+
+    public static readonly FrozenSet<string> Mnemonics;
+    public static readonly FrozenSet<string> Registers;
+
+    static AsmLanguageDefinition()
+    {
+        Mnemonics =
+        [
+            "NOP", "END", "RET", "PRINT", "MOV", "ADD", "SUB", "AND", "OR", "XOR",
+            "INC", "DEC", "NOT", "PUSH", "POP",
+            "PUSH_UNSAFE", "POP_UNSAFE", "LDI", "LOAD", "STORE", 
+            "LOAD_UNSAFE", "STORE_UNSAFE", "JMP", "JZ",
+            "JNZ", "JG", "JL", "CALL", "LOAD_IND", "STORE_IND","LOAD_IND_UNSAFE", "STORE_IND_UNSAFE", "PRINT_INT", "ALLOC",
+            "IN", "OUT", "INT", "IRET", "SHR", "MULT_INT", "DIV", "HALT", "WAKE", "WAKE_INT"
+
+        ];
+        Registers =
+        [
+            "rZ", "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9",
+            "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19",
+            "r20", "r21", "rTB", "rCD", "rFL", "r22", "rCL", "r23", "rSP", "rHP", "rIP"
+        ];
+
+        _mnemonicsRegex = new(GetMnemonicsPattern(), RegexOptions.IgnoreCase);
+        regex = new(GetRegistersPattern(), RegexOptions.IgnoreCase);
+    }
+
+    private static string GetRegistersPattern() => $@"\b({string.Join("|", Registers)})\b";
+    private static string GetMnemonicsPattern() => $@"\b({string.Join("|", Mnemonics)})\b";
+
+    public static Regex GetMnemonicRegex() => _mnemonicsRegex;
+    public static Regex GetRegisterRegex() => regex;
 }

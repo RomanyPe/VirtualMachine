@@ -100,9 +100,9 @@ public class TestIOSleepAndWake(ITestOutputHelper outPut)
             using var doneSecond = new ManualResetEventSlim(false);
 
             // Запускаем с колбэками, которые сигнализируют о завершении
-            deviceFirst.LaunchDevice(0, false, 0, false, OnTitle, null,
+            deviceFirst.LaunchDeviceOnDedicatedThread(0, false, 0, false, OnTitle, null,
                 log => { OnEnd(log); doneFirst.Set(); });
-            deviceSecond.LaunchDevice(0, false, 0, false, OnTitle, null,
+            deviceSecond.LaunchDeviceOnDedicatedThread(0, false, 0, false, OnTitle, null,
                 log => { OnEnd(log); doneSecond.Set(); });
 
             // Ждём завершения обоих устройств (максимум 10 секунд каждое)
@@ -131,18 +131,18 @@ public class TestIOSleepAndWake(ITestOutputHelper outPut)
 
     }
 
-    private static void OnEnd(Action<string, LogLevel> logger)
+    private static void OnEnd(IDeviceLoggerContext logger)
     {
-        logger.Invoke("Устройство выключилось штатно", LogLevel.Log);
+        logger.Log("Устройство выключилось штатно", LogLevel.Log);
     }
 
-    private static void OnTitle(Action<string, LogLevel> logger)
+    private static void OnTitle(IDeviceLoggerContext logger)
     {
-        logger.Invoke("Устройство запущено", LogLevel.Log);
+        logger.Log("Устройство запущено", LogLevel.Log);
     }
-    private static void OnWake(Action<string, LogLevel> logger)
+    private static void OnWake(IDeviceLoggerContext logger)
     {
-        logger.Invoke("Устройство проснулось", LogLevel.Log);
+        logger.Log("Устройство проснулось", LogLevel.Log);
     }
 
 

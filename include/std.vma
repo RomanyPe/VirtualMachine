@@ -114,3 +114,7 @@ func_wake_processor:
 func_exit:
     HALT
     RET
+
+func_print:
+    PRINT r1
+    RET

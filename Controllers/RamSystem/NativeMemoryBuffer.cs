@@ -31,8 +31,8 @@ public unsafe sealed class NativeMemoryBuffer : IDisposable
 
     public byte this[ulong index]
     {
-        get => _ptr[index];
-        set => _ptr[index] = value;
+        get => *(_ptr + index);
+        set => *(_ptr + index) = value;
     }
 
     public void Clear() => AsSpan().Clear();
@@ -74,13 +74,16 @@ public sealed unsafe class NativeMemoryManager(NativeMemoryBuffer buffer) : Memo
 
     public override Span<byte> GetSpan()
     {
-        return _ptr == null ? throw new ObjectDisposedException(nameof(NativeMemoryManager)) : new Span<byte>(_ptr, _length);
+        return _ptr != null ? 
+            new(_ptr, _length) 
+            : throw new ObjectDisposedException(nameof(NativeMemoryManager));
     }
 
     public override MemoryHandle Pin(int elementIndex = 0)
     {
         if ((uint)elementIndex >= (uint)_length)
             throw new ArgumentOutOfRangeException(nameof(elementIndex));
+
         return new MemoryHandle(_ptr + elementIndex);
     }
 

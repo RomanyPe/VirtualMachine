@@ -1,4 +1,6 @@
-﻿using System.Runtime.InteropServices;
+﻿using Kernel.Common;
+using System.Runtime.InteropServices;
+using VMApplication.Logger;
 
 namespace ASM_gen;
 
@@ -56,4 +58,13 @@ public static partial class IDEConsoleManager
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool ShowWindow(IntPtr hWnd, int nCmdShow);
+}
+
+
+public class ConsoleOutPut : IOutputView
+{
+    public void AppendLine(string message, LogLevel level = LogLevel.Log) => Console.WriteLine($"[{level}] {message}");
+    public void Append(char message) => Console.Write(message);
+
+    public void Clear() => Console.Clear();
 }

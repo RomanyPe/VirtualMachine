@@ -49,7 +49,7 @@ public static class LoggerProvider
             return [.. _loggers.Keys];
     }
 
-    public static void Info(char c) => CurrentLogger?.Info(c.AsText);
+    public static void CharOutPut(char c) => CurrentLogger?.CharOutPut(c);
     public static void Info(string message) => CurrentLogger?.Info(message);
     public static void Warning(string message) => CurrentLogger?.Warning(message);
     public static void Error(string message) => CurrentLogger?.Error(message);

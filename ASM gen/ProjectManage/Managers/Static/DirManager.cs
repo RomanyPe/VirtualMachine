@@ -21,7 +21,7 @@ public static class DirManager
         CreateDir(AppPaths.SharedIncludePath);
     }
 
-    public static void NewFile(this IDEPage page, string projectPath, IProjectService projectService)
+    public static void NewFile(this IDEPage page, string projectPath, WpfEditorService projectService)
     {
         var dialog = new NewFileDialog
         {
@@ -40,9 +40,9 @@ public static class DirManager
             File.WriteAllText(filePath, template);
 
             // Добавляем в FileService и открываем вкладку
-            string? result = projectService.EditorService.GetText(fileName);
+            string? result = projectService.GetText(fileName);
             string content = result ?? string.Empty;
-            projectService.EditorService.OpenTab(fileName, content);
+            projectService.OpenTab(fileName, content);
         }
     }
 

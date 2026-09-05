@@ -1,4 +1,5 @@
 ﻿using Compiller.C.CodeGenerator;
+using Kernel.Common;
 
 namespace Compiller.C;
 
@@ -60,7 +61,7 @@ public class StructLayout
         } while (remaining.Count > 0 && lastResolved > 0);
 
         if (remaining.Count > 0)
-            throw new Exception($"Cyclic or missing struct dependencies: {string.Join(", ", remaining.Select(d => d.Name))}");
+            ThrowHelper.ThrowMiniC(ErrorCode.Parser_StructNotDefined,string.Join(", ", remaining.Select(d => d.Name)));
         return layouts;
     }
 

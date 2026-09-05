@@ -1,15 +1,15 @@
-﻿using VMApplication.Project;
+﻿using ASM_gen.ProjectManage.Managers;
+using VMApplication.Project;
 
 namespace ASM_gen.Services;
 
-public class ProjectService(IFileService fileService, IEditorService editorService, Action<string>? logCallback = null) : IProjectService
+public class ProjectService(IFileService fileService, WpfEditorService editorService, Action<string>? logCallback = null)
 {
     private readonly IFileService _fileService = fileService;
-    private readonly IEditorService _editorService = editorService;
+    private readonly WpfEditorService _editorService = editorService;
     private readonly Action<string>? _logCallback = logCallback; // для логирования
 
     public IFileService FileService => _fileService;
-    public IEditorService EditorService => _editorService;
     public string ProjectPath => _fileService.ProjectPath;
 
     public void OpenProject()
@@ -19,7 +19,7 @@ public class ProjectService(IFileService fileService, IEditorService editorServi
         var sourceFiles = _fileService.GetSourceFiles();
         foreach (var file in sourceFiles)
         {
-            if (_fileService.Exists(file))
+            if (_fileService.Exist(file))
             {
                 string content = _fileService.ReadFile(file);
                 _editorService.OpenTab(file, content);
@@ -39,18 +39,5 @@ public class ProjectService(IFileService fileService, IEditorService editorServi
                 _fileService.SaveFile(file, content);
         }
         _logCallback?.Invoke("Все файлы сохранены.");
-    }
-
-    public IEnumerable<SourceFile> GetSourceFiles()
-    {
-        var files = new List<SourceFile>();
-        foreach (var fileName in _fileService.GetSourceFiles())
-        {
-            string source = _editorService.GetText(fileName) ?? _fileService.ReadFile(fileName);
-            SourceLanguage lang = fileName.EndsWith(".asm", StringComparison.OrdinalIgnoreCase)
-                ? SourceLanguage.Asm : SourceLanguage.C;
-            files.Add(new SourceFile(fileName, source, lang));
-        }
-        return files;
     }
 }

@@ -4,7 +4,7 @@ using Kernel.ControllersData;
 
 namespace Kernel.Utilites;
 
-public class ManagerDevices
+public class ManagerDevices : IDisposable
 {
     public const int MaxCountElements = 64;
 
@@ -26,7 +26,7 @@ public class ManagerDevices
 
     private int _count = 0;
     private int _nextId = 0;
-
+    private bool _disposed;
     private readonly PortBus _portBus;
 
     public int Count => _count;
@@ -231,5 +231,14 @@ public class ManagerDevices
             return true;
         }
         return false;
+    }
+
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        Clear(); // уже вызывает Dispose для всех устройств
+        _disposed = true;
+        GC.SuppressFinalize(this);
     }
 }

@@ -2,16 +2,16 @@
 
 namespace VMApplication.Emulator;
 
-public class DiskData : IDisposable
+public class DiskContext : IDisposable
 {
     private readonly DiskDevice _disk;
     private readonly VMEmulator _emulator; // для удаления
     private readonly long _totalSectors;
-    public int Sector { get; }
+    public uint Sector { get; }
     public string ImagePath { get; }
     public bool IsMounted { get; private set; } = true;
 
-    internal DiskData(DiskDevice disk, int sector, string imagePath, VMEmulator emulator)
+    internal DiskContext(DiskDevice disk, uint sector, string imagePath, VMEmulator emulator)
     {
         _disk = disk;
         Sector = sector;
@@ -22,9 +22,12 @@ public class DiskData : IDisposable
 
     public long TotalSectors => _totalSectors;
     public static int SectorSize => DiskDevice.SectorSize;
-    public int BasePortAddress => Sector * (int)_emulator.PortsPerDevice;
+    public uint BasePortAddress => Sector * _emulator.PortsPerDevice;
     public ReadOnlyMemory<byte> ReadSectorBuffer => new(_disk.SectorBuffer);
 
+    public void LoadDataOnDisk(uint adress, ReadOnlySpan<byte> data) => _disk.WriteSectorDirect(adress, data);
+    public void LoadDataOnDisk(uint adress, byte[] data) => _disk.WriteSectorDirect(adress, data);
+    
     public byte[]? ReadSectorDirect(uint lba) => _disk.ReadSectorDirect(lba);
 
     /// <summary>

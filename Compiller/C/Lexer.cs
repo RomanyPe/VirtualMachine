@@ -1,4 +1,5 @@
-﻿using System.Collections.Frozen;
+﻿using Kernel.Common;
+using System.Collections.Frozen;
 
 namespace Compiller.C;
 
@@ -29,18 +30,6 @@ public class Lexer(string source)
     private int _line = 1;
     private int _column = 1;
     private readonly List<Token> _tokens = [];
-
-    private static readonly FrozenSet<string> Keywords =
-    [
-        "int", "char", "void", "if", "else", "while", "for", "return",
-        "break", "continue", "sizeof", "struct", "typedef", "enum",
-        "byte", "ushort", "ulong", "new", "asm", "extern"
-    ];
-
-    private static readonly FrozenSet<char> Operators =
-    [
-        '+', '-', '*', '/', '%', '=', '!', '<', '>', '&', '|', '^', '~','#'
-    ];
 
     private static readonly FrozenSet<char> Punctuation = ['(', ')', '{', '}', '[', ']', ';', ',', '.', ':'];
     public List<Token> Tokenize()
@@ -86,7 +75,7 @@ public class Lexer(string source)
                 ReadChar();
                 continue;
             }
-            if (Operators.Contains(c))
+            if (MiniCLanguageDefinition.Operators.Contains(c))
             {
                 ReadOperator();
                 continue;
@@ -99,7 +88,7 @@ public class Lexer(string source)
                 continue;
             }
 
-            throw new Exception($"Unexpected character '{c}' at {_line}:{_column}");
+            ThrowHelper.ThrowMiniC(ErrorCode.Lexer_UnexpectedCharacter, c, _line, _column);
         }
 
         _tokens.Add(new Token(TokenType.EOF, "", _line, _column));
@@ -154,7 +143,7 @@ public class Lexer(string source)
             _column++;
         }
         string value = _source[start.._position];
-        TokenType type = Keywords.Contains(value) ? TokenType.Keyword : TokenType.Identifier;
+        TokenType type = MiniCLanguageDefinition.Keywords.Contains(value) ? TokenType.Keyword : TokenType.Identifier;
         _tokens.Add(new Token(type, value, _line, startCol));
     }
 

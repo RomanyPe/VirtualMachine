@@ -54,6 +54,13 @@ public enum OpCode : byte
     HALT,
     WAKE,
 
-    WAKE_INT
+    WAKE_INT,
+
+    LOAD_UNSAFE,
+    STORE_UNSAFE,
+    STORE_IND_UNSAFE,
+    LOAD_IND_UNSAFE,
+    PUSH_UNSAFE,
+    POP_UNSAFE
 }
 

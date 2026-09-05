@@ -1,4 +1,5 @@
 ﻿using Compiller.ASM;
+using Compiller.ASM.Optimizators;
 using Kernel.Common;
 
 namespace Compiller.C.CodeGenerator;
@@ -6,9 +7,9 @@ namespace Compiller.C.CodeGenerator;
 // ============================================================
 // FunctionGenerator – генерация программы и функций
 // ============================================================
-public class FunctionGenerator(Assembler asm, Dictionary<string, StructLayout> structTable)
+public class FunctionGenerator(AssemblerBase asm, Dictionary<string, StructLayout> structTable)
 {
-    private readonly Assembler _asm = asm;
+    private readonly AssemblerBase _asm = asm;
     private GlobalMemoryManager _globalMem = null!;
     private readonly Dictionary<string, FunctionNode> _functionTable = [];
     private readonly Dictionary<string, StructLayout> _structTable = structTable;
@@ -79,9 +80,6 @@ public class FunctionGenerator(Assembler asm, Dictionary<string, StructLayout> s
         var localVarNodes = new Dictionary<string, VariableNode>();
         CollectLocalVars(func.Body, localVarNodes);
 
-        // Выделение псевдо‑глобальных адресов для локальных переменных
-        _globalMem.AllocateLocalGlobals(func.Body, func.Name);
-
         // Создание контекста функции
         var funcCtx = FunctionContext.Create(func, localVarNodes, _structTable);
 
@@ -101,7 +99,7 @@ public class FunctionGenerator(Assembler asm, Dictionary<string, StructLayout> s
             foreach (var param in func.Parameters)
             {
                 if (!funcCtx.VarMap.TryGetValue(param.Name, out var loc) || !loc.IsRegister)
-                    throw new Exception($"Parameter '{param.Name}' not allocated to a register");
+                    ThrowHelper.ThrowMiniC(ErrorCode.CodeGen_ParameterNotInRegister, param.Name);
                 string globalName = $"__param_{func.Name}_{param.Name}";
                 var addr = _globalMem.GetInfo(globalName)!.Value.Address;
                 OpCodeSize size;

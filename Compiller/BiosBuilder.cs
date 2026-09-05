@@ -70,14 +70,3 @@ public class BiosBuilder
         if (pad > 0) _writer.Write(new byte[pad]);
     }
 }
-
-// Использование:
-//var builder = new BiosBuilder(0x100000);
-//builder.EmitInstruction64(EncodeLDI(R0), 5);
-//builder.EmitInstruction64(EncodeLDI(R1), 3);
-//builder.EmitInstruction(EncodeR(ADD, R0, R1));
-//builder.EmitJump(EncodeJ(JG), "halt");
-//builder.MarkLabel("halt");
-//builder.EmitInstruction(EncodeHALT());
-//byte[] bios = builder.Build();
-

@@ -5,7 +5,7 @@ namespace VMApplication.Project;
 public class VMHostProjectBuilder
 {
     private IProjectFilesConfig? _projectPaths;
-    private IProjectService? _projectService;
+    private IFileService? _fileService;
     private VMHostLogger? _logger;
 
     public VMHostProjectBuilder WithLogger(VMHostLogger logger)
@@ -18,16 +18,16 @@ public class VMHostProjectBuilder
         _projectPaths = paths;
         return this;
     }
-    public VMHostProjectBuilder WithProjectSevice(IProjectService proj)
+    public VMHostProjectBuilder WithFileSevice(IFileService proj)
     {
-        _projectService = proj;
+        _fileService = proj;
         return this;
     }
 
     public VMHostProject Build()
     {
-        return _projectPaths == null || _projectService == null || _logger == null
+        return _projectPaths == null || _fileService == null || _logger == null
             ? throw new InvalidOperationException("ProjectPaths, Projectservice, Logger обязательны")
-            : new VMHostProject(_projectPaths, _projectService, _logger);
+            : new VMHostProject(_projectPaths, _logger, _fileService);
     }
 }

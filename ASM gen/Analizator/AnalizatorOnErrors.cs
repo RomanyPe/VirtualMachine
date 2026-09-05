@@ -1,4 +1,5 @@
-﻿using Kernel.Common;
+﻿using ASM_gen.ProjectManage.Managers;
+using Kernel.Common;
 using VMApplication;
 using VMApplication.Logger;
 using VMApplication.Project;
@@ -8,7 +9,7 @@ namespace ASM_gen.Analizator;
 public class AnalizatorOnErrors : IDisposable
 {
     private const string _nameSystem = "Analizator On Errors";
-    private readonly IEditorService _editorService;
+    private readonly WpfEditorService _editorService;
     private readonly IOutputView _outputView;
 
     private bool _haveError;
@@ -18,7 +19,7 @@ public class AnalizatorOnErrors : IDisposable
 
     public bool HaveError => _haveError;
 
-    public AnalizatorOnErrors(IEditorService editorService, IOutputView outputView)
+    public AnalizatorOnErrors(WpfEditorService editorService, IOutputView outputView)
     {
         _editorService = editorService;
         _outputView = outputView;
@@ -103,7 +104,7 @@ public class AnalizatorOnErrors : IDisposable
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _outputView.Append($"[{_nameSystem}] {ex.Message}", LogLevel.Error);
+            _outputView.AppendLine($"[{_nameSystem}] {ex.Message}", LogLevel.Error);
             int line = ExtractLineFromException(ex);
             if (line > 0) errorLines.Add(line);
         }

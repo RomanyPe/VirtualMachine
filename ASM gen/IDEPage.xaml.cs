@@ -21,14 +21,13 @@ public partial class IDEPage : Page
     private readonly VMHostLogger _hostLogger;
     private readonly VMHostProject _hostProject;
     private readonly VMEmulator _hostEmulator;
-
     private readonly AnalizatorOnErrors _analizator;
     private readonly WpfOutputView _outputView;
     private readonly ProjectService _projectManager;
     private readonly string _projectPath;
     private readonly IProjectFilesConfig _projectPaths;
-    private readonly string _binDir;
-    private DeviceData? _device;
+    private readonly WpfEditorService _editorService;
+    private DeviceContext? _device;
     private LaunchModeDevice? _launchModeDevice;
     private DeviceStepMode? _deviceStepMode;
     private int _delayDeviceThred = 0;
@@ -52,54 +51,44 @@ public partial class IDEPage : Page
 
         var fileService = new WpfFileService(_projectPath, _outputView);
         // Создаём редактор
-        var editorService = new WpfEditorService(tabEditor, fileService);
-        _projectManager = new ProjectService(fileService, editorService);
+        _editorService = new WpfEditorService(tabEditor, fileService);
+        _projectManager = new ProjectService(fileService, _editorService);
 
-        _hostLogger = new LoggerBuilder()
-                    .WithOutPut(_outputView)
-                    .Build();
+        var host = VMHostFactory.CreateDefault(_outputView, _projectPaths, fileService, totalPorts, portsPerDevice);
+        
+        _hostLogger = host.Logger;
+        _hostProject = host.Project;
+        _hostEmulator = host.Emulator;
 
-        _hostProject = new VMHostProjectBuilder()
-                    .WithPaths(_projectPaths)
-                    .WithProjectSevice(_projectManager)
-                    .WithLogger(_hostLogger)
-                    .Build();
-        _hostEmulator = new VMEmulatorBuilder()
-                    .WithLogger(_hostLogger)
-                    .WithPortBusSize(totalPorts)
-                    .WithPortsPerDevice(portsPerDevice)
-                    .Build();
-
-
-        _analizator = new(editorService, _outputView);
+        _analizator = new(_editorService, _outputView);
 
         _projectManager.OpenProject();
-        _binDir = Path.Combine(_projectPath, "bin");
     }
 
-    private void UpdateDeviceInfo()
-    {
-        var dev = _hostEmulator.MainDevice();
-        TxtCurrentDevice.Text = dev != null ? $"Устр-во: {dev.Value.Id}" : "Устр-во не выбрано";
-    }
+    //private void UpdateDeviceInfo()
+    //{
+    //    var dev = _hostEmulator.MainDevice();
+    //    TxtCurrentDevice.Text = dev != null ? $"Устр-во: {dev.Value.Id}" : "Устр-во не выбрано";
+    //}
 
     private void BtnBreakPointerModeOne(object sender, RoutedEventArgs e)
     {
         if (_launchModeDevice == null)
         {
-            _outputView.Append("Устройство не готово к запуску, загрузите в него программу", LogLevel.Error);
+            _outputView.AppendLine("Устройство не готово к запуску, загрузите в него программу", LogLevel.Error);
             return;
         }
 
         IDEConsoleManager.InitConsole(UseConsole);
-        _deviceStepMode = _launchModeDevice.StepMode(ProjectBuilder.BaseAdressProgramm);
+
+        _deviceStepMode = _launchModeDevice.StepMode(ProjectBuilder.BaseAdressProgram);
     }
 
     private void BtnBreakPointerOne(object sender, RoutedEventArgs e)
     {
         if (_deviceStepMode == null)
         {
-            _outputView.Append("Устройство не подготовлено к последовательному режиму", LogLevel.Error);
+            _outputView.AppendLine("Устройство не подготовлено к последовательному режиму", LogLevel.Error);
             return;
         }
         _deviceStepMode.Step(IsDebugMode);
@@ -109,7 +98,7 @@ public partial class IDEPage : Page
     {
         if (_deviceStepMode == null)
         {
-            _outputView.Append("Устройство не подготовлено к последовательному режиму", LogLevel.Error);
+            _outputView.AppendLine("Устройство не подготовлено к последовательному режиму", LogLevel.Error);
             return;
         }
         _deviceStepMode.MultyStep(IsDebugMode, _countStepsBreakDown);
@@ -118,12 +107,11 @@ public partial class IDEPage : Page
     private void ConsoleMode_Checked(object sender, RoutedEventArgs e)
     {
         if (_device == null || _device.IsRunning == true) return;
-        //_outputView.UseConsole = UseConsole;
     }
 
     private void BtnClearOutput(object sender, RoutedEventArgs e) => _outputView.Clear();
 
-    private void SetDeviceData(DeviceData deviceData) => _device = deviceData;
+    private void SetDeviceData(DeviceContext deviceData) => _device = deviceData;
     private void SetLaunchModel(LaunchModeDevice launchModeDevice) => _launchModeDevice = launchModeDevice;
 
     private void BtnDeviceManager_Click(object sender, RoutedEventArgs e)
@@ -194,28 +182,38 @@ public partial class IDEPage : Page
     private void BtnCompileAndLaunch(object sender, RoutedEventArgs e)
     {
         IDEConsoleManager.InitConsole(UseConsole);
+
         CompileAndRun();
     }
 
-    private void LogSystemData(in CompilationResult res, bool optim)
+    private void LogSystemData(CompilationResult res, bool optim)
     {
         if (SnowAssemler)
         {
             var text = VMHostHelper.DisassemblCode(res.Program.AsSpan());
-            _outputView.Append(text.TextAsm);
+            _outputView.AppendLine(text.TextAsm);
         }
         var resultOpt = res.OptimizationResultLog;
         if (optim && resultOpt != null)
         {
-            _outputView.Append("--- Result Optimization ---\n");
+            _outputView.AppendLine("--- Result Optimization ---\n");
 
-            _outputView.Append("[Function inlining]");
-            _outputView.Append(resultOpt.Value.InlinedFunc.ToString());
-            _outputView.Append("[Control flow simplification]");
-            _outputView.Append(resultOpt.Value.RemovedNodes.ToString());
+            LogsOptimization(resultOpt, TypeOptimization.ASTNodeInlinedFunc,"[Function inlining]");
+            LogsOptimization(resultOpt, TypeOptimization.ASTNodeRemovedBeforeInline,"[Function removed]");
+            LogsOptimization(resultOpt, TypeOptimization.ASTNodeConstPropagate, "[Constant Propagation]");
+            LogsOptimization(resultOpt, TypeOptimization.ASTNodeConstFold, "[Constant Fold]");
+            LogsOptimization(resultOpt, TypeOptimization.Peephole,"[Peephole]");
         }
     }
-    public void CompileAndSafeProgramFile(ulong baseAddress = ProjectBuilder.BaseAdressProgramm)
+    private void LogsOptimization(OptimizationResultLog log, TypeOptimization type, string logName)
+    {
+        if (log.Logs.TryGetValue(type, out var v) && v != null)
+        {
+            _outputView.AppendLine(logName);
+            _outputView.AppendLine(v.GetLogs());
+        }
+    }
+    public void CompileAndSafeProgramFile(ulong baseAddress = ProjectBuilder.BaseAdressProgram)
     {
         bool optimize = OptimizationCode;
         _projectManager.SaveAllFiles();
@@ -224,77 +222,107 @@ public partial class IDEPage : Page
 
         if (result.Success)
         {
-            LogSystemData(in result, optimize);
-            _projectManager.FileService.SaveProgramFile(result.Program!);
+            LogSystemData(result, optimize);
+            _projectManager.FileService.SaveBinaryFile("bin", result.Program!);
         }
         else
         {
 
             foreach (var err in result.Errors!)
-                _outputView.Append(err, LogLevel.Error);
+                _outputView.AppendLine(err, LogLevel.Error);
         }
     }
 
-    private void CompileAndRun(ulong baseAddress = ProjectBuilder.BaseAdressProgramm)
+    public void CompileToILAndSafeProgramFile(ulong baseAddress = ProjectBuilder.BaseAdressProgram, int c = 5)
     {
+        bool optimize = OptimizationCode;
+        _projectManager.SaveAllFiles();
+        var ilCode = _hostProject.CompileToIL(baseAddress, optimize);
+        var result = optimize ? _hostProject.Compile(ilCode, c) : _hostProject.Compile(ilCode);
+
+        if (result.Success)
+        {
+            LogSystemData(result, optimize);
+            _projectManager.FileService.SaveBinaryFile("bin" ,result.Program!);
+        }
+        else
+        {
+
+            foreach (var err in result.Errors!)
+                _outputView.AppendLine(err, LogLevel.Error);
+        }
+    }
+
+    private void CompileAndRun(ulong baseAddress = ProjectBuilder.BaseAdressProgram)
+    {
+        _outputView.Clear();
         _projectManager.SaveAllFiles();
         _device = _hostEmulator.CreateDeviceContext();
 
         if (_device == null)
         {
-            _outputView.Append("Устройство не подготовлено к запуску", LogLevel.Error);
+            _outputView.AppendLine("Устройство не подготовлено к запуску", LogLevel.Error);
             return;
         }
 
-        if (BiosMode)
+        try
         {
-            // Проверяем наличие BIOS
-            if (!_device.HaveBios)
+            if (BiosMode)
             {
-                _outputView.Append("Устройство не имеет BIOS. Создайте устройство с BIOS через Device Manager.", LogLevel.Error);
-                return;
+                // Проверяем наличие BIOS
+                if (!_device.HaveBios)
+                {
+                    _outputView.AppendLine("Устройство не имеет BIOS. Создайте устройство с BIOS через Device Manager.", LogLevel.Error);
+                    return;
+                }
+
+                bool optimize = OptimizationCode;
+                CompilationResult result = _hostProject.Compile(baseAddress, optimize);
+
+                if (!result.Success)
+                {
+                    foreach (var err in result.Errors!)
+                        _outputView.AppendLine(err, LogLevel.Error);
+                    return;
+                }
+
+                string? diskImagePath = PrepareBootDisk(result.Program!, out int diskSector);
+                if (diskImagePath == null || diskSector == -1)
+                    return;
+
+                // Запускаем с BIOS (стартовый адрес = конец RAM, где расположен BIOS)
+                CallBackOnLaunch callBackOnLaunch = new(onEnd: OnEndLaunch);
+                _device.ResetMemoryRam();
+                _launchModeDevice = _device.GetLaunchMode();
+                _launchModeDevice.SetHeapAddress((ulong)result.Program!.Length);
+                _launchModeDevice.LaunchDeviceOnDedicatedThread(_device.MaxRamSize, IsDebugMode, _delayDeviceThred, SnowTimer, callBackOnLaunch);
             }
-
-            bool optimize = OptimizationCode;
-            CompilationResult result = _hostProject.Compile(baseAddress, optimize);
-
-            if (!result.Success)
+            else
             {
-                foreach (var err in result.Errors!)
-                    _outputView.Append(err, LogLevel.Error);
-                return;
+                bool optimize = OptimizationCode;
+                CompilationResult result = _hostProject.Compile(baseAddress, optimize);
+
+                if (!result.Success)
+                {
+                    foreach (var err in result.Errors!)
+                        _outputView.AppendLine(err, LogLevel.Error);
+                    return;
+                }
+
+                CallBackOnLaunch callBackOnLaunch = new(onEnd: OnEndLaunch);
+                LogSystemData(result, optimize);
+                ulong startAdress = (ulong)result.Program!.Length + result.StartAdress;
+                _device.ResetRegistors();
+                _device.ResetMemoryRam();
+                _launchModeDevice = _device.LoadProgram(result.Program!);
+                _launchModeDevice.SetHeapAddress(startAdress);
+                _launchModeDevice.LaunchDeviceOnDedicatedThread(ProjectBuilder.BaseAdressProgram, IsDebugMode, _delayDeviceThred, SnowTimer, callBackOnLaunch);
             }
-
-            string? diskImagePath = PrepareBootDisk(result.Program!, out int diskSector);
-            if (diskImagePath == null || diskSector == -1)
-                return;
-
-            // Запускаем с BIOS (стартовый адрес = конец RAM, где расположен BIOS)
-            CallBackOnLaunch callBackOnLaunch = new(onEnd: OnEndLaunch);
-            _device.ResetMemoryRam();
-            _launchModeDevice = _device.GetLaunchMode();
-            _launchModeDevice.SetHeapAddress((ulong)result.Program!.Length);
-            _launchModeDevice.LaunchDevice(_device.MaxRamSize, IsDebugMode, _delayDeviceThred, SnowTimer, callBackOnLaunch);
         }
-        else
+        catch(Exception ex) 
         {
-            bool optimize = OptimizationCode;
-            CompilationResult result = _hostProject.Compile(baseAddress, optimize);
-
-            if (!result.Success)
-            {
-                foreach (var err in result.Errors!)
-                    _outputView.Append(err, LogLevel.Error);
-                return;
-            }
-
-            CallBackOnLaunch callBackOnLaunch = new(onEnd: OnEndLaunch);
-            LogSystemData(in result, optimize);
-            ulong startAdress = (ulong)result.Program!.Length + result.StartAdress;
-            _device.ResetMemoryRam();
-            _launchModeDevice = _device.LoadProgram(result.Program!);
-            _launchModeDevice.SetHeapAddress(startAdress);
-            _launchModeDevice.LaunchDevice(ProjectBuilder.BaseAdressProgramm, IsDebugMode, _delayDeviceThred, SnowTimer, callBackOnLaunch);
+            _outputView.AppendLine(ex.Message, LogLevel.Error);
+            _launchModeDevice?.StopAndReset();
         }
     }
     private string? PrepareBootDisk(byte[] program, out int diskSector)
@@ -303,23 +331,23 @@ public partial class IDEPage : Page
         string imagePath = Path.Combine(_projectPath, $"boot_{Guid.NewGuid():N}.vmg");
         try
         {
-            _hostEmulator.WriteBootableProgram(imagePath, program); // пишет заголовок + программу
-            int sectorCount = Math.Max(1, (program.Length + 8 + DiskData.SectorSize - 1) / DiskData.SectorSize);
+            _hostEmulator.WriteBootableProgramAndCreateImage(imagePath, program); // пишет заголовок + программу
+            int sectorCount = Math.Max(1, (program.Length + 8 + DiskContext.SectorSize - 1) / DiskContext.SectorSize);
             diskSector = _hostEmulator.CreateDisk(imagePath, sectorCount);
             return imagePath;
         }
         catch (Exception ex)
         {
-            _outputView.Append($"Ошибка подготовки загрузочного диска: {ex.Message}", LogLevel.Error);
+            _outputView.AppendLine($"Ошибка подготовки загрузочного диска: {ex.Message}", LogLevel.Error);
             return null;
         }
     }
 
-    private void OnEndLaunch(Action<string, LogLevel> logger)
+    private void OnEndLaunch(IDeviceLoggerContext logger)
     {
-        logger.Invoke(_hostEmulator.GetDumpRegisters(), LogLevel.Log);
+        logger.Log(_hostEmulator.GetDumpRegisters(), LogLevel.Log);
     }
-    private void NewFile_Click(object sender, RoutedEventArgs e) => this.NewFile(_projectPath, _projectManager);
+    private void NewFile_Click(object sender, RoutedEventArgs e) => this.NewFile(_projectPath, _editorService);
 
     private void SaveAll_Click(object sender, RoutedEventArgs e) => _projectManager.SaveAllFiles();
 
@@ -327,7 +355,8 @@ public partial class IDEPage : Page
     {
         _device?.Stop();
         _device?.Dispose();
-        _hostEmulator.Reset();
+        _analizator.Dispose();
+        _hostEmulator.Dispose();
         _projectManager.SaveAllFiles();
         NavigationService.Navigate(new MainMenu());
     }
@@ -337,11 +366,12 @@ public partial class IDEPage : Page
         try
         {
             IDEConsoleManager.InitConsole(UseConsole);
-            CompileAndSafeProgramFile();
+
+            CompileToILAndSafeProgramFile();
         }
         catch (Exception ex)
         {
-            _outputView.Append($"SaveBinary {ex.Message}", LogLevel.Error);
+            _outputView.AppendLine($"SaveBinary {ex.Message}", LogLevel.Error);
         }
     }
 
@@ -349,9 +379,18 @@ public partial class IDEPage : Page
     {
         if (_device == null || !_device.IsRunning)
         {
-            _outputView.Append("Попытка остановить не запущенного устройства", LogLevel.Error);
+            _outputView.AppendLine("Попытка остановить не запущенного устройства", LogLevel.Error);
             return;
         }
         _device.Stop();
+    }
+
+    private void BtnDiskManager_Click(object sender, RoutedEventArgs e)
+    {
+        var window = new DiskManager(_hostEmulator, _outputView, _projectPath)
+        {
+            Owner = Window.GetWindow(this)
+        };
+        window.Show();
     }
 }

@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using Kernel.Common;
+using System.Text;
 
 namespace VMApplication.Project;
 
@@ -12,8 +13,17 @@ public readonly struct CompilationResult(byte[]? program, ulong startAdress, IRe
     public bool Success => Errors == null || Errors.Count == 0;
 }
 
-public readonly struct OptimizationResultLog(StringBuilder inlinedFunc, StringBuilder removedNodes)
+public class OptimizationResultLog()
 {
-    public readonly StringBuilder InlinedFunc = inlinedFunc;
-    public readonly StringBuilder RemovedNodes = removedNodes;
+    public Dictionary<TypeOptimization, IReadOnlyLogOptimization> Logs { get; private set; } = [];
+
+    public void AddOtherLog(IReadOnlyLogOptimization log) => Logs.Add(log.Id, log);
+    public void AddLog(IEnumerable<IReadOnlyLogOptimization> log)
+    {
+        foreach (var logItem in log)
+        {
+            Logs.TryAdd(logItem.Id, logItem);
+        }
+    }
 }
+

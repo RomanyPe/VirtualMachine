@@ -1,9 +1,10 @@
-﻿using Kernel.ControllersData;
+﻿using Kernel.Common;
+using Kernel.ControllersData;
 using System.Buffers.Binary;
 
 namespace Kernel.LocalMemorySystem;
 
-public sealed class DiskDevice(string imagePath) : IPortUse, IDisposable
+public sealed class DiskDevice : IPortUse, IDisposable
 {
     public const int SectorSize = 512;
 
@@ -22,7 +23,9 @@ public sealed class DiskDevice(string imagePath) : IPortUse, IDisposable
     private const byte CmdWriteSector = 0x02;
     private const byte CmdIdentify = 0x03;
 
-    private readonly FileStream _file = new(imagePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+    private readonly FileStream _file;
+    private readonly int _countSectors;
+    private readonly long _sizeFile;
     private readonly byte[] _sectorBuffer = new byte[SectorSize];
     private int _bufferPos;
     private uint _currentLba;
@@ -31,7 +34,18 @@ public sealed class DiskDevice(string imagePath) : IPortUse, IDisposable
     private byte _errorCode;
     private readonly Lock _lock = new();
 
-    public string ImagePath { get; } = imagePath;
+    public DiskDevice(string imagePath)
+    {
+        _file = new(imagePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+        ImagePath = imagePath;
+        _sizeFile = _file.Length;
+        _countSectors = (int)_sizeFile / SectorSize;
+    }
+
+    public DateTime CreatedAt { get; } = DateTime.Now;
+    public long SizeDisk => _sizeFile;
+    public int CountSectors => _countSectors;
+    public string ImagePath { get; }
 
 
     public byte[] SectorBuffer => _sectorBuffer;
@@ -144,10 +158,7 @@ public sealed class DiskDevice(string imagePath) : IPortUse, IDisposable
         return status;
     }
 
-    public void WakeProcessor()
-    {
-        // Прерывания не используются, опрос статуса
-    }
+    public void WakeProcessor() { }
 
     public void Dispose()
     {
@@ -169,4 +180,28 @@ public sealed class DiskDevice(string imagePath) : IPortUse, IDisposable
         _file?.Read(result, 0, SectorSize);
         return result;
     }
+
+    public bool WriteSectorDirect(uint lba, ReadOnlySpan<byte> data)
+    {
+        if (data.Length != SectorSize)
+            throw new ArgumentException($"Длина данных должна быть ровно {SectorSize} байт", nameof(data));
+
+        long offset = (long)lba * SectorSize;
+        if (offset + SectorSize > _file.Length)
+        {
+            _error = true;
+            _errorCode = 0x02;
+            return false;
+        }
+
+        lock (_lock)
+        {
+            _file.Seek(offset, SeekOrigin.Begin);
+            _file.Write(data);
+            _file.Flush();
+        }
+        return true;
+    }
+
+    public bool WriteSectorDirect(uint lba, byte[] data) => WriteSectorDirect(lba, data.AsSpan());
 }

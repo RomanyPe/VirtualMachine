@@ -25,7 +25,20 @@ public static class InstructionEncoder
         public uint ToUint() => (uint)s;
         public uint Uint => (uint)s;
     }
+    extension(RegType reg)
+    {
+        public uint ToUint() => (uint)reg;
+        public uint Uint => (uint)reg;
+    }
     #region Методы кодирования
+
+    /// <summary>
+    /// Кодирует инструкцию формата R (регистр-регистр): ADD, SUB, MOV, AND, OR, XOR
+    /// </summary>
+    public static uint Encode(uint opcode, uint regDst, uint regSrc, uint sizeCode)
+    {
+        return opcode | (regDst << 8) | (regSrc << 13) | (sizeCode << 18);
+    }
 
     /// <summary>
     /// Кодирует инструкцию формата R (регистр-регистр): ADD, SUB, MOV, AND, OR, XOR
@@ -123,37 +136,40 @@ public static class InstructionEncoder
     /// </summary>
     public static uint EncodeNOP() => OpCode.NOP.Uint;
 
+    extension(BinaryWriter writer)
+    {
     #endregion
 
-    #region Вспомогательные методы для работы с буфером
+        #region Вспомогательные методы для работы с буфером
 
-    /// <summary>
-    /// Записывает инструкцию и выравнивает поток под 8 байт (для последующего 64-битного данного)
-    /// </summary>
-    public static void WriteInstruction(BinaryWriter writer, uint instruction)
-    {
-        writer.Write(instruction);
-    }
+        /// <summary>
+        /// Записывает инструкцию и выравнивает поток под 8 байт (для последующего 64-битного данного)
+        /// </summary>
+        public void WriteInstruction(uint instruction)
+        {
+            writer.Write(instruction);
+        }
 
-    /// <summary>
-    /// Выравнивает поток до границы 8 байт (для 64-битных операндов)
-    /// </summary>
-    public static void Align8(BinaryWriter writer)
-    {
-        long pos = writer.BaseStream.Position;
-        long pad = ((pos + 7) & ~7) - pos;
-        if (pad > 0)
-            writer.Write(new byte[pad]);
-    }
+        /// <summary>
+        /// Выравнивает поток до границы 8 байт (для 64-битных операндов)
+        /// </summary>
+        public void Align8()
+        {
+            long pos = writer.BaseStream.Position;
+            long pad = ((pos + 7) & ~7) - pos;
+            if (pad > 0)
+                writer.Write(new byte[pad]);
+        }
 
-    /// <summary>
-    /// Записывает инструкцию + 64-битный операнд (с выравниванием)
-    /// </summary>
-    public static void WriteInstructionWithData64(BinaryWriter writer, uint instruction, ulong data)
-    {
-        writer.Write(instruction);
-        Align8(writer);
-        writer.Write(data);
+        /// <summary>
+        /// Записывает инструкцию + 64-битный операнд (с выравниванием)
+        /// </summary>
+        public void WriteInstructionWithData64(uint instruction, ulong data)
+        {
+            writer.Write(instruction);
+            Align8(writer);
+            writer.Write(data);
+        }
     }
 
     public static uint EncodeIN(uint regDst, uint regPort) => EncodeR((uint)OpCode.IN, regDst, regPort);
@@ -185,55 +201,63 @@ public static class InstructionEncoder
 
         return opcode switch
         {
-            OpCode.NOP => "NOP",
-            OpCode.END => "END",
-            OpCode.PRINT => $"PRINT {GetReg1(instruction).Name}",
-            OpCode.HALT => "HALT",
-            OpCode.WAKE => "WAKE",
-            OpCode.WAKE_INT => $"WAKE_INT {GetReg1(instruction).Name}",
+            OpCode.NOP => opcode.OpName,
+            OpCode.END => opcode.OpName,
+            OpCode.PRINT => $"{opcode.OpName} {GetReg1(instruction).Name}",
+            OpCode.HALT => opcode.OpName,
+            OpCode.WAKE => opcode.OpName,
+            OpCode.WAKE_INT => $"{opcode.OpName} {GetReg1(instruction).Name}",
 
-            OpCode.MOV => $"MOV {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
-            OpCode.LOAD => $"LOAD.{GetDataSizeCode(instruction).SizeName} {GetReg1(instruction).Name}, [data64]",
-            OpCode.STORE => $"STORE.{GetDataSizeCode(instruction).SizeName} [data64], {GetReg1(instruction).Name}",
-            OpCode.LOAD_IND => $"LOAD_IND.{GetDataSizeCode(instruction).SizeName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
-            OpCode.STORE_IND => $"STORE_IND.{GetDataSizeCode(instruction).SizeName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
-            OpCode.LDI => $"LDI {GetReg1(instruction).Name}, data64",
+            OpCode.MOV => $"{opcode.OpName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
+            OpCode.LOAD => $"{opcode.OpName}.{GetDataSizeCode(instruction).SizeName} {GetReg1(instruction).Name}, [data64]",
+            OpCode.STORE => $"{opcode.OpName}.{GetDataSizeCode(instruction).SizeName} [data64], {GetReg1(instruction).Name}",
+            OpCode.LOAD_IND => $"{opcode.OpName}.{GetDataSizeCode(instruction).SizeName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
+            OpCode.STORE_IND => $"{opcode.OpName}.{GetDataSizeCode(instruction).SizeName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
+            OpCode.LOAD_UNSAFE => $"{opcode.OpName}.{GetDataSizeCode(instruction).SizeName} {GetReg1(instruction).Name}, [data64]",
+            OpCode.STORE_UNSAFE => $"{opcode.OpName}.{GetDataSizeCode(instruction).SizeName} [data64], {GetReg1(instruction).Name}",
+            OpCode.LOAD_IND_UNSAFE => $"{opcode.OpName}.{GetDataSizeCode(instruction).SizeName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
+            OpCode.STORE_IND_UNSAFE => $"{opcode.OpName}.{GetDataSizeCode(instruction).SizeName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
+            OpCode.LDI => $"{opcode.OpName} {GetReg1(instruction).Name}, [data64]",
 
-            OpCode.ADD => $"ADD {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
-            OpCode.SUB => $"SUB {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
-            OpCode.INC => $"INC {GetReg1(instruction).Name}",
-            OpCode.DEC => $"DEC {GetReg1(instruction).Name}",
+            OpCode.ADD => $"{opcode.OpName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
+            OpCode.SUB => $"{opcode.OpName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
+            OpCode.INC => $"{opcode.OpName} {GetReg1(instruction).Name}",
+            OpCode.DEC => $"{opcode.OpName} {GetReg1(instruction).Name}",
 
-            OpCode.AND => $"AND {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
-            OpCode.OR => $"OR {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
-            OpCode.XOR => $"XOR {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
-            OpCode.NOT => $"NOT {GetReg1(instruction).Name}",
+            OpCode.AND => $"{opcode.OpName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
+            OpCode.OR => $"{opcode.OpName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
+            OpCode.XOR => $"{opcode.OpName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
+            OpCode.NOT => $"{opcode.OpName} {GetReg1(instruction).Name}",
 
-            OpCode.JMP => $"JMP data64",
-            OpCode.JZ => $"JZ data64",
-            OpCode.JNZ => $"JNZ data64",
-            OpCode.JG => $"JG data64",
-            OpCode.JL => $"JL data64",
+            OpCode.JMP => $"{opcode.OpName} [data64]",
+            OpCode.JZ => $"{opcode.OpName} [data64]",
+            OpCode.JNZ => $"{opcode.OpName} [data64]",
+            OpCode.JG => $"{opcode.OpName} [data64]",
+            OpCode.JL => $"{opcode.OpName} [data64]",
 
-            OpCode.PUSH => $"PUSH {GetReg1(instruction).Name}",
-            OpCode.POP => $"POP {GetReg1(instruction).Name}",
-            OpCode.CALL => $"CALL data64",
-            OpCode.RET => $"RET",
+            OpCode.PUSH => $"{opcode.OpName} {GetReg1(instruction).Name}",
+            OpCode.POP => $"{opcode.OpName} {GetReg1(instruction).Name}",
+            OpCode.CALL => $"{opcode.OpName} [data64]",
+            OpCode.RET => $"{opcode.OpName}",
 
-            OpCode.IN => $"IN {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
-            OpCode.OUT => $"OUT {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
+            OpCode.IN => $"{opcode.OpName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
+            OpCode.OUT => $"{opcode.OpName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
 
-            OpCode.PRINT_INT => $"PRINT_INT {GetReg1(instruction).Name}",
-            OpCode.ALLOC => $"ALLOC {GetReg1(instruction).Name}",
-            OpCode.INT => $"INT {GetReg1(instruction).Name}",
-            OpCode.IRET => "IRET",
+            OpCode.PRINT_INT => $"{opcode.OpName} {GetReg1(instruction).Name}",
+            OpCode.ALLOC => $"{opcode.OpName} {GetReg1(instruction).Name}",
+            OpCode.INT => $"{opcode.OpName} {GetReg1(instruction).Name}",
+            OpCode.IRET => "{opcode.OpName}",
 
-            _ => $"UNKNOWN 0x{opcode:X2}"
+            OpCode.MULT_INT => $"{opcode.OpName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
+            OpCode.SHR => $"{opcode.OpName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
+            OpCode.DIV => $"{opcode.OpName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
+
+            _ => $"UNKNOWN 0x{opcode.Uint:X2}"
         };
     }
     extension(OpCodeSize size)
     {
-        private string SizeName => size switch
+        public string SizeName => size switch
         {
             OpCodeSize.S8 => "S8",
             OpCodeSize.S16 => "S16",
@@ -244,7 +268,7 @@ public static class InstructionEncoder
     }
     extension(RegType r)
     {
-        private string Name => r switch
+        public string Name => r switch
         {
             RegType.rZ => "rZ",
             RegType.r0 => "r0",
@@ -269,19 +293,67 @@ public static class InstructionEncoder
             RegType.r19 => "r19",
             RegType.r20 => "r20",
             RegType.r21 => "r21",
+            RegType.r22 => "r22",
+            RegType.r23 => "r23",
             RegType.rTB => "rTB",
             RegType.rCD => "rCD",
             RegType.rFL => "rFL",
-            RegType.rLP => "rLP",
             RegType.rCL => "rCL",
-            RegType.rRT => "rRT",
             RegType.rSP => "rSP",
             RegType.rHP => "rHP",
             RegType.rIP => "rIP",
             _ => $"r?"
         };
     }
-
+    extension(OpCode op)
+    {
+        public string OpName => op switch
+        {
+            OpCode.NOP => "NOP",
+            OpCode.END => "END",
+            OpCode.PRINT => "PRINT",
+            OpCode.MOV => "MOV",
+            OpCode.LOAD => "LOAD",
+            OpCode.STORE => "STORE",
+            OpCode.LDI => "LDI",
+            OpCode.LOAD_IND => "LOAD_IND",
+            OpCode.STORE_IND => "STORE_IND",
+            OpCode.ADD => "ADD",
+            OpCode.SUB => "SUB",
+            OpCode.MULT_INT => "MULT_INT",
+            OpCode.SHR => "SHR",
+            OpCode.INC => "INC",
+            OpCode.DEC => "DEC",
+            OpCode.DIV => "DIV",
+            OpCode.AND => "AND",
+            OpCode.OR => "OR",
+            OpCode.XOR => "XOR",
+            OpCode.NOT => "NOT",
+            OpCode.JMP => "JMP",
+            OpCode.JZ => "JZ",
+            OpCode.JNZ => "JNZ",
+            OpCode.JG => "JG",
+            OpCode.JL => "JL",
+            OpCode.PUSH => "PUSH",
+            OpCode.POP => "POP",
+            OpCode.CALL => "CALL",
+            OpCode.RET => "RET",
+            OpCode.IN => "IN",
+            OpCode.OUT => "OUT",
+            OpCode.PRINT_INT => "PRINT_INT",
+            OpCode.INT => "INT",
+            OpCode.IRET => "IRET",
+            OpCode.ALLOC => "ALLOC",
+            OpCode.HALT => "HALT",
+            OpCode.WAKE => "WAKE",
+            OpCode.WAKE_INT => "WAKE_INT",
+            OpCode.LOAD_UNSAFE => "LOAD_UNSAFE",
+            OpCode.STORE_UNSAFE => "STORE_UNSAFE",
+            OpCode.STORE_IND_UNSAFE => "STORE_IND_UNSAFE",
+            OpCode.LOAD_IND_UNSAFE => "LOAD_IND_UNSAFE",
+            _ => op.Uint.ToString()
+        };
+    }
     #endregion
 
 }

@@ -106,27 +106,27 @@ func_read_register:
 
     LDI r1, 22
     CALL func_cmp_equal
-    JZ r0_is_rTB
+    JZ r0_is_r22
 
     LDI r1, 23
     CALL func_cmp_equal
-    JZ r0_is_rCD
+    JZ r0_is_r23
 
     LDI r1, 24
     CALL func_cmp_equal
-    JZ r0_is_rFL
+    JZ r0_is_rTB
 
     LDI r1, 25
     CALL func_cmp_equal
-    JZ r0_is_rLP
-    
+    JZ r0_is_rCD
+
     LDI r1, 26
     CALL func_cmp_equal
-    JZ r0_is_rCL
+    JZ r0_is_rFL
 
     LDI r1, 27
     CALL func_cmp_equal
-    JZ r0_is_rRT
+    JZ r0_is_rCL
 
     LDI r1, 28
     CALL func_cmp_equal
@@ -140,7 +140,8 @@ func_read_register:
     CALL func_cmp_equal
     JZ r0_is_rIP
 
-    MOV r0, rZ
+    // fallback – неверный номер
+    LDI r0, 0
     RET
 
 r0_is_0:
@@ -209,33 +210,25 @@ r0_is_20:
 r0_is_21:
     MOV r0, r21
     RET
-r0_is_rTB:
-    MOV r0, rTB
+r0_is_r22:    
+    MOV r0, r22
     RET
-r0_is_rCD:
-    MOV r0, rCD
-    RET
-r0_is_rFL:
-    MOV r0, rFL
-    RET
-r0_is_rLP:
-    MOV r0, rLP
-    RET
-r0_is_rCL:
-    MOV r0, rCL
-    RET
-r0_is_rRT:
-    MOV r0, rRT
-    RET
-r0_is_rSP:
-    MOV r0, rSP
-    RET
-r0_is_rHP:
-    MOV r0, rHP
-    RET
-r0_is_rIP:
-    MOV r0, rIP
-    RET
+r0_is_r23:    MOV r0, r23
+              RET
+r0_is_rTB:    MOV r0, rTB
+              RET
+r0_is_rCD:    MOV r0, rCD
+              RET
+r0_is_rFL:    MOV r0, rFL
+              RET
+r0_is_rCL:    MOV r0, rCL
+              RET
+r0_is_rSP:    MOV r0, rSP
+              RET
+r0_is_rHP:    MOV r0, rHP
+              RET
+r0_is_rIP:    MOV r0, rIP
+              RET
 
 
 

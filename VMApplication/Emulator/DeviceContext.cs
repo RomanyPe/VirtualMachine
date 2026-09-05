@@ -1,15 +1,16 @@
 ﻿using Kernel.BiosSystem;
+using ThreadingSystem.ThreadControl;
 using VMApplication.CallBacks;
 using VMApplication.Project;
 
 namespace VMApplication.Emulator;
 
-public class DeviceData : IDisposable
+public class DeviceContext : IDisposable
 {
     private readonly Device _device;
     private bool? _isBiosMode = null;
     
-    internal DeviceData(Device device) => _device = device;
+    internal DeviceContext(Device device) => _device = device;
 
     public bool IsRunning => _device.IsRunning;
     public long? StepCount => _device.StepCount;
@@ -17,24 +18,38 @@ public class DeviceData : IDisposable
     public bool HaveBios => _device.HaveBios;
     public DateTime CreatedAt => _device.CreatedAt;
 
-    public void Stop(int stopTime = 3000, CallBackOnStop callBack = default)
+    [Obsolete(
+    """
+    Используйте перегрузку 'Stop(ThreadHandle, ...)' для работы через ThreadScheduler.
+    
+    Внимание: Этот метод предназначен только для потоков, запущенных через 'StartOnDedicatedThread'.
+    Смешивание вызовов (например, запуск через Scheduler, а остановка этим методом) 
+    приведет к зависанию задачи или утечке ресурсов в пуле воркеров.
+    """, error: false)]
+    public void Stop(int stopTime = 3000, CallBackOnStopDecidedThread callBack = default)
     {
         _device.StopDevice(stopTime,
                            callBack.OnThreadIsLiveTrue,
-                           callBack.OnThreadIsLiveFalse,
+                           callBack.OnThreadIsDead,
                            callBack.OnThreadStopedTrue,
-                           callBack.OnThreadIsLiveFalse);
+                           callBack.OnThreadIsDead);
     }
 
+    public void Stop(ThreadHandle handle, TimeSpan stopTime, CallBackOnStopDecidedThread callBack = default)
+    {
+        _device.Stop(handle,
+                     stopTime,
+                     callBack.OnThreadStopedTrue,
+                     callBack.OnThreadIsDead);
+    }
     private void SetLoadMode(bool isBios)
     {
         if (_isBiosMode.HasValue)
-            throw new InvalidOperationException(
-                $"Режим загрузки уже установлен как {(_isBiosMode.Value ? "BIOS" : "прямая загрузка")}. Изменить его нельзя.");
+            throw new InvalidOperationException($"Режим загрузки уже установлен как {(_isBiosMode.Value ? "BIOS" : "прямая загрузка")}. Изменить его нельзя.");
         _isBiosMode = isBios;
     }
 
-    public LaunchModeDevice LoadProgram(byte[] program, ulong loadAddress = ProjectBuilder.BaseAdressProgramm)
+    public LaunchModeDevice LoadProgram(byte[] program, ulong loadAddress = ProjectBuilder.BaseAdressProgram)
     {
         SetLoadMode(false);   // фиксируем прямую загрузку
         _device.LoadProgram(program, loadAddress);
@@ -67,10 +82,7 @@ public class DeviceData : IDisposable
         return new LaunchModeDevice(_device);
     }
 
-    public LaunchModeDevice GetLaunchMode()
-    {
-        return new LaunchModeDevice(_device);
-    }
+    public LaunchModeDevice GetLaunchMode() => new(_device);
 
     public ReadOnlyMemory<byte> ReadMemory(ulong address, int length)
     {
@@ -96,4 +108,5 @@ public class DeviceData : IDisposable
     public void ResetMemoryRam() => _device.ResetMemoryRam();
     public byte ReadPort(ulong offset) => _device.ReadPort(offset);
 
+    public void ResetRegistors() => _device.ClearRegisters();
 }

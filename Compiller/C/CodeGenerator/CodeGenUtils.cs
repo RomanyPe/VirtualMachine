@@ -1,4 +1,5 @@
 ﻿using Compiller.ASM;
+using Compiller.ASM.Optimizators;
 using Kernel.Common;
 
 namespace Compiller.C.CodeGenerator;
@@ -7,20 +8,17 @@ namespace Compiller.C.CodeGenerator;
 // CodeGenUtils – статические утилиты
 // ============================================================
 
-// ============================================================
-// CodeGenUtils – статические утилиты
-// ============================================================
 public static class CodeGenUtils
 {
     public const uint TMP_REG = (uint)RegType.r2;
 
     public static OpCodeSize GetSizeForType(string? type) => type switch
     {
-        "byte" or "char" => OpCodeSize.S8,
-        "ushort" => OpCodeSize.S16,
+        "byte" => OpCodeSize.S8,
+        "ushort" or "char" => OpCodeSize.S16,
         "ulong" => OpCodeSize.S64,
         "int" => OpCodeSize.S32,
-        _ => throw new Exception($"Unknown type '{type}' for memory size")
+        _ => ThrowHelper.ThrowMiniC<OpCodeSize>(ErrorCode.CodeGen_UnknownTypeSize, type!)
     };
 
     public static int GetSizeInBytes(OpCodeSize size) => size switch
@@ -29,10 +27,10 @@ public static class CodeGenUtils
         OpCodeSize.S16 => 2,
         OpCodeSize.S32 => 4,
         OpCodeSize.S64 => 8,
-        _ => throw new Exception("Unknown size")
+        _ => ThrowHelper.ThrowMiniC<int>(ErrorCode.CodeGen_UnknownOpCodeSize, (int)size)
     };
 
-    public static void EmitMultiplyByConstant(Assembler asm, uint reg, int multiplier)
+    public static void EmitMultiplyByConstant(AssemblerBase asm, uint reg, int multiplier)
     {
         for (int i = 1; i < multiplier; i *= 2)
         {
@@ -44,8 +42,8 @@ public static class CodeGenUtils
 
     public static int GetAlignment(string type) => type switch
     {
-        "byte" or "char" => 1,
-        "ushort" => 2,
+        "byte" => 1,
+        "ushort" or "char" => 2,
         "int" => 4,
         "ulong" => 8,
         _ => 8  // структуры/указатели выравниваются на 8
@@ -55,7 +53,9 @@ public static class CodeGenUtils
         => structTable.ContainsKey(type);
 
     public static StructLayout GetStructLayout(string type, Dictionary<string, StructLayout> structTable)
-        => structTable.TryGetValue(type, out var layout) ? layout : throw new Exception($"Unknown struct type: {type}");
+        => structTable.TryGetValue(type, out var layout) 
+        ? layout 
+        : ThrowHelper.ThrowMiniC<StructLayout>(ErrorCode.CodeGen_UnknownStructType, type);
 
     public static bool IsPrimitiveType(string type) => type switch
     {

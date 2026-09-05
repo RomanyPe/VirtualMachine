@@ -25,7 +25,7 @@ public class WpfOutputView : IOutputView   // ILogger оставлен для с
         _outputBox.Document.Blocks.Add(_paragraph);
     }
 
-    public void Append(string message, LogLevel level = LogLevel.Log)
+    public void AppendLine(string message, LogLevel level = LogLevel.Log)
     {
         Color color = level switch
         {
@@ -34,9 +34,13 @@ public class WpfOutputView : IOutputView   // ILogger оставлен для с
             LogLevel.Error => Colors.Red,
             _ => Colors.Gray
         };
-        AppendMessage(message, color);
+        AppendMessage(message, color, true);
     }
 
+    public void Append(char message)
+    {
+        AppendMessage(message, Colors.Gray, false);
+    }
     public void Clear()
     {
         if (_dispatcher.CheckAccess())
@@ -45,15 +49,23 @@ public class WpfOutputView : IOutputView   // ILogger оставлен для с
             _dispatcher.Invoke(ClearInternal);
     }
 
-    private void AppendMessage(string message, Color color)
+    private void AppendMessage(char message, Color color, bool newLine)
     {
         if (_dispatcher.CheckAccess())
-            AppendInternal(message, color);
+            AppendInternal(message.AsText, color, newLine);
         else
-            _dispatcher.BeginInvoke(new Action(() => AppendInternal(message, color)));
+            _dispatcher.BeginInvoke(new Action(() => AppendInternal(message.AsText, color, newLine)));
     }
 
-    private void AppendInternal(string message, Color color)
+    private void AppendMessage(string message, Color color, bool newLine)
+    {
+        if (_dispatcher.CheckAccess())
+            AppendInternal(message, color, newLine);
+        else
+            _dispatcher.BeginInvoke(new Action(() => AppendInternal(message, color, newLine)));
+    }
+
+    private void AppendInternal(string message, Color color, bool newLine)
     {
         var brush = BrushCache.GetOrAdd(color, c =>
         {
@@ -62,6 +74,7 @@ public class WpfOutputView : IOutputView   // ILogger оставлен для с
             return b;
         });
         _paragraph.Inlines.Add(new Run(message) { Foreground = brush });
+        if (newLine)
         _paragraph.Inlines.Add(new LineBreak());
         // Удаляем старые блоки, если нужно
         if (_outputBox.Document.Blocks.Count == 0)

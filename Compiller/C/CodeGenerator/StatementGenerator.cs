@@ -1,4 +1,5 @@
 ﻿using Compiller.ASM;
+using Compiller.ASM.Optimizators;
 using Kernel.Common;
 
 namespace Compiller.C.CodeGenerator;
@@ -6,10 +7,10 @@ namespace Compiller.C.CodeGenerator;
 // ============================================================
 // StatementGenerator – генерация инструкций
 // ============================================================
-public class StatementGenerator(Assembler asm, ExpressionGenerator exprGen, FunctionContext funcCtx, Func<string> getLabel, GlobalMemoryManager globalMem, Dictionary<string, StructLayout> structTable)
+public class StatementGenerator(AssemblerBase asm, ExpressionGenerator exprGen, FunctionContext funcCtx, Func<string> getLabel, GlobalMemoryManager globalMem, Dictionary<string, StructLayout> structTable)
 {
     private readonly GlobalMemoryManager _globalMem = globalMem;
-    private readonly Assembler _asm = asm;
+    private readonly AssemblerBase _asm = asm;
     private readonly ExpressionGenerator _exprGen = exprGen;
     private readonly FunctionContext _funcCtx = funcCtx;
     private readonly Dictionary<string, StructLayout> _structTable = structTable;
@@ -21,13 +22,21 @@ public class StatementGenerator(Assembler asm, ExpressionGenerator exprGen, Func
         {
             switch (stmt)
             {
-                case VariableNode var:
-                    if (var.Initializer != null)
-                    {
-                        _exprGen.GenerateExpression(var.Initializer);
-                        _exprGen.StoreR0ToVariable(var.Name);
-                    }
-                    break;
+               case VariableNode var:
+    if (var.Initializer != null)
+    {
+        if (_funcCtx.VarMap.TryGetValue(var.Name, out var varLoc) && varLoc.IsRegister)
+        {
+            // Генерируем инициализатор сразу в регистр переменной
+            _exprGen.GenerateExpression(var.Initializer, varLoc.Register);
+        }
+        else
+        {
+            _exprGen.GenerateExpression(var.Initializer);
+            _exprGen.StoreR0ToVariable(var.Name);
+        }
+    }
+    break;
                 case AssignmentNode assign:
                     GenerateAssignment(assign);
                     break;
@@ -104,53 +113,38 @@ public class StatementGenerator(Assembler asm, ExpressionGenerator exprGen, Func
             return;
         }
 
-        // Оптимизация x = x +/- ...
-        if (assign.Value is BinaryOpNode binop &&
-            (binop.Operator == "+" || binop.Operator == "-") &&
-            binop.Left is IdentifierNode leftId &&
-            leftId.Name == assign.Name &&
-            _funcCtx.VarMap.TryGetValue(assign.Name, out var xLoc) &&
-            xLoc.IsRegister)
+        // Оптимизация: x = число или x = y, когда x в регистре
+        if (assign.IndexExpr == null && assign.LValue == null &&
+            _funcCtx.VarMap.TryGetValue(assign.Name, out var regLoc) && regLoc.IsRegister &&
+            (assign.Value is NumberNode || assign.Value is IdentifierNode))
         {
-            RegType xReg = xLoc.Register;
-            if (binop.Right is NumberNode num)
-            {
-                if (num.Value == 1 && binop.Operator == "+")
-                    _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.INC.Uint, (uint)xReg));
-                else if (num.Value == 1 && binop.Operator == "-")
-                    _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.DEC.Uint, (uint)xReg));
-                else
-                {
-                    _asm.EmitInstruction64(InstructionEncoder.EncodeLDI((uint)RegType.r0), (ulong)num.Value);
-                    if (binop.Operator == "+")
-                        _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, (uint)xReg, (uint)RegType.r0));
-                    else
-                        _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.SUB.Uint, (uint)xReg, (uint)RegType.r0));
-                }
-                return;
-            }
-            else if (binop.Right is IdentifierNode)
-            {
-                // Загружаем значение y в r0
-                _exprGen.GenerateExpression(binop.Right);
-                // Теперь r0 содержит y, напрямую делаем ADD/SUB с xReg
-                if (binop.Operator == "+")
-                    _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, (uint)xReg, (uint)RegType.r0));
-                else
-                    _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.SUB.Uint, (uint)xReg, (uint)RegType.r0));
-                return;
-            }
-            else
-            {
-                _exprGen.GenerateExpression(binop.Right);
-                if (binop.Operator == "+")
-                    _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, (uint)xReg, (uint)RegType.r0));
-                else
-                    _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.SUB.Uint, (uint)xReg, (uint)RegType.r0));
-                return;
-            }
+            _exprGen.GenerateExpression(assign.Value, regLoc.Register);
+            return;
         }
 
+        if (assign.Value is BinaryOpNode binop2 &&
+            binop2.Left is IdentifierNode leftId2 &&
+            leftId2.Name == assign.Name &&
+            _funcCtx.VarMap.TryGetValue(assign.Name, out var loc2) &&
+            loc2.IsRegister &&
+            (binop2.Operator == "+" || binop2.Operator == "-" ||
+             binop2.Operator == "*" || binop2.Operator == "/"))
+        {
+            RegType xReg = loc2.Register;
+            // Правый операнд генерируем в r0
+            _exprGen.GenerateExpression(binop2.Right, RegType.r0);
+            // Выполняем операцию с регистром переменной
+            switch (binop2.Operator)
+            {
+                case "+": _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, (uint)xReg, (uint)RegType.r0)); break;
+                case "-": _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.SUB.Uint, (uint)xReg, (uint)RegType.r0)); break;
+                case "*": _asm.EmitInstruction(InstructionEncoder.EncodeMULT_INT((uint)xReg, (uint)RegType.r0)); break;
+                case "/": _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.DIV.Uint, (uint)xReg, (uint)RegType.r0)); break;
+            }
+            return;
+        }
+
+        
         // Обычное скалярное присваивание
         _exprGen.GenerateExpression(assign.Value);
         _exprGen.StoreR0ToVariable(assign.Name);
@@ -211,7 +205,7 @@ public class StatementGenerator(Assembler asm, ExpressionGenerator exprGen, Func
         }
 
         if (rootStructType == null)
-            throw new Exception("Cannot determine struct type for member access");
+            ThrowHelper.ThrowMiniC(ErrorCode.CodeGen_UnknownStructType, "Cannot determine struct type for member access");
 
         // 3. Проходим по цепочке, получая раскладку и поле на каждом уровне
         StructLayout? currentLayout = null;
@@ -221,79 +215,14 @@ public class StatementGenerator(Assembler asm, ExpressionGenerator exprGen, Func
         foreach (var fieldName in chain)
         {
             if (!_structTable.TryGetValue(currentType, out var layout))
-                throw new Exception($"Unknown struct type '{currentType}'");
+                ThrowHelper.ThrowMiniC(ErrorCode.CodeGen_UnknownStructType, currentType);
             currentLayout = layout;
             currentField = layout.GetField(fieldName)
-                           ?? throw new Exception($"Field '{fieldName}' not found in struct '{currentType}'");
+                           ?? ThrowHelper.ThrowMiniC<FieldInfo>(ErrorCode.CodeGen_UnknownField, fieldName, currentType);
             currentType = currentField.Type;
         }
 
         return (currentLayout!, currentField!, currentType);
-    }
-    // Вспомогательный метод – определение типа структуры для данного MemberAccessNode
-    private string? ResolveStructType(MemberAccessNode node)
-    {
-        // Собираем цепочку полей: для o.y.a -> ["y", "a"]
-        var chain = new List<string>();
-        MemberAccessNode? current = node;
-        ASTNode? rootObject = null;
-
-        // Раскручиваем цепочку MemberAccessNode до корневого объекта
-        while (current != null)
-        {
-            chain.Add(current.FieldName);
-            if (current.Object is MemberAccessNode inner)
-            {
-                current = inner;
-            }
-            else
-            {
-                rootObject = current.Object;
-                break;
-            }
-        }
-        chain.Reverse(); // теперь от корня к последнему полю
-
-        // Определяем тип корневого объекта
-        string? structType = null;
-        if (rootObject is IdentifierNode id)
-        {
-            if (_funcCtx.VarMap.TryGetValue(id.Name, out var loc))
-            {
-                if (loc.StructTypeName != null)
-                    structType = loc.StructTypeName;
-                else if (loc.IsPointer && loc.PointedType != null && _structTable.ContainsKey(loc.PointedType))
-                    structType = loc.PointedType;
-            }
-            else if (_globalMem.Contains(id.Name))
-            {
-                var gInfo = _globalMem.GetInfo(id.Name)!.Value;
-                if (_structTable.ContainsKey(gInfo.Type))
-                    structType = gInfo.Type;
-                else if (gInfo.IsPointer && gInfo.PointedType != null && _structTable.ContainsKey(gInfo.PointedType))
-                    structType = gInfo.PointedType;
-            }
-        }
-        else if (rootObject is ArrayAccessNode arrAcc)
-        {
-            structType = _exprGen.ResolveArrayStructType(arrAcc.ArrayName);
-        }
-
-        if (structType == null)
-            return null;
-
-        // Проходим по цепочке полей, обновляя тип
-        foreach (var fieldName in chain)
-        {
-            if (!_structTable.TryGetValue(structType, out var layout))
-                return null;
-            var field = layout.GetField(fieldName);
-            if (field == null)
-                return null;
-            structType = field.Type;
-        }
-
-        return structType;
     }
 
     private OpCodeSize GetPointedSize(ASTNode expr)
@@ -309,7 +238,7 @@ public class StatementGenerator(Assembler asm, ExpressionGenerator exprGen, Func
                     return CodeGenUtils.GetSizeForType(gInfo.PointedType!);
             }
         }
-        throw new Exception("Cannot determine pointed type");
+        return ThrowHelper.ThrowMiniC<OpCodeSize>(ErrorCode.CodeGen_UnknownPointedType); 
     }
     private void GenerateIf(IfNode ifNode)
     {

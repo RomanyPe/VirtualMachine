@@ -9,8 +9,8 @@ public enum RegType : byte
     r13, r14, r15, 
     r16, r17, r18, 
     r19, r20, r21,
-    rTB, rCD, rFL,
-    rLP, rCL, rRT,
+    r22, r23, rTB, 
+    rCD, rFL, rCL,
     rSP, rHP, rIP,
 
 }

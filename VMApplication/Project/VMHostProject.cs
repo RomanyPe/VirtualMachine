@@ -1,39 +1,37 @@
-﻿using Kernel.Common;
+﻿using Compiller.ASM.Optimizators;
 using VMApplication.Logger;
 
 namespace VMApplication.Project;
 
-public sealed class VMHostProject(IProjectFilesConfig paths, IProjectService proj, VMHostLogger logger)
+public readonly struct CompilationToILResult
+{
+    internal readonly IRAssembler? Assembler;
+    internal OptimizationResultLog? OptimizationResultLog { get; }
+    internal CompilationToILResult(IRAssembler? assembler, OptimizationResultLog? optimizationResultLog)
+    {
+        Assembler = assembler;
+        OptimizationResultLog = optimizationResultLog;
+    }
+}
+
+public sealed class VMHostProject(IProjectFilesConfig paths, VMHostLogger logger, IFileService fileService)
 {
     private readonly IProjectFilesConfig _projectPaths = paths;
-    private readonly IProjectService _projectService = proj;
-    private readonly VMHostLogger _logger = logger;
+    private readonly IFileService _fileService = fileService;
+    private readonly VMHostProjectCompiler _compiler = new(paths, logger, fileService);
+    public VMHostProjectCompiler Compiler => _compiler;
 
     public string IncludePath => _projectPaths.IncludePath;
 
-    public void OpenProject() => _projectService.OpenProject();
+    public IFileService FileService => _fileService;
+    public IProjectFilesConfig ProjectFilesConfig => _projectPaths;
 
+    public CompilationToILResult CompileToIL(ulong baseAddress, bool optimize)
+           => _compiler.CompileToIL(baseAddress, optimize);
     public CompilationResult Compile(ulong baseAddress, bool optimize)
-    {
-        try
-        {
-            var (program, resLog) = ProjectBuilder.BuildProject(
-                _projectService.FileService,
-                _projectService.EditorService,
-                _projectPaths,
-                baseAddress,
-                optimize);
-
-            OptimizationResultLog? res = optimize
-                ? new(resLog.InlinedFunc, resLog.RemovedNodes)
-                : null;
-
-            return new CompilationResult(program, baseAddress, null, res);
-        }
-        catch (Exception ex)
-        {
-            _logger.Append(ex.Message, LogLevel.Error);
-            return new CompilationResult(null, 0, [ex.Message], null);
-        }
-    }
+        => _compiler.Compile(baseAddress, optimize);
+    public CompilationResult Compile(CompilationToILResult res)
+        => _compiler.Compile(res);
+    public CompilationResult Compile(CompilationToILResult res, int peepholeOptimizationCount)
+        => _compiler.Compile(res, peepholeOptimizationCount);
 }

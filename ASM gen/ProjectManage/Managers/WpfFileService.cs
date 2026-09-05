@@ -4,12 +4,15 @@ using VMApplication.Project;
 
 namespace ASM_gen.ProjectManage.Managers;
 
-public class WpfFileService(string projectPath, IOutputView outputView) : IFileService
+public class WpfFileService(
+    string projectPath,
+    IOutputView outputView) : IFileService
 {
     private readonly string _binDir = Path.Combine(projectPath, "bin");
     private readonly IOutputView _outputView = outputView;
 
     public string ProjectPath { get; set; } = projectPath;
+
 
     public IEnumerable<string> GetSourceFiles()
     {
@@ -30,17 +33,20 @@ public class WpfFileService(string projectPath, IOutputView outputView) : IFileS
         File.WriteAllText(fullPath, content);
     }
 
-    public bool Exists(string fileName)
+    public bool Exist(string fileName)
     {
         string fullPath = Path.Combine(ProjectPath, fileName);
         return File.Exists(fullPath);
     }
 
-    public void SaveProgramFile(byte[] prog)
+    public void SaveBinaryFile(string path, byte[] prog)
     {
         Directory.CreateDirectory(_binDir);
         string filePath = Path.Combine(_binDir, "program.bin");
         File.WriteAllBytes(filePath, prog);
-        _outputView.Append($"[SaveBinary] Программа сохранена в {filePath}");
+        _outputView.AppendLine($"[SaveBinary] Программа сохранена в {filePath}");
     }
+
+    public string CombinePath(string path1, string path2) => Path.Combine(path1, path2);
+
 }

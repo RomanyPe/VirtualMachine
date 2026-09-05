@@ -1,4 +1,5 @@
 ﻿using Compiller.ASM;
+using Compiller.ASM.Optimizators;
 using Compiller.C;
 using Compiller.C.CodeGenerator;
 using Compiller.C.Optimizators;
@@ -6,33 +7,35 @@ using Kernel.Common;
 
 namespace VMApplication.Project;
 
-public static class ProjectBuilder
+public class ProjectBuilder(IFileService fileService, IProjectFilesConfig path)
 {
-    private static readonly string[] DefaultAsmExtensions = [".soe", ".asm"];
-    private static readonly string[] DefaultCExtensions = [".mic", ".c"];
+    public const int BaseAdressProgram = 0x0;
 
-    public const int BaseAdressProgramm = 0x0;
+    private static readonly string[] _defaultAsmExtensions = [".soe", ".asm"];
+    private static readonly string[] _defaultMiniCExtensions = [".mic", ".c"];
 
-    internal static (byte[] ByteCode, OutPutOptimizeText ResLog) Build(List<SourceFile> files, IProjectFilesConfig path, ulong baseAddress, bool optimize)
+    private readonly IFileService fileService = fileService;
+    private readonly IProjectFilesConfig path = path;
+
+    private string[]? _cachedAsmExtensionArray;
+    private string[]? _cachedMiniCExtensionArray;
+    private HashSet<string>? _cachedAsmExtensionHashSet;
+    private HashSet<string>? _cachedMiniCExtensionHashSet;
+
+    internal IEnumerable<IReadOnlyLogOptimization> Build(IEnumerable<SourceFile> files, bool optimize, AssemblerBase assembler)
     {
-        var assembler = new Assembler(baseAddress: baseAddress);
         var asmParser = new AssemblerParser();
 
         var cAsts = new List<ProgramNode>();
         var includes = new List<string>();
-
-        // 1. Разбираем все C‑файлы, собираем их AST и списки include
-        foreach (var file in files)
+        foreach (var file in files.Where(file => file.Language == SourceLanguage.C))
         {
-            if (file.Language == SourceLanguage.C)
-            {
-                var lexer = new Lexer(file.Content);
-                var tokens = lexer.Tokenize();
-                var parser = new Parser(tokens);
-                var ast = parser.Parse();
-                cAsts.Add(ast);
-                includes.AddRange(ast.Includes);
-            }
+            var lexer = new Lexer(file.Content);
+            var tokens = lexer.Tokenize();
+            var parser = new Parser(tokens);
+            var ast = parser.Parse();
+            cAsts.Add(ast);
+            includes.AddRange(ast.Includes);
         }
 
         // 2. Объединяем C-функции и глобальные переменные в один AST
@@ -44,10 +47,10 @@ public static class ProjectBuilder
             combinedAst.Structs.AddRange(ast.Structs);
         }
         // Оптимизация AST перед кодогенерацией
-        OutPutOptimizeText resLog = default;
+        IEnumerable<IReadOnlyLogOptimization> resLog = 
+            optimize ? AstOptimizer.Optimize(combinedAst) 
+            : [];
 
-        if (optimize)
-            resLog = AstOptimizer.Optimize(combinedAst);
 
         var allStructDecls = new List<StructDeclNode>();
         foreach (var ast in cAsts)
@@ -71,81 +74,92 @@ public static class ProjectBuilder
 
         foreach (string inc in includes)
         {
-            string localPath = Path.Combine(path.ProjectPath, inc);
-            string sharedPath = Path.Combine(path.IncludePath, inc);
+            string localPath = fileService.CombinePath(path.ProjectPath, inc);
+            string sharedPath = fileService.CombinePath(path.IncludePath, inc);
 
             string? chosenPath = null;
-            if (File.Exists(localPath))
+            if (fileService.Exist(localPath))
                 chosenPath = localPath;
-            else if (File.Exists(sharedPath))
+            else if (fileService.Exist(sharedPath))
                 chosenPath = sharedPath;
 
             if (chosenPath == null)
                 throw new Exception($"Included file not found: '{inc}'. Searched in project folder and in '{path.IncludePath}'.");
 
-            string asmCode = File.ReadAllText(chosenPath);
+            string asmCode = fileService.ReadFile(chosenPath);
             asmParser.Assemble(asmCode, assembler);
         }
 
-        // 4. Добавляем обычные ассемблерные файлы проекта (если есть)
-        foreach (var file in files)
+        foreach (var file in files.Where(file => file.Language == SourceLanguage.Asm))
         {
-            if (file.Language == SourceLanguage.Asm)
-            {
-                asmParser.Assemble(file.Content, assembler);
-            }
+            asmParser.Assemble(file.Content, assembler);
         }
 
-        // 6. Генерируем код всех C‑функций (определит метку func_main)
         var funcGen = new FunctionGenerator(assembler, structLayouts);
         funcGen.Generate(combinedAst);
 
-        // 7. Один завершающий HALT
         assembler.EmitInstruction(InstructionEncoder.EncodeEND());
 
-        return (assembler.Build(), resLog);
+        return resLog;
     }
 
-    internal static (byte[] ByteCode, OutPutOptimizeText ResLog) BuildProject(IFileService fileService, IEditorService editorService, IProjectFilesConfig paths, ulong baseAddress, bool optimize)
+    public IEnumerable<IReadOnlyLogOptimization> BuildProject(bool optimize, AssemblerBase assembler)
     {
         var files = new List<SourceFile>();
 
         foreach (string fileName in fileService.GetSourceFiles())
         {
             // Пытаемся получить текст из открытой вкладки
-            string source = editorService.GetText(fileName) ?? fileService.ReadFile(fileName);
+            string source = fileService.ReadFile(fileName);
 
-            SourceLanguage lang = FindLang(paths, fileName);
+            SourceLanguage lang = FindLang(path, fileName);
             files.Add(new SourceFile(fileName, source, lang));
         }
 
         // Вызываем существующий метод Build с базовым адресом (можно параметризовать)
-        return Build(files, paths, baseAddress: baseAddress, optimize);
+        return Build(files, optimize, assembler);
     }
 
-    private static bool Has(string[] extens, string name)
+    private void CacheAsmExtensions(string[] ext)
     {
-        foreach (var ext in extens)
-            if (name.EndsWith(ext, StringComparison.OrdinalIgnoreCase))
-                return true;
-        return false;
+        if (!ReferenceEquals(ext, _cachedAsmExtensionArray))
+        {
+            _cachedAsmExtensionArray = ext;
+            _cachedAsmExtensionHashSet = new HashSet<string>(ext, StringComparer.OrdinalIgnoreCase);
+        }
     }
 
-    private static bool IsAsm(IProjectFilesConfig config, string name)
+    private void CacheMiniCExtensions(string[] ext)
     {
-        var extens = config.ExtensionsAsm;
-        extens ??= DefaultAsmExtensions;
-        return Has(extens, name);
+        if (!ReferenceEquals(ext, _cachedMiniCExtensionArray))
+        {
+            _cachedMiniCExtensionArray = ext;
+            _cachedMiniCExtensionHashSet = new HashSet<string>(ext, StringComparer.OrdinalIgnoreCase);
+        }
     }
 
-    private static bool IsMiniC(IProjectFilesConfig config, string name)
+    private bool IsAsm(IProjectFilesConfig config, string name)
     {
-        var extens = config.ExtensionsMiniC;
-        extens ??= DefaultCExtensions;
-        return Has(extens, name);
+        string[] extensions = config.ExtensionsAsm;
+        if (extensions.Length == 0)
+            extensions = _defaultAsmExtensions; // если нужно преобразовать ImmutableArray в массив
+
+        CacheAsmExtensions(extensions);
+        string fileExt = Path.GetExtension(name);
+        return _cachedAsmExtensionHashSet!.Contains(fileExt);
     }
 
-    private static SourceLanguage FindLang(IProjectFilesConfig config, string name)
+    private bool IsMiniC(IProjectFilesConfig config, string name)
+    {
+        string[] extensions = config.ExtensionsMiniC;
+        if (extensions.Length == 0)
+            extensions = _defaultMiniCExtensions;
+
+        CacheMiniCExtensions(extensions);
+        string fileExt = Path.GetExtension(name);
+        return _cachedMiniCExtensionHashSet!.Contains(fileExt);
+    }
+    private SourceLanguage FindLang(IProjectFilesConfig config, string name)
     {
         if (IsAsm(config, name)) return SourceLanguage.Asm;
         else if (IsMiniC(config, name)) return SourceLanguage.C;

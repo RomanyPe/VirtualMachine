@@ -8,7 +8,7 @@ using VMApplication.Project;
 
 namespace ASM_gen.ProjectManage.Managers;
 
-public class WpfEditorService : IEditorService
+public class WpfEditorService
 {
     private readonly TabControl _tabControl;
     private readonly Dictionary<string, TabItem> _openTabs = [];

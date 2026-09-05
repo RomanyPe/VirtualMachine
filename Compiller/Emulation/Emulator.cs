@@ -11,7 +11,7 @@ namespace Compiller.Emulation;
 /// Эмулятор устройства: управляет загрузкой программ, запуском, пошаговым выполнением.
 /// Теперь поддерживает несколько устройств через ManagerDevices.
 /// </summary>
-public class Emulator
+public class Emulator : IDisposable
 {
     private readonly PortBus _portBus;
     private readonly ManagerDevices _manager;
@@ -73,8 +73,9 @@ public class Emulator
 
     public void Reset()
     {
-        _manager.Clear();
+        _manager.Dispose();
         _mainDeviceId = -1;
+        _diskManager.Dispose();
     }
 
     public int CreateDisk(string imagePath)
@@ -96,8 +97,21 @@ public class Emulator
             _mainDeviceId = -1;
         return removed;
     }
+
+    public bool ChangeDiskSector(uint oldSector, uint newSector) => _diskManager.ChangeDiskSector(oldSector, newSector);
     public bool RemoveDisk(uint sector) => _diskManager.RemoveDisk(sector);
     public DiskDevice? GetDisk(uint sector) => _diskManager.GetDisk(sector);
     public bool ChangeDeviceSector(int id, uint newSector) => _manager.ChangeSector(id, newSector);
     public IEnumerable<int> GetDiskSectors() => _diskManager.GetAllDisks();
+
+    public IEnumerable<DiskInfo> GetAllDiskData()
+    {
+       return _diskManager.GetAllDiskInfo();
+    }
+
+    public void Dispose()
+    {
+        Reset();
+        GC.SuppressFinalize(this);
+    }
 }

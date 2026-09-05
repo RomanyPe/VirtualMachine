@@ -4,6 +4,7 @@ namespace VMApplication.Logger;
 
 public interface IOutputView
 {
-    void Append(string message, LogLevel level = LogLevel.Log);    // LogLevel = Info, Warning, Error
+    void AppendLine(string message, LogLevel level = LogLevel.Log);    // LogLevel = Info, Warning, Error
+    void Append(char message);
     void Clear();
 }

@@ -6,7 +6,7 @@
         xmlns:avalonEdit="clr-namespace:ICSharpCode.AvalonEdit;assembly=ICSharpCode.AvalonEdit" xmlns:information_window="clr-namespace:ASM_gen.Information_Window" d:DataContext="{d:DesignInstance Type=information_window:RowViewModel}"
         mc:Ignorable="d"
         Title="IDE" 
-        d:DesignHeight="600" d:DesignWidth="800">
+        d:DesignHeight="700" d:DesignWidth="1000">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -76,11 +76,14 @@
             <Button x:Name="ClearOutput" Click="BtnClearOutput" 
             Content="Очистить вывод" Margin="5,5,5,0" Height="20"/>
 
-            <Button x:Name="BtnDeviceManager" Content="Device Manager" Margin="5,5,5,0" Height="20"
+            <Button x:Name="BtnDeviceManager" Content="Управление устройств" Margin="5,5,5,0" Height="20"
             Click="BtnDeviceManager_Click" ToolTipService.InitialShowDelay="1" 
                     ToolTip= "Просмотр всех устройств"/>
             
-            <TextBlock x:Name="TxtCurrentDevice" Margin="5,5,5,0" Foreground="Gray" FontSize="11" Text=""/>
+            <!--<TextBlock x:Name="TxtCurrentDevice" Margin="5,5,5,0" Foreground="Gray" FontSize="11" Text=""/>-->
+            <Button x:Name="BtnDiskManager" Content="Управление дисками" Margin="5,5,5,0" Height="20"
+                Click="BtnDiskManager_Click" ToolTipService.InitialShowDelay="1" 
+                ToolTip="Управление дисками"/>
         </StackPanel>
 
         <!-- РЕДАКТОР КОДА (Перенесен в Grid.Row="1") -->

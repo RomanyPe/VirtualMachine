@@ -18,14 +18,14 @@ public sealed class VMHostLogger
 
     public void TestCurrentLoggerSystem()
     {
-        _outputView?.Append("Log [Debug log]", LogLevel.Log);
-        _outputView?.Append("Warning [Debug log]", LogLevel.Warning);
-        _outputView?.Append("Error [Debug log]", LogLevel.Error);
+        _outputView?.AppendLine("Log [Debug log]", LogLevel.Log);
+        _outputView?.AppendLine("Warning [Debug log]", LogLevel.Warning);
+        _outputView?.AppendLine("Error [Debug log]", LogLevel.Error);
     }
 
     public void RegistryLogger(string name, IOutputView outPutView)
     {
-        LoggerProvider.RegistryLogger(name, new ActionLogger(_outputView.Append, outPutView.Clear));
+        LoggerProvider.RegistryLogger(name, new ActionLogger(_outputView.AppendLine, outPutView.Clear, _outputView.Append));
     }
 
     public void ChoiceLogger(string? name = null)
@@ -37,19 +37,21 @@ public sealed class VMHostLogger
     public void DeleteLogger(string name)
     {
         if (name == _defaultName)
-            _outputView.Append("Удален первоначальный логгер", LogLevel.Warning);
+            _outputView.AppendLine("Удален первоначальный логгер", LogLevel.Warning);
 
         LoggerProvider.DeleteLogger(name);
     }
 
-    public void Append(string str, LogLevel log) => _outputView.Append(str, log);
+    public void AppendLine(string str, LogLevel log) => _outputView.AppendLine(str, log);
     public void Clear() => _outputView.Clear();
 
-    private class ActionLogger(Action<string, LogLevel> logAction, Action clearAction) : ILogger
+    private class ActionLogger(Action<string, LogLevel> logAction, Action clearAction, Action<char> writeAction) : ILogger
     {
         private readonly Action<string, LogLevel> _logAction = logAction;
         private readonly Action _clearAction = clearAction;
+        private readonly Action<char> _writeAction = writeAction;
 
+        public void CharOutPut(char c) => _writeAction(c);
         public void Info(string message) => _logAction(message, LogLevel.Log);
         public void Warning(string message) => _logAction(message, LogLevel.Warning);
         public void Error(string message) => _logAction(message, LogLevel.Error);

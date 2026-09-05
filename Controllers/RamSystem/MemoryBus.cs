@@ -163,60 +163,65 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
         return new RAMResultInt64(value);
     }
 
-    /// <summary>
-    /// Метод для чтения 16 битового целого числа (Int16)
-    /// </summary>
-    /// <param name="address"> Адресс в виртуальной памяти </param>
-    /// <returns> Успешность операции, при возврате не BiosStatus.Success происходит исключение и остановка работы биоса </returns>
-
-    public RAMResultInt16 ReadInt16LEUnSafe(ulong address)
+    public void WriteInt8LEUnSafe(ulong address, byte value)
     {
-        if (address + 2 <= _ramSize)
-        {
-            return MemoryBusHelpers.GenerateInt16Le(_memory.AsSpan((int)address, 2));
-        }
-
-        ulong biosAddress = address - _biosRomStartCode;
-        return biosAddress + 2 <= _biosRomSize
-            ? MemoryBusHelpers.GenerateInt16Le(_biosRom.AsSpan((int)biosAddress, 2))
-            : new RAMResultInt16(BiosStatus.SegmentationFault, (uint)address, _nameDevice);
+        _memory[address] = value;
     }
 
-    /// <summary>
-    /// Метод для чтения 32 битового целого числа (Int32)
-    /// </summary>
-    /// <param name="address"> Адресс в виртуальной памяти </param>
-    /// <returns> Успешность операции, при возврате не BiosStatus.Success происходит исключение и остановка работы биоса </returns>
-    public RAMResultInt32 ReadInt32LEUnSafe(ulong address)
+    public void WriteInt16LEUnSafe(ulong address, ushort value)
     {
-        if (address + 4 <= _ramSize)
-        {
-            return MemoryBusHelpers.GenerateInt32Le(_memory.AsSpan((int)address, 4));
-        }
-
-        ulong biosAddress = address - _biosRomStartCode;
-        return biosAddress + 4 <= _biosRomSize
-            ? MemoryBusHelpers.GenerateInt32Le(_biosRom.AsSpan((int)biosAddress, 4))
-            : new RAMResultInt32(BiosStatus.SegmentationFault, address, _nameDevice);
+        BinaryPrimitives.WriteUInt16LittleEndian(_memory.AsSpan((int)address, 2), value);
     }
 
-    /// <summary>
-    /// Метод для чтения 64 битового целого числа (Int64)
-    /// </summary>
-    /// <param name="address"> Адресс в виртуальной памяти </param>
-    /// <returns> Успешность операции, при возврате не BiosStatus.Success происходит исключение и остановка работы биоса </returns>
-
-    public RAMResultInt64 ReadInt64LEUnSafe(ulong address)
+    public void WriteInt32LEUnSafe(ulong address, uint value)
     {
-        if (address + 8 <= _ramSize)
-        {
-            return MemoryBusHelpers.GenerateInt64Le(_memory.AsSpan((int)address, 8));
-        }
+        BinaryPrimitives.WriteUInt32LittleEndian(_memory.AsSpan((int)address, 4), value);
+    }
 
+    public void WriteInt64LEUnSafe(ulong address, ulong value)
+    {
+        BinaryPrimitives.WriteUInt64LittleEndian(_memory.AsSpan((int)address, 8), value);
+    }
+
+    public byte ReadInt8LEUnSafe(ulong address)
+    {
+        const int size = sizeof(byte);
         ulong biosAddress = address - _biosRomStartCode;
-        return biosAddress + 8 <= _biosRomSize
-            ? MemoryBusHelpers.GenerateInt64Le(_biosRom.AsSpan((int)biosAddress, 8))
-            : new RAMResultInt64(BiosStatus.SegmentationFault, address, _nameDevice);
+
+        return address + size <= _ramSize
+            ? _memory[address]
+            : _biosRom[biosAddress];
+    }
+
+    public ushort ReadInt16LEUnSafe(ulong address)
+    {
+        const int size = sizeof(ushort);
+        ulong biosAddress = address - _biosRomStartCode;
+
+        return address + size <= _ramSize
+            ? BinaryPrimitives.ReadUInt16LittleEndian(_memory.AsSpan((int)address, size))
+            : BinaryPrimitives.ReadUInt16LittleEndian(_biosRom.AsSpan((int)biosAddress, size));
+    }
+
+    public uint ReadInt32LEUnSafe(ulong address)
+    {
+        const int size = sizeof(uint);
+        ulong biosAddress = address - _biosRomStartCode;
+
+        return address + size <= _ramSize
+            ? BinaryPrimitives.ReadUInt32LittleEndian(_memory.AsSpan((int)address, size))
+            : BinaryPrimitives.ReadUInt32LittleEndian(_biosRom.AsSpan((int)biosAddress, size));
+    }
+
+
+    public ulong ReadInt64LEUnSafe(ulong address)
+    {
+        const int size = sizeof(ulong);
+        ulong biosAddress = address - _biosRomStartCode;
+
+        return address + size <= _ramSize
+            ? BinaryPrimitives.ReadUInt64LittleEndian(_memory.AsSpan((int)address, size))
+            : BinaryPrimitives.ReadUInt64LittleEndian(_biosRom.AsSpan((int)biosAddress, size));
     }
 
     // ==============================

@@ -20,8 +20,8 @@
                 <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="50"/>
                 <DataGridTextColumn Header="Имя" Binding="{Binding Name}" Width="180"/>
                 <DataGridTextColumn Header="Размер RAM" Binding="{Binding RamSize}" Width="100"/>
-                <DataGridTextColumn Header="Сектор" Binding="{Binding Sector}" Width="90"/>
-                <DataGridTextColumn Header="Диапазон портов" Binding="{Binding PortRange}" Width="170"/>
+                <DataGridTextColumn Header="Порт" Binding="{Binding Sector}" Width="90"/>
+                <DataGridTextColumn Header="Диапазон адресов порта" Binding="{Binding PortRange}" Width="170"/>
                 <DataGridTextColumn Header="Создан" Binding="{Binding CreatedAt, StringFormat='{}{0:HH:mm:ss}'}" Width="140"/>
             </DataGrid.Columns>
         </DataGrid>
@@ -47,6 +47,8 @@
             
             <Button  Grid.Row="2" x:Name="BtnUpdateGrid" Click="BtnUpdateGrid_Click" 
                     Content="Обновить" Padding="10,5" Margin="5,10,5,5" />
+            <Button  Grid.Row="2" x:Name="BtnCloseWindow" 
+                    Content="Подтвердить" Padding="10,5" Margin="5,10,5,5" Click="BtnCloseWindow_Click" />
         </StackPanel>
     </Grid>
 </Window>

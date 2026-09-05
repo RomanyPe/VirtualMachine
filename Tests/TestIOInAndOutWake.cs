@@ -82,9 +82,9 @@ public class TestIOInAndOutWake(ITestOutputHelper outPut)
             using var doneSecond = new ManualResetEventSlim(false);
 
             // Запускаем с колбэками, которые сигнализируют о завершении
-            deviceFirst.LaunchDevice(0, false, 0, false, OnTitle, null,
+            deviceFirst.LaunchDeviceOnDedicatedThread(0, false, 0, false, OnTitle, null,
                 log => { OnEnd(log); doneFirst.Set(); });
-            deviceSecond.LaunchDevice(0, false, 0, false, OnTitle, null,
+            deviceSecond.LaunchDeviceOnDedicatedThread(0, false, 0, false, OnTitle, null,
                 log => { OnEnd(log); doneSecond.Set(); });
 
             // Ждём завершения обоих устройств (максимум 10 секунд каждое)

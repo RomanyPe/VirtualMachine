@@ -17,13 +17,13 @@ public partial class DeviceManagerWindow : Window
     private readonly IOutputView _outputView;
     private InformationWindow? infoWindow;
     private DeviceView? _selectedDevice;
-    private DeviceData? _device;
+    private DeviceContext? _device;
 
     public ObservableCollection<DeviceView> Devices { get; set; } = [];
 
-    public readonly Action<DeviceData> CurrentDevice;
+    public readonly Action<DeviceContext> CurrentDevice;
     public readonly Action<LaunchModeDevice> CurrenLaunchModel;
-    public DeviceManagerWindow(IOutputView outputView, VMEmulator host, Action<DeviceData> returned, Action<LaunchModeDevice> currenLaunchModel)
+    public DeviceManagerWindow(IOutputView outputView, VMEmulator host, Action<DeviceContext> returned, Action<LaunchModeDevice> currenLaunchModel)
     {
         InitializeComponent();
         DeviceGrid.ItemsSource = Devices;
@@ -36,7 +36,7 @@ public partial class DeviceManagerWindow : Window
         CurrenLaunchModel = currenLaunchModel;
     }
 
-    public void SetDeviceData(DeviceData device) => _device = device;
+    public void SetDeviceData(DeviceContext device) => _device = device;
     private void UpdateTable(object sender, EventArgs e) => RefreshDeviceList();
 
     private void Window_Loaded(object sender, RoutedEventArgs e) => RefreshDeviceList();
@@ -76,7 +76,7 @@ public partial class DeviceManagerWindow : Window
         var selected = _selectedDevice;
         if (selected == null || _device == null)
         {
-            _outputView.Append($" {NameSystem} Выберите устройство в списке.", LogLevel.Error);
+            _outputView.AppendLine($" {NameSystem} Выберите устройство в списке.", LogLevel.Error);
             return;
         }
 
@@ -93,7 +93,7 @@ public partial class DeviceManagerWindow : Window
             LaunchModeDevice d = _device.LoadProgram(program);
             CurrentDevice.Invoke(_device);
             CurrenLaunchModel.Invoke(d);
-            _outputView?.Append($" {NameSystem} Программа загружена в устройство {deviceId}.");
+            _outputView?.AppendLine($" {NameSystem} Программа загружена в устройство {deviceId}.");
         }
     }
 
@@ -101,26 +101,26 @@ public partial class DeviceManagerWindow : Window
     {
         if (!_selectedDevice.HasValue)
         {
-            _outputView.Append($" {NameSystem}Выберите устройство в списке.", LogLevel.Error);
+            _outputView.AppendLine($" {NameSystem}Выберите устройство в списке.", LogLevel.Error);
             return;
         }
         var device = _selectedDevice.Value;
 
         if (!uint.TryParse(NewSectorBox.Text, out uint newSector))
         {
-            _outputView.Append($"{NameSystem} Введите корректный номер сектора.", LogLevel.Error);
+            _outputView.AppendLine($"{NameSystem} Введите корректный номер сектора.", LogLevel.Error);
             return;
         }
 
         bool success = _host.ChangeDeviceSector(device.Id, newSector);
         if (success)
         {
-            _outputView.Append($" {NameSystem}Сектор изменён на {newSector}.");
+            _outputView.AppendLine($" {NameSystem}Сектор изменён на {newSector}.");
             RefreshDeviceList();
         }
         else
         {
-            _outputView.Append($" {NameSystem} Не удалось изменить сектор (возможно, занят).", LogLevel.Error);
+            _outputView.AppendLine($" {NameSystem} Не удалось изменить сектор (возможно, занят).", LogLevel.Error);
         }
 
     }
@@ -129,22 +129,22 @@ public partial class DeviceManagerWindow : Window
     {
         if (!_selectedDevice.HasValue)
         {
-            _outputView.Append($" {NameSystem} Сначала выберите устройство.", LogLevel.Error);
+            _outputView.AppendLine($" {NameSystem} Сначала выберите устройство.", LogLevel.Error);
             return;
         }
         var device = _selectedDevice.Value;
 
         _host.SetMainDevice(device.Id);
-        DeviceData? d = _host.GetDeviceData(device.Id);
+        DeviceContext? d = _host.GetDeviceData(device.Id);
         _device = d;
         if (d == null)
         {
-            _outputView.Append($" {NameSystem} Выбранное устройство не имеет технической логики в программе, возврат из API вернул null", LogLevel.Error);
+            _outputView.AppendLine($" {NameSystem} Выбранное устройство не имеет технической логики в программе, возврат из API вернул null", LogLevel.Error);
             return;
         }
 
         CurrentDevice.Invoke(d);
-        _outputView.Append($" {NameSystem} Устройство {device.Id} теперь основное.");
+        _outputView.AppendLine($" {NameSystem} Устройство {device.Id} теперь основное.");
     }
 
     private void BtnCreateDevice_Click(object sender, RoutedEventArgs e)
@@ -171,12 +171,12 @@ public partial class DeviceManagerWindow : Window
                                                   res.RamName, res.PortBusName);
                 if (deviceId != -1)
                 {
-                    _outputView.Append($" {NameSystem} Устройство создано с ID: {deviceId}");
+                    _outputView.AppendLine($" {NameSystem} Устройство создано с ID: {deviceId}");
                     RefreshDeviceList();
                 }
                 else
                 {
-                    _outputView.Append($" {NameSystem} Не удалось создать устройство", LogLevel.Error);
+                    _outputView.AppendLine($" {NameSystem} Не удалось создать устройство", LogLevel.Error);
                 }
             }
         }
@@ -191,7 +191,7 @@ public partial class DeviceManagerWindow : Window
     {
         if (!_selectedDevice.HasValue)
         {
-            _outputView.Append("Выберите устройство в списке.", LogLevel.Error);
+            _outputView.AppendLine("Выберите устройство в списке.", LogLevel.Error);
             return;
         }
         var device = _selectedDevice.Value;
@@ -205,7 +205,7 @@ public partial class DeviceManagerWindow : Window
         {
             byte[] bios = System.IO.File.ReadAllBytes(dialog.FileName);
             bool success = _host.UpdateDeviceBios(device.Id, bios);
-            _outputView.Append(success
+            _outputView.AppendLine(success
                 ? $"BIOS устройства {device.Id} обновлён."
                 : "Не удалось обновить BIOS.", success ? LogLevel.Log : LogLevel.Error);
             RefreshDeviceList();
@@ -216,7 +216,7 @@ public partial class DeviceManagerWindow : Window
     {
         if (!_selectedDevice.HasValue)
         {
-            _outputView.Append("Выберите устройство в списке.", LogLevel.Error);
+            _outputView.AppendLine("Выберите устройство в списке.", LogLevel.Error);
             return;
         }
         var device = _selectedDevice.Value;
@@ -233,12 +233,17 @@ public partial class DeviceManagerWindow : Window
         bool success = _host.RemoveDevice(device.Id); // это 222 строчка кода
         if (success)
         {
-            _outputView.Append($"Устройство {device.Id} удалено.");
+            _outputView.AppendLine($"Устройство {device.Id} удалено.");
             RefreshDeviceList();
         }
         else
         {
-            _outputView.Append("Не удалось удалить устройство.", LogLevel.Error);
+            _outputView.AppendLine("Не удалось удалить устройство.", LogLevel.Error);
         }
+    }
+
+    private void BtnCloseWindow_Click(object sender, RoutedEventArgs e)
+    {
+        this.Close();
     }
 }
