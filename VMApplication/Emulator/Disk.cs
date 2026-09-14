@@ -25,8 +25,8 @@ public class DiskContext : IDisposable
     public uint BasePortAddress => Sector * _emulator.PortsPerDevice;
     public ReadOnlyMemory<byte> ReadSectorBuffer => new(_disk.SectorBuffer);
 
-    public void LoadDataOnDisk(uint adress, ReadOnlySpan<byte> data) => _disk.WriteSectorDirect(adress, data);
-    public void LoadDataOnDisk(uint adress, byte[] data) => _disk.WriteSectorDirect(adress, data);
+    public void LoadDataOnDisk(uint address, ReadOnlySpan<byte> data) => _disk.WriteSectorDirect(address, data);
+    public void LoadDataOnDisk(uint address, byte[] data) => _disk.WriteSectorDirect(address, data);
     
     public byte[]? ReadSectorDirect(uint lba) => _disk.ReadSectorDirect(lba);
 

@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Text;
 using ThreadingSystem.Abstraction;
 using ThreadingSystem.ThreadMetrics;
@@ -18,6 +19,7 @@ public class MonitoringThreader
     private int _countNormalTaskDone = 0;
     private int _countLowTaskDone = 0;
     private bool _isBusy = false;
+    private bool _haveNextTask = false;
 
     public bool IsBusy => Volatile.Read(ref _isBusy);
     public MetricsCollector Metrics => _metricsTime;
@@ -41,8 +43,10 @@ public class MonitoringThreader
 
     public bool TrySetNextTask(TaskData task)
     {
-        if (_nextTask == null)
+        bool haveTask = Volatile.Read(ref _haveNextTask);
+        if (!haveTask)
         {
+            Volatile.Write(ref _haveNextTask, true);
             _nextTask = task;
             return true;
         }
@@ -65,11 +69,15 @@ public class MonitoringThreader
             }
 
             _contextScheduler.WorkSignal.Reset();
-            if (_nextTask != null)
+
+            bool haveTask = Volatile.Read(ref _haveNextTask);
+            if (haveTask && _nextTask != null)
             {
                 ExecuteActionItem(_nextTask.Value);
+                Volatile.Write(ref _haveNextTask, false);
                 _nextTask = null;
             }
+
             TaskData item;
             while (_contextScheduler.TryDequeueAny(out item))
             {
@@ -97,6 +105,8 @@ public class MonitoringThreader
         item.DoneEvent.Set();
         Volatile.Write(ref _isBusy, false);
     }
+
+
     private void SetCountOverTheEntirePeriod(TaskPriority priority)
     {
         switch (priority)

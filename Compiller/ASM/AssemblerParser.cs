@@ -99,8 +99,6 @@ public class AssemblerParser
         { "LOAD_UNSAFE", OpCode.LOAD_UNSAFE},
         { "STORE_IND_UNSAFE", OpCode.STORE_IND_UNSAFE},
         { "STORE_UNSAFE", OpCode.STORE_UNSAFE},
-        { "PUSH_UNSAFE", OpCode.PUSH_UNSAFE},
-        { "POP_UNSAFE", OpCode.POP_UNSAFE}
     };
 
     private AssemblerBase _asm = null!;
@@ -228,8 +226,6 @@ public class AssemblerParser
             case "NOT":
             case "PUSH":
             case "POP":
-            case "PUSH_UNSAFE":
-            case "POP_UNSAFE":
             case "PRINT_INT":
                 FormatU(tokens, baseMnemonic, opCode);
                 break;
@@ -405,7 +401,7 @@ public static class AsmLanguageDefinition
         [
             "NOP", "END", "RET", "PRINT", "MOV", "ADD", "SUB", "AND", "OR", "XOR",
             "INC", "DEC", "NOT", "PUSH", "POP",
-            "PUSH_UNSAFE", "POP_UNSAFE", "LDI", "LOAD", "STORE", 
+            "LDI", "LOAD", "STORE", 
             "LOAD_UNSAFE", "STORE_UNSAFE", "JMP", "JZ",
             "JNZ", "JG", "JL", "CALL", "LOAD_IND", "STORE_IND","LOAD_IND_UNSAFE", "STORE_IND_UNSAFE", "PRINT_INT", "ALLOC",
             "IN", "OUT", "INT", "IRET", "SHR", "MULT_INT", "DIV", "HALT", "WAKE", "WAKE_INT"

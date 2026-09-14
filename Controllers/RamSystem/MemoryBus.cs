@@ -16,10 +16,7 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
     public bool HaveBios => _biosRom != null && _biosRom.Length > 0;
     public ulong RamSize => _ramSize;
 
-    public Span<byte> Span => _memory.AsSpan();
-    public Span<byte> AsSpan(int start, int length) => _memory.AsSpan(start, length);
     public Memory<byte> Memory => _memory.AsMemory();
-    public Memory<byte> AsMemory() => _memory.AsMemory();
     public Memory<byte> AsMemory(int start, int length) => _memory.AsMemory(start, length);
 
     public ReadOnlyMemory<byte> ReadOnlyMemory => _memory.AsMemory();
@@ -54,7 +51,7 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
 
         if (address + 2 <= _ramSize)
         {
-            return MemoryBusHelpers.GenerateInt16Le(_memory.AsSpan((int)address, 2));
+            return new RAMResultInt16(_memory.ReadUInt16(address));
         }
 
         ulong biosAddress = address - _biosRomStartCode;
@@ -73,7 +70,7 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
         if ((address & 0x03) != 0) return new RAMResultInt32(BiosStatus.AlignmentFault, address, _nameDevice);
 
         if (address + 4 <= _ramSize)
-            return MemoryBusHelpers.GenerateInt32Le(_memory.AsSpan((int)address, 4));
+            return new RAMResultInt32(_memory.ReadUInt32(address));
 
 
         ulong biosAddress = address - _biosRomStartCode;
@@ -94,7 +91,7 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
 
         if (address + 8 <= _ramSize)
         {
-            return MemoryBusHelpers.GenerateInt64Le(_memory.AsSpan((int)address, 8));
+            return new RAMResultInt64(_memory.ReadUInt64(address));
         }
 
         ulong biosAddress = address - _biosRomStartCode;
@@ -199,7 +196,7 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
         ulong biosAddress = address - _biosRomStartCode;
 
         return address + size <= _ramSize
-            ? BinaryPrimitives.ReadUInt16LittleEndian(_memory.AsSpan((int)address, size))
+            ? _memory.ReadUInt16(address)
             : BinaryPrimitives.ReadUInt16LittleEndian(_biosRom.AsSpan((int)biosAddress, size));
     }
 
@@ -209,7 +206,7 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
         ulong biosAddress = address - _biosRomStartCode;
 
         return address + size <= _ramSize
-            ? BinaryPrimitives.ReadUInt32LittleEndian(_memory.AsSpan((int)address, size))
+            ? _memory.ReadUInt32(address)
             : BinaryPrimitives.ReadUInt32LittleEndian(_biosRom.AsSpan((int)biosAddress, size));
     }
 
@@ -220,7 +217,7 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
         ulong biosAddress = address - _biosRomStartCode;
 
         return address + size <= _ramSize
-            ? BinaryPrimitives.ReadUInt64LittleEndian(_memory.AsSpan((int)address, size))
+            ? _memory.ReadUInt64(address)
             : BinaryPrimitives.ReadUInt64LittleEndian(_biosRom.AsSpan((int)biosAddress, size));
     }
 

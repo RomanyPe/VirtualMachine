@@ -9,7 +9,6 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using VMApplication;
-using VMApplication.CallBacks;
 using VMApplication.Emulator;
 using VMApplication.Logger;
 using VMApplication.Project;
@@ -186,7 +185,7 @@ public partial class IDEPage : Page
         CompileAndRun();
     }
 
-    private void LogSystemData(CompilationResult res, bool optim)
+    private void LogSystemData(in CompilationResult res, bool optim)
     {
         if (SnowAssemler)
         {
@@ -199,6 +198,7 @@ public partial class IDEPage : Page
             _outputView.AppendLine("--- Result Optimization ---\n");
 
             LogsOptimization(resultOpt, TypeOptimization.ASTNodeInlinedFunc,"[Function inlining]");
+            LogsOptimization(resultOpt, TypeOptimization.ASTNodeRemovedAfterInline,"[Function removed after inlining]");
             LogsOptimization(resultOpt, TypeOptimization.ASTNodeRemovedBeforeInline,"[Function removed]");
             LogsOptimization(resultOpt, TypeOptimization.ASTNodeConstPropagate, "[Constant Propagation]");
             LogsOptimization(resultOpt, TypeOptimization.ASTNodeConstFold, "[Constant Fold]");
@@ -222,7 +222,7 @@ public partial class IDEPage : Page
 
         if (result.Success)
         {
-            LogSystemData(result, optimize);
+            LogSystemData(in result, optimize);
             _projectManager.FileService.SaveBinaryFile("bin", result.Program!);
         }
         else
@@ -242,7 +242,7 @@ public partial class IDEPage : Page
 
         if (result.Success)
         {
-            LogSystemData(result, optimize);
+            LogSystemData(in result, optimize);
             _projectManager.FileService.SaveBinaryFile("bin" ,result.Program!);
         }
         else
@@ -253,11 +253,18 @@ public partial class IDEPage : Page
         }
     }
 
+    private CompilationResult CompileToIL(ulong baseAddress, bool optimize)
+    {
+        var ilCode = _hostProject.CompileToIL(baseAddress, optimize);
+        return optimize ? _hostProject.Compile(ilCode, 5) : _hostProject.Compile(ilCode);
+
+    }
     private void CompileAndRun(ulong baseAddress = ProjectBuilder.BaseAdressProgram)
     {
         _outputView.Clear();
         _projectManager.SaveAllFiles();
         _device = _hostEmulator.CreateDeviceContext();
+        bool optimize = OptimizationCode;
 
         if (_device == null)
         {
@@ -276,8 +283,7 @@ public partial class IDEPage : Page
                     return;
                 }
 
-                bool optimize = OptimizationCode;
-                CompilationResult result = _hostProject.Compile(baseAddress, optimize);
+                CompilationResult result = CompileToIL(baseAddress, optimize);
 
                 if (!result.Success)
                 {
@@ -290,17 +296,14 @@ public partial class IDEPage : Page
                 if (diskImagePath == null || diskSector == -1)
                     return;
 
-                // Запускаем с BIOS (стартовый адрес = конец RAM, где расположен BIOS)
-                CallBackOnLaunch callBackOnLaunch = new(onEnd: OnEndLaunch);
+                _device.ResetRegistors();
                 _device.ResetMemoryRam();
                 _launchModeDevice = _device.GetLaunchMode();
-                _launchModeDevice.SetHeapAddress((ulong)result.Program!.Length);
-                _launchModeDevice.LaunchDeviceOnDedicatedThread(_device.MaxRamSize, IsDebugMode, _delayDeviceThred, SnowTimer, callBackOnLaunch);
+                _launchModeDevice.LaunchDeviceOnDedicatedThread(_device.MaxRamSize, IsDebugMode, _delayDeviceThred, SnowTimer, onEnd: OnEndLaunch);
             }
             else
             {
-                bool optimize = OptimizationCode;
-                CompilationResult result = _hostProject.Compile(baseAddress, optimize);
+                CompilationResult result = CompileToIL(baseAddress, optimize);
 
                 if (!result.Success)
                 {
@@ -309,14 +312,11 @@ public partial class IDEPage : Page
                     return;
                 }
 
-                CallBackOnLaunch callBackOnLaunch = new(onEnd: OnEndLaunch);
-                LogSystemData(result, optimize);
-                ulong startAdress = (ulong)result.Program!.Length + result.StartAdress;
+                LogSystemData(in result, optimize);
                 _device.ResetRegistors();
                 _device.ResetMemoryRam();
                 _launchModeDevice = _device.LoadProgram(result.Program!);
-                _launchModeDevice.SetHeapAddress(startAdress);
-                _launchModeDevice.LaunchDeviceOnDedicatedThread(ProjectBuilder.BaseAdressProgram, IsDebugMode, _delayDeviceThred, SnowTimer, callBackOnLaunch);
+                _launchModeDevice.LaunchDeviceOnDedicatedThread(ProjectBuilder.BaseAdressProgram, IsDebugMode, _delayDeviceThred, SnowTimer, onEnd: OnEndLaunch);
             }
         }
         catch(Exception ex) 

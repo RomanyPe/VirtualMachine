@@ -135,50 +135,104 @@ public class VariableAccessor(AssemblerBase asm, FunctionContext funcCtx, Global
     private readonly FunctionContext _funcCtx = funcCtx;
     private readonly GlobalMemoryManager _globalMem = globalMem;
 
-    /// <summary>
-    /// Загружает значение переменной в указанный регистр.
-    /// Если переменная уже в регистре, делает MOV; иначе загружает из стека/глобальной памяти.
-    /// </summary>
     public void LoadToRegister(string varName, RegType targetReg)
+    {
+        if (TryGetRegister(varName, out var locReg))
+        {
+            if (locReg != targetReg)
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, targetReg.Uint, locReg.Uint));
+            return;
+        }
+
+        if (_funcCtx.VarMap.TryGetValue(varName, out var loc))
+        {
+            _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(CodeGenUtils.TMP_REG), (ulong)loc.StackOffset);
+            _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, CodeGenUtils.TMP_REG, RegType.rSP.Uint));
+            _asm.EmitInstruction(InstructionEncoder.EncodeLOAD_IND(targetReg.Uint, CodeGenUtils.TMP_REG, loc.TypeSize.Uint));
+            return;
+        }
+
+        if (_globalMem.Contains(varName))
+        {
+            var gInfo = _globalMem.GetInfo(varName)!.Value;
+            var size = CodeGenUtils.GetSizeForType(gInfo.Type);
+            string label = GlobalMemoryManager.GetLabel(varName);
+            _asm.EmitInstruction64WithLabel(InstructionEncoder.EncodeLOAD(targetReg.Uint, size.Uint), label);
+            return;
+        }
+
+        ThrowHelper.ThrowMiniC(ErrorCode.CodeGen_UndefinedVariable, varName);
+    }
+
+    public void StoreFromRegister(string varName, RegType sourceReg)
+    {
+        if (TryGetRegister(varName, out var locReg))
+        {
+            if (locReg != sourceReg)
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, locReg.Uint, sourceReg.Uint));
+            return;
+        }
+
+        if (_funcCtx.VarMap.TryGetValue(varName, out var loc))
+        {
+            _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(CodeGenUtils.TMP_REG), (ulong)loc.StackOffset);
+            _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, CodeGenUtils.TMP_REG, RegType.rSP.Uint));
+            _asm.EmitInstruction(InstructionEncoder.EncodeSTORE_IND(sourceReg.Uint, CodeGenUtils.TMP_REG, loc.TypeSize.Uint));
+            return;
+        }
+
+        if (_globalMem.Contains(varName))
+        {
+            var gInfo = _globalMem.GetInfo(varName)!.Value;
+            var size = CodeGenUtils.GetSizeForType(gInfo.Type);
+            string label = GlobalMemoryManager.GetLabel(varName);
+            _asm.EmitInstruction64WithLabel(InstructionEncoder.EncodeSTORE(sourceReg.Uint, size.Uint), label);
+            return;
+        }
+
+        ThrowHelper.ThrowMiniC(ErrorCode.CodeGen_UndefinedVariable, varName);
+    }
+
+    public void LoadAddressToRegister(string varName, RegType targetReg)
     {
         if (_funcCtx.VarMap.TryGetValue(varName, out var loc))
         {
             if (loc.IsRegister)
-            {
-                if (loc.Register != targetReg)
-                    _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)targetReg, (uint)loc.Register));
-            }
-            else
-            {
-                // Загрузка из стека
-                _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(CodeGenUtils.TMP_REG), (ulong)loc.StackOffset);
-                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, CodeGenUtils.TMP_REG, (uint)RegType.rSP));
-                _asm.EmitInstruction(InstructionEncoder.EncodeLOAD_IND((uint)targetReg, CodeGenUtils.TMP_REG, (uint)loc.TypeSize));
-            }
+                ThrowHelper.ThrowMiniC(ErrorCode.CodeGen_CannotGetRegisterAddress, varName);
+            _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(CodeGenUtils.TMP_REG), (ulong)loc.StackOffset);
+            _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, CodeGenUtils.TMP_REG, RegType.rSP.Uint));
+            if (CodeGenUtils.TMP_REG != targetReg.Uint)
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, targetReg.Uint, CodeGenUtils.TMP_REG));
+            return;
         }
-        else if (_globalMem.TryGetAddress(varName, out var addr))
+
+        if (_globalMem.Contains(varName))
         {
-            var gInfo = _globalMem.GetInfo(varName)!.Value;
-            var size = CodeGenUtils.GetSizeForType(gInfo.Type);
-            _asm.EmitInstruction64(InstructionEncoder.EncodeLOAD((uint)targetReg, (uint)size), addr);
+            string label = GlobalMemoryManager.GetLabel(varName);
+            _asm.EmitInstruction64WithLabel(InstructionEncoder.EncodeLDI(targetReg.Uint), label);
+            return;
         }
-        else
-            ThrowHelper.ThrowMiniC(ErrorCode.CodeGen_UndefinedVariable, varName);
+
+        ThrowHelper.ThrowMiniC(ErrorCode.CodeGen_UndefinedVariable, varName);
     }
 
-    /// <summary>
-    /// Сохраняет значение из регистра в переменную.
-    /// </summary>
-    public void StoreFromRegister(string varName, RegType sourceReg)
+    public OpCodeSize GetVariableSize(string varName)
     {
-        // Аналогично LoadToRegister, но с сохранением
+        if (_funcCtx.VarMap.TryGetValue(varName, out var loc))
+            return loc.TypeSize;
+        if (_globalMem.Contains(varName))
+            return CodeGenUtils.GetSizeForType(_globalMem.GetInfo(varName)!.Value.Type);
+        return ThrowHelper.ThrowMiniC<OpCodeSize>(ErrorCode.CodeGen_UndefinedVariable, varName);
     }
 
-    /// <summary>
-    /// Загружает адрес переменной в r0 (для операций с указателями).
-    /// </summary>
-    public void LoadAddressToR0(string varName)
+    public bool TryGetRegister(string varName, out RegType reg)
     {
-        // ...
+        if (_funcCtx.VarMap.TryGetValue(varName, out var loc) && loc.IsRegister)
+        {
+            reg = loc.Register;
+            return true;
+        }
+        reg = default;
+        return false;
     }
 }

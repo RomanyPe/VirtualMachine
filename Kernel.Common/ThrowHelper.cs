@@ -55,9 +55,3 @@ public class CodeExpection(ErrorCode errorCode, string message) : Exception(mess
     public ErrorCode ErrorCode { get; } = errorCode;
     public int NumericCode => (int)ErrorCode;
 }
-
-
-public interface IDeviceLoggerContext
-{
-    void Log(string message, LogLevel logLevel);
-}

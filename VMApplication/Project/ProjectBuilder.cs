@@ -17,11 +17,6 @@ public class ProjectBuilder(IFileService fileService, IProjectFilesConfig path)
     private readonly IFileService fileService = fileService;
     private readonly IProjectFilesConfig path = path;
 
-    private string[]? _cachedAsmExtensionArray;
-    private string[]? _cachedMiniCExtensionArray;
-    private HashSet<string>? _cachedAsmExtensionHashSet;
-    private HashSet<string>? _cachedMiniCExtensionHashSet;
-
     internal IEnumerable<IReadOnlyLogOptimization> Build(IEnumerable<SourceFile> files, bool optimize, AssemblerBase assembler)
     {
         var asmParser = new AssemblerParser();
@@ -35,18 +30,17 @@ public class ProjectBuilder(IFileService fileService, IProjectFilesConfig path)
             var parser = new Parser(tokens);
             var ast = parser.Parse();
             cAsts.Add(ast);
-            includes.AddRange(ast.Includes);
+            includes.AddRange(ast.IncludesList);
         }
 
-        // 2. Объединяем C-функции и глобальные переменные в один AST
         var combinedAst = new ProgramNode();
         foreach (var ast in cAsts)
         {
-            combinedAst.Functions.AddRange(ast.Functions);
-            combinedAst.Globals.AddRange(ast.Globals);
-            combinedAst.Structs.AddRange(ast.Structs);
+            combinedAst.FunctionNodes.AddRange(ast.FunctionNodes);
+            combinedAst.GlobalVarNodes.AddRange(ast.GlobalVarNodes);
+            combinedAst.StructNodes.AddRange(ast.StructNodes);
         }
-        // Оптимизация AST перед кодогенерацией
+
         IEnumerable<IReadOnlyLogOptimization> resLog = 
             optimize ? AstOptimizer.Optimize(combinedAst) 
             : [];
@@ -54,20 +48,18 @@ public class ProjectBuilder(IFileService fileService, IProjectFilesConfig path)
 
         var allStructDecls = new List<StructDeclNode>();
         foreach (var ast in cAsts)
-            allStructDecls.AddRange(ast.Structs);
+            allStructDecls.AddRange(ast.StructNodes);
 
         var structLayouts = StructLayout.Resolve(allStructDecls);
 
-        // Перемещаем main в начало
-        var mainFunc = combinedAst.Functions.FirstOrDefault(f => f.Name == "main");
+        var mainFunc = combinedAst.FunctionNodes.FirstOrDefault(f => f.Name == "main");
         if (mainFunc != null)
         {
-            combinedAst.Functions.Remove(mainFunc);
-            combinedAst.Functions.Insert(0, mainFunc);
+            combinedAst.FunctionNodes.Remove(mainFunc);
+            combinedAst.FunctionNodes.Insert(0, mainFunc);
         }
 
-        // 5. Теперь, когда все asm-метки известны, вставляем стартовый код
-        if (combinedAst.Functions.Any(f => f.Name == "main"))
+        if (combinedAst.FunctionNodes.Any(f => f.Name == "main"))
         {
             assembler.EmitJump(InstructionEncoder.EncodeJ(OpCode.JMP.Uint), "func_main");
         }
@@ -109,57 +101,43 @@ public class ProjectBuilder(IFileService fileService, IProjectFilesConfig path)
 
         foreach (string fileName in fileService.GetSourceFiles())
         {
-            // Пытаемся получить текст из открытой вкладки
             string source = fileService.ReadFile(fileName);
 
             SourceLanguage lang = FindLang(path, fileName);
             files.Add(new SourceFile(fileName, source, lang));
         }
 
-        // Вызываем существующий метод Build с базовым адресом (можно параметризовать)
         return Build(files, optimize, assembler);
     }
 
-    private void CacheAsmExtensions(string[] ext)
+    private static bool IsAsm(IProjectFilesConfig config, string name)
     {
-        if (!ReferenceEquals(ext, _cachedAsmExtensionArray))
-        {
-            _cachedAsmExtensionArray = ext;
-            _cachedAsmExtensionHashSet = new HashSet<string>(ext, StringComparer.OrdinalIgnoreCase);
-        }
-    }
-
-    private void CacheMiniCExtensions(string[] ext)
-    {
-        if (!ReferenceEquals(ext, _cachedMiniCExtensionArray))
-        {
-            _cachedMiniCExtensionArray = ext;
-            _cachedMiniCExtensionHashSet = new HashSet<string>(ext, StringComparer.OrdinalIgnoreCase);
-        }
-    }
-
-    private bool IsAsm(IProjectFilesConfig config, string name)
-    {
-        string[] extensions = config.ExtensionsAsm;
+        var extensions = config.ExtensionsAsm;
         if (extensions.Length == 0)
-            extensions = _defaultAsmExtensions; // если нужно преобразовать ImmutableArray в массив
+            extensions = _defaultAsmExtensions;
 
-        CacheAsmExtensions(extensions);
-        string fileExt = Path.GetExtension(name);
-        return _cachedAsmExtensionHashSet!.Contains(fileExt);
+        return HasExtension(extensions, Path.GetExtension(name));
     }
 
-    private bool IsMiniC(IProjectFilesConfig config, string name)
+    private static bool IsMiniC(IProjectFilesConfig config, string name)
     {
-        string[] extensions = config.ExtensionsMiniC;
+        var extensions = config.ExtensionsMiniC;
         if (extensions.Length == 0)
             extensions = _defaultMiniCExtensions;
 
-        CacheMiniCExtensions(extensions);
-        string fileExt = Path.GetExtension(name);
-        return _cachedMiniCExtensionHashSet!.Contains(fileExt);
+        return HasExtension(extensions, Path.GetExtension(name));
     }
-    private SourceLanguage FindLang(IProjectFilesConfig config, string name)
+
+    private static bool HasExtension(string[] extensions, string fileExt)
+    {
+        foreach (var ext in extensions)
+        {
+            if (string.Equals(ext, fileExt, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
+    }
+    private static SourceLanguage FindLang(IProjectFilesConfig config, string name)
     {
         if (IsAsm(config, name)) return SourceLanguage.Asm;
         else if (IsMiniC(config, name)) return SourceLanguage.C;

@@ -19,7 +19,7 @@ public class InlineSmallVoidFunctionsRule : IAstOptimizationRule
 
     private static void InlineSmallVoidFunctions(ProgramNode program, int maxBodySize, ILogOptimization inlinedFunc)
     {
-        var candidates = program.Functions
+        var candidates = program.FunctionNodes
             .Where(f => f.ReturnType == "void" &&
                         !f.IsExternal &&
                         f.Name != "main" &&
@@ -33,7 +33,7 @@ public class InlineSmallVoidFunctionsRule : IAstOptimizationRule
 
         var inlined = new HashSet<string>();
 
-        foreach (var func in program.Functions)
+        foreach (var func in program.FunctionNodes)
         {
             if (func.Body != null && func.Name != "main")
             {

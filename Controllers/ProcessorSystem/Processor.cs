@@ -2,7 +2,6 @@
 using Kernel.ControllersData;
 using Kernel.RamSystem;
 using System.Collections.Concurrent;
-using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using System.Text;
 using static Kernel.Common.InstructionDecoder;
@@ -11,6 +10,14 @@ namespace Kernel.ProcessorSystem;
 
 public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus portBus, Lock regLock, ReadOnlySpan<char> name)
 {
+    public readonly struct ResultInstruction(BiosStatus biosStatus, ulong adress)
+    {
+        public readonly BiosStatus BiosStatus = biosStatus;
+        public readonly ulong Adress = adress;
+
+        public static ResultInstruction IsSucced => new(BiosStatus.Success, 0);
+    }
+
     [InlineArray(CountReg)]
     private struct ArrayRegisters
     {
@@ -18,7 +25,6 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
     }
 
     private const int CountReg = 32;
-    private const ulong NegativeMask = 0x8000000000000000;
 
     private ArrayRegisters _registers;
 
@@ -30,22 +36,20 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
     private PortBus _portBus = portBus;
     private Lock _regLock = regLock;
 
-    private volatile bool _isRunning = false;
-    private volatile bool _hasSimulationStatus = false;
-    private volatile bool _hasExternalCommand = false;
-    private bool _sleeping = false;
+    private int _isRunning = 0;
+    private int _hasSimulationStatus = 0;
+    private int _hasExternalCommand = 0;
+    private int _sleeping = 0;
 
-    private Action<ulong, uint, OpCode>? _snowOpcodeCallback;
-
-    public bool IsSleeping => _sleeping;
-    public bool IsRunning => _isRunning;
+    public bool IsSleeping => Volatile.Read(ref _sleeping) == 1;
+    public bool IsRunning => Volatile.Read(ref _isRunning) == 1;
     private bool IsZero => (_registers[RegType.rFL.Int] & 1UL) == 0UL;
     private bool IsNegative => (_registers[RegType.rFL.Int] & 2UL) == 0UL;
     private bool IsPositive => (_registers[RegType.rFL.Int] & 3UL) == 0UL;
 
     public bool TryInitInPool(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus portBus, Lock regLock, ReadOnlySpan<char> name)
     {
-        if (_isRunning) return false;
+        if (IsRunning) return false;
 
         Reset();
 
@@ -56,6 +60,7 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
 
         return true;
     }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ulong GetRegValue(RegType reg)
     {
@@ -67,14 +72,12 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
     {
         if (reg == RegType.rZ) return;
 
-        _registers[(int)reg] = (reg == RegType.rFL) ? (value & 0x3UL) : value;
+        _registers[reg.Int] = (reg == RegType.rFL) ? (value & 0x3UL) : value;
     }
-
-
 
     public void EnqueueBiosStatus(BiosStatus status)
     {
-        _hasSimulationStatus = true;
+        Volatile.Write(ref _hasSimulationStatus, 1);
         _statusFromSimulation.Enqueue(status);
     }
 
@@ -106,12 +109,11 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
             (_registers[RegType.rFL.Int] & ~3UL) | zeroFlag | (negativeFlag << 1);
     }
 
-    public void LaunchProgramm(ulong startAddress, Action<ulong, uint, OpCode>? act = null)
+    public void LaunchProgramm(ulong startAddress)
     {
-        _snowOpcodeCallback = act;
-        _sleeping = false;
+        Volatile.Write(ref _sleeping, 0);
         _registers[RegType.rIP.Int] = startAddress;
-        _isRunning = true;
+        Volatile.Write(ref _isRunning, 1);
 
         _registers[RegType.rCL.Int] = 0;
         _registers[RegType.rCD.Int] = 0;
@@ -124,51 +126,55 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         _registers[RegType.rSP.Int] = stackTop;
     }
 
-    public void ExternalCommandExecute()
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private void ProcessControlSignals()
     {
-        if (_hasExternalCommand)
-        {        
-            while (_externalCommands.TryDequeue(out uint cmd))
-            {
-                ExecuteExternalCommand(cmd);
-                if (!_isRunning) return;   // если команда остановила процессор
-            }
-            _hasExternalCommand = false;
-        }
+        if (Volatile.Read(ref _hasExternalCommand) == 1)
+            ProcessExternalCommandsSlow();
+
+        if (Volatile.Read(ref _hasSimulationStatus) == 1)
+            ProcessSimulationStatusSlow();
     }
-    public void Step(bool debug = false)
+
+
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void ProcessExternalCommandsSlow()
     {
-        if (_sleeping) return;
-
-        ExternalCommandExecute();
-
-        if (_hasSimulationStatus)
+        while (_externalCommands.TryDequeue(out uint cmd))
         {
-            while (_statusFromSimulation.TryDequeue(out BiosStatus result))
+            ExecuteExternalCommand(cmd);
+            if (!IsRunning) return;
+        }
+        Volatile.Write(ref _hasExternalCommand, 0);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void ProcessSimulationStatusSlow()
+    {
+        while (_statusFromSimulation.TryDequeue(out BiosStatus result))
+        {
+            if (result != BiosStatus.Success)
             {
-                if (result != BiosStatus.Success)
-                {
-                    _isRunning = ProcessorHelpers.TryContinueAfterStatus(new ResultInstruction(result, 1UL), ulong.MaxValue, _regLock);
-                    return;
-                }
+                Volatile.Write(ref _isRunning, ProcessorHelpers.TryContinueAfterStatus(new ResultInstruction(result, 1UL), ulong.MaxValue, _regLock));
+                return;
             }
-            _hasSimulationStatus = false;
         }
+        Volatile.Write(ref _hasSimulationStatus, 0);
+    }
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
+    public void Step()
+    {
+        ProcessControlSignals();
 
-        ulong ip = _registers[RegType.rIP.Int];
+        if (!IsRunning || IsSleeping) return;
+        
 
-        RAMResultInt32 instResult = _ram.ReadInt32LE(ip);
+        ulong ip = _registers[RegType.rIP.Int];        
 
-        if (!instResult.IsSuccess)
-        {
-            _isRunning = ProcessorHelpers.TryContinueAfterStatus(new ResultInstruction(instResult.Status, instResult.FaultAddress), ip, _regLock);
-            return;
-        }
+        uint rawInst = _ram.ReadInt32LEUnSafe(ip);
+        OpCode opCode = GetOpCode(rawInst);
 
-        uint rawInst = instResult.Data;
-        OpCode opCode = (OpCode)(rawInst & 0xFF);
-
-        _snowOpcodeCallback?.Invoke(ip, rawInst, opCode);
         ip += 4;
 
         ulong data = 0;
@@ -176,99 +182,85 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         if (HasNeed64IntData(opCode))
         {
             ip = (ip + 7) & ~7UL;
-            RAMResultInt64 dataResult = _ram.ReadInt64LE(ip);
-            if (!dataResult.IsSuccess)
-            {
-                _isRunning = ProcessorHelpers.TryContinueAfterStatus(new ResultInstruction(dataResult.Status, dataResult.FaultAddress), ip, _regLock);
-                return;
-            }
 
-            data = dataResult.Data;
+            data = _ram.ReadInt64LEUnSafe(ip);
             ip += 8;
         }
 
-        if (debug)
-            DebugOpcode(ip, rawInst, opCode);
         _registers[RegType.rIP.Int] = ip;
         
-        ResultInstruction dat = DecodeInstruction(rawInst, data);
+        ResultInstruction dat = opCode switch
+        {
+            // === 1. Системные команды ===
+            OpCode.NOP => ResultInstruction.IsSucced,
+            OpCode.END => EndProgramm(),
+            OpCode.PRINT => InstructionPRINT(GetReg1(rawInst)),
+            // === 2. Работа с памятью (Указатели и регистры) ===
+            OpCode.MOV => InstructionMOV(GetReg1(rawInst), GetReg2(rawInst)),
+
+            OpCode.LOAD => InstructionLOAD(GetDataSizeCode(rawInst), GetReg1(rawInst), data),
+            OpCode.STORE => InstructionSTORE(GetDataSizeCode(rawInst), GetReg1(rawInst), data),
+            OpCode.STORE_IND => InstructionSTORE_IND(GetDataSizeCode(rawInst), GetReg1(rawInst), GetReg2(rawInst)),
+            OpCode.LOAD_IND => InstructionLOAD_IND(GetDataSizeCode(rawInst), GetReg1(rawInst), GetReg2(rawInst)),
+
+            OpCode.LOAD_UNSAFE => InstructionLOAD_UNSAFE(GetDataSizeCode(rawInst), GetReg1(rawInst), data),
+            OpCode.STORE_UNSAFE => InstructionSTORE_UNSAFE(GetDataSizeCode(rawInst), GetReg1(rawInst), data),
+            OpCode.STORE_IND_UNSAFE => InstructionSTORE_IND_UNSAFE(GetDataSizeCode(rawInst), GetReg1(rawInst), GetReg2(rawInst)),
+            OpCode.LOAD_IND_UNSAFE => InstructionLOAD_IND_UNSAFE(GetDataSizeCode(rawInst), GetReg1(rawInst), GetReg2(rawInst)),
+
+            OpCode.LDI => InstructionLDI(GetReg1(rawInst), data),
+
+            // === 3. Арифметика и Логика (Тьюринг-базис) ===
+            OpCode.ADD => InstructionADD(GetReg1(rawInst), GetReg2(rawInst)),
+            OpCode.SUB => InstructionSUB(GetReg1(rawInst), GetReg2(rawInst)),
+            OpCode.INC => InstructionINC(GetReg1(rawInst)),
+            OpCode.DEC => InstructionDEC(GetReg1(rawInst)),
+            OpCode.MULT_INT => InstructionMULT_INT(GetReg1(rawInst), GetReg2(rawInst)),
+            OpCode.SHR => InstructionSHR(GetReg1(rawInst), GetReg2(rawInst)),
+            OpCode.DIV => InstructionDIV(GetReg1(rawInst), GetReg2(rawInst)),
+
+            // === 4. Логика ===
+            OpCode.AND => InstructionAND(GetReg1(rawInst), GetReg2(rawInst)),
+            OpCode.OR => InstructionOR(GetReg1(rawInst), GetReg2(rawInst)),
+            OpCode.XOR => InstructionXOR(GetReg1(rawInst), GetReg2(rawInst)),
+            OpCode.NOT => InstructionNOT(GetReg1(rawInst)),
+
+            // === 5. Управление потоком ===
+            OpCode.JMP => InstructionJMP(data),
+            OpCode.JZ => InstructionJZ(data),
+            OpCode.JNZ => InstructionJNZ(data),
+            OpCode.JG => InstructionJG(data),
+            OpCode.JL => InstructionJL(data),
+
+            // === 6. Работа со Стеком ===
+            OpCode.PUSH => InstructionPUSH(GetReg1(rawInst)),
+            OpCode.POP => InstructionPOP(GetReg1(rawInst)),
+            OpCode.CALL => InstructionCALL(data),
+            OpCode.RET => InstructionRET(),
+
+            // === 7. Ввод-вывод ===
+            OpCode.IN => InstructionIN(GetReg1(rawInst), GetReg2(rawInst)),
+            OpCode.OUT => InstructionOUT(GetReg1(rawInst), GetReg2(rawInst)),
+            OpCode.INT => InstructionINT(GetReg1(rawInst)),   // GetReg1(rawInst) содержит номер вектора
+            OpCode.IRET => InstructionIRET(),
+
+            OpCode.PRINT_INT => InstructionPRINT_INT(GetReg1(rawInst)),
+            OpCode.ALLOC => InstructionALLOC(GetReg1(rawInst)),
+            OpCode.WAKE_INT => InstructionWAKE_INT(GetReg1(rawInst)),
+            OpCode.HALT => InstructionHALT(),
+
+            _ => new ResultInstruction(BiosStatus.NotImplementedOpCode, (ulong)GetOpCode(rawInst))
+        }; ;
 
         if (dat.BiosStatus != BiosStatus.Success)
         {
-            _isRunning = ProcessorHelpers.TryContinueAfterStatus(dat, ip, _regLock);
+            Volatile.Write(ref _isRunning, ProcessorHelpers.TryContinueAfterStatus(dat, ip, _regLock));
         }
     }
-    private void DebugOpcode(ulong ip, uint rawInst, OpCode opCode)
-    {
-        ConsoleLock($"[DEBUG] IP=0x{ip:X16}  OpCode={opCode,-12}  Raw=0x{rawInst:X8}");
-    }
-
-    public ResultInstruction DecodeInstruction(uint rawInst, ulong data) => GetOpCode(rawInst) switch
-    {
-        // === 1. Системные команды ===
-        OpCode.NOP => ResultInstruction.IsSucced,
-        OpCode.END => EndProgramm(),
-        OpCode.PRINT => InstructionPRINT(GetReg1(rawInst)),
-        // === 2. Работа с памятью (Указатели и регистры) ===
-        OpCode.MOV => InstructionMOV(GetReg1(rawInst), GetReg2(rawInst)),
-
-        OpCode.LOAD => InstructionLOAD(GetDataSizeCode(rawInst), GetReg1(rawInst), data),
-        OpCode.STORE => InstructionSTORE(GetDataSizeCode(rawInst), GetReg1(rawInst), data),
-        OpCode.STORE_IND => InstructionSTORE_IND(GetDataSizeCode(rawInst), GetReg1(rawInst), GetReg2(rawInst)),
-        OpCode.LOAD_IND => InstructionLOAD_IND(GetDataSizeCode(rawInst), GetReg1(rawInst), GetReg2(rawInst)),
-
-        OpCode.LOAD_UNSAFE => InstructionLOAD_UNSAFE(GetDataSizeCode(rawInst), GetReg1(rawInst), data),
-        OpCode.STORE_UNSAFE => InstructionSTORE_UNSAFE(GetDataSizeCode(rawInst), GetReg1(rawInst), data),
-        OpCode.STORE_IND_UNSAFE => InstructionSTORE_IND_UNSAFE(GetDataSizeCode(rawInst), GetReg1(rawInst), GetReg2(rawInst)),
-        OpCode.LOAD_IND_UNSAFE => InstructionLOAD_IND_UNSAFE(GetDataSizeCode(rawInst), GetReg1(rawInst), GetReg2(rawInst)),
-
-        OpCode.LDI => InstructionLDI(GetReg1(rawInst), data),
-
-        // === 3. Арифметика и Логика (Тьюринг-базис) ===
-        OpCode.ADD => InstructionADD(GetReg1(rawInst), GetReg2(rawInst)),
-        OpCode.SUB => InstructionSUB(GetReg1(rawInst), GetReg2(rawInst)),
-        OpCode.INC => InstructionINC(GetReg1(rawInst)),
-        OpCode.DEC => InstructionDEC(GetReg1(rawInst)),
-        OpCode.MULT_INT => InstructionMULT_INT(GetReg1(rawInst), GetReg2(rawInst)),
-        OpCode.SHR => InstructionSHR(GetReg1(rawInst), GetReg2(rawInst)),
-        OpCode.DIV => InstructionDIV(GetReg1(rawInst), GetReg2(rawInst)),
-
-        // === 4. Логика ===
-        OpCode.AND => InstructionAND(GetReg1(rawInst), GetReg2(rawInst)),
-        OpCode.OR => InstructionOR(GetReg1(rawInst), GetReg2(rawInst)),
-        OpCode.XOR => InstructionXOR(GetReg1(rawInst), GetReg2(rawInst)),
-        OpCode.NOT => InstructionNOT(GetReg1(rawInst)),
-
-        // === 5. Управление потоком ===
-        OpCode.JMP => InstructionJMP(data),
-        OpCode.JZ => InstructionJZ(data),
-        OpCode.JNZ => InstructionJNZ(data),
-        OpCode.JG => InstructionJG(data),
-        OpCode.JL => InstructionJL(data),
-
-        // === 6. Работа со Стеком ===
-        OpCode.PUSH => InstructionPUSH(GetReg1(rawInst)),
-        OpCode.POP => InstructionPOP(GetReg1(rawInst)),
-        OpCode.CALL => InstructionCALL(data),
-        OpCode.RET => InstructionRET(),
-
-        // === 7. Ввод-вывод ===
-        OpCode.IN => InstructionIN(GetReg1(rawInst), GetReg2(rawInst)),
-        OpCode.OUT => InstructionOUT(GetReg1(rawInst), GetReg2(rawInst)),
-        OpCode.INT => InstructionINT(GetReg1(rawInst)),   // GetReg1(rawInst) содержит номер вектора
-        OpCode.IRET => InstructionIRET(),
-
-        OpCode.PRINT_INT => InstructionPRINT_INT(GetReg1(rawInst)),
-        OpCode.ALLOC => InstructionALLOC(GetReg1(rawInst)),
-        OpCode.WAKE_INT => InstructionWAKE_INT(GetReg1(rawInst)),
-        OpCode.HALT => InstructionHALT(),
-
-        _ => new ResultInstruction(BiosStatus.NotImplementedOpCode, (ulong)GetOpCode(rawInst))
-    };
 
     private ResultInstruction InstructionHALT()
     {
-        _sleeping = true;
+        Volatile.Write(ref _sleeping, 1);
         return ResultInstruction.IsSucced;
     }
 
@@ -328,7 +320,12 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         // выравниваем размер вверх до кратности 8
         if (size % 8 != 0) size = (size + 7) & ~7UL;
         ulong result = hp;
-        _registers[RegType.rHP.Int] = hp + size;
+        ulong newHp = hp + size;
+        if (newHp >= _registers[(int)RegType.rSP])   // коллизия с стеком
+        {
+            return new ResultInstruction(BiosStatus.SegmentationFault, result);
+        }
+        _registers[RegType.rHP.Int] = newHp;
         _registers[RegType.r0.Int] = result;
         UpdateFlags(result);
         return ResultInstruction.IsSucced;
@@ -379,7 +376,7 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
 
     public ResultInstruction EndProgramm()
     {
-        _isRunning = false;
+        Volatile.Write(ref _isRunning, 0);
         return new ResultInstruction(BiosStatus.EndProgramm, 0);
     }
 
@@ -393,14 +390,6 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
     {
         LoggerProvider.CharOutPut((char)_registers[reg.Int]);
         return ResultInstruction.IsSucced;
-    }
-
-    public readonly struct ResultInstruction(BiosStatus biosStatus, ulong adress)
-    {
-        public readonly BiosStatus BiosStatus = biosStatus;
-        public readonly ulong Adress = adress;
-
-        public static ResultInstruction IsSucced => new(BiosStatus.Success, 0);
     }
 
     private ResultInstruction InstructionMOV(RegType reg1, RegType reg2)
@@ -754,7 +743,11 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
 
         if (!writeResult.IsSuccess)
             return new ResultInstruction(writeResult.Status, sp);
-        
+
+        if (_registers[RegType.rHP.Int] >= sp)   // коллизия с стеком
+        {
+            return new ResultInstruction(BiosStatus.SegmentationFault, writeResult.Data);
+        }
 
         _registers[RegType.rSP.Int] = sp;
         return ResultInstruction.IsSucced;
@@ -790,7 +783,10 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         {
             ulong sp = _registers[RegType.rSP.Int];
             sp -= 8;
-
+            if (_registers[RegType.rHP.Int] >= sp)   // коллизия с стеком
+            {
+                return new ResultInstruction(BiosStatus.SegmentationFault, sp);
+            }
             RAMResultInt64 writeResult = _ram.WriteInt64LE(sp, currentLink);
             if (!writeResult.IsSuccess)
             {
@@ -885,13 +881,13 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
     {
         lock (_regLock)
         {
-            _isRunning = false;
-            _sleeping = false;
+            Volatile.Write(ref _isRunning, 0);
+            Volatile.Write(ref _sleeping, 0);
             ClearRegs();
             while (_externalCommands.TryDequeue(out _));
             while (_statusFromSimulation.TryDequeue(out _));
-            _hasExternalCommand = false;
-            _hasSimulationStatus = false;
+            Volatile.Write(ref _hasExternalCommand, 0);
+            Volatile.Write(ref _hasSimulationStatus, 0);
         }
     }
 
@@ -904,7 +900,7 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
 
     public void EnqueueExternalCommand(uint instruction)
     {
-        _hasExternalCommand = true;
+        Volatile.Write(ref _hasExternalCommand, 1);
         _externalCommands.Enqueue(instruction);
     }
 
@@ -913,9 +909,9 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         OpCode opCode = GetOpCode(rawInst);
         switch (opCode)
         {
-            case OpCode.END: _isRunning = false; return;
-            case OpCode.HALT: _sleeping = true; return;
-            case OpCode.WAKE: _sleeping = false; return;
+            case OpCode.END: Volatile.Write(ref _isRunning, 0); return;
+            case OpCode.HALT: Volatile.Write(ref _sleeping, 1); return;
+            case OpCode.WAKE: Volatile.Write(ref _sleeping, 0); return;
 
             default: return;
         }

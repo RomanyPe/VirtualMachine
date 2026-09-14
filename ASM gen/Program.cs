@@ -2,6 +2,7 @@
 using ASM_gen.StartWindow;
 using Serilog;
 using System.IO;
+using VMApplication;
 using VMApplication.Project;
 
 namespace ASM_gen;
@@ -12,7 +13,7 @@ internal static class Program
     public static void Main()
     {
         Log.Logger = new LoggerConfiguration().WriteTo.File("logs/app-log.txt").CreateLogger();
-
+        KernelWarmup.WarmupAll();
         try
         {
             DirManager.InitializeDirectories();

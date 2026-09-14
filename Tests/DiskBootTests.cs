@@ -29,6 +29,11 @@ public class DiskBootTests(ITestOutputHelper output)
 
         public override string ToString() => _sb.ToString();
         public bool Contains(string text) => _sb.ToString().Contains(text);
+
+        public void CharOutPut(char c)
+        {
+            _sb.Append(c.AsText);
+        }
     }
 
     [Fact]

@@ -1,19 +1,21 @@
 ﻿using Kernel.Common;
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 using static Kernel.ProcessorSystem.Processor;
 
 namespace Kernel.ProcessorSystem;
 
 public static class ProcessorHelpers
 {
-    public static bool TryContinueAfterStatus(ResultInstruction dat, ulong ip, Lock regLock)
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    public static int TryContinueAfterStatus(ResultInstruction dat, ulong ip, Lock regLock)
     {
         if (dat.BiosStatus == BiosStatus.EndProgramm)
         {
             lock (regLock)
             {
                 LoggerProvider.Info($"\n [INFO] Программа успешно завершила работу (HALT). Ip [{ip}]");
-                return false;
+                return 0;
             }
         }
 
@@ -28,7 +30,7 @@ public static class ProcessorHelpers
             _ => $"НЕПРЕДВИДЕННАЯ ОШИБКА СИМУЛЯЦИИ адрес [{dat.Adress}]"
         };
 
-        return OutputLog(dat.BiosStatus, regLock, errorMessage, ip);
+        return OutputLog(dat.BiosStatus, regLock, errorMessage, ip) ? 1 : 0;
     }
 
 

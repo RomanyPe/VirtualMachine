@@ -1,6 +1,5 @@
 ﻿using Kernel.Common;
 using VMApplication;
-using VMApplication.CallBacks;
 using VMApplication.Emulator;
 
 namespace ConsoleEmulator;
@@ -17,6 +16,7 @@ public class Program
         {
             if (TryInitArgs(args))
             {
+                KernelWarmup.WarmupAll();
                 Run();
             }
         }
@@ -37,7 +37,7 @@ public class Program
     {
         if (args.Length < 2 || args[0] != "-prog" || string.IsNullOrEmpty(args[1]))
         {
-            Console.WriteLine("аргемент '-p' отсутсвует или данные переданы неверно");
+            Console.WriteLine("аргемент '-prog' отсутсвует или данные переданы неверно");
             return false;
         }
 
@@ -82,17 +82,10 @@ public class Program
             Console.WriteLine(error);
             return;
         }
-        launchMode.SetHeapAddress((ulong)program.Length);
         // 5. Запускаем эмуляцию (в том же потоке или через планировщик)
         launchMode?.LaunchDeviceOnMainThread(
-            startAddress: 0,
-            debug: false,
-            delayMs: 0,
-            showTimer: true,
-            callBack: new CallBackOnLaunch(
-                onStart: ctx => ctx.Log("Симуляция началась", LogLevel.Log),
-                onEnd: ctx => ctx.Log("Симуляция завершена", LogLevel.Log)
-            )
+            onStart: ctx => ctx.Log("Симуляция началась", LogLevel.Log),
+            onEnd: ctx => ctx.Log("Симуляция завершена", LogLevel.Log)
         );
     }
     private static void EndEmulator()

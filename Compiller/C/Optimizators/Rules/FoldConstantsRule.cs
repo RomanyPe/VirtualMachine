@@ -18,7 +18,7 @@ public class FoldConstantsRule : IAstOptimizationRule
 
     private static void FoldConstants(ProgramNode program, ILogOptimization log)
     {
-        foreach (var func in program.Functions)
+        foreach (var func in program.FunctionNodes)
         {
             if (func.IsExternal || func.Body == null) continue;
             FoldConstantsInBlock(func.Body, log);

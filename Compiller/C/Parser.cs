@@ -34,7 +34,7 @@ public class Parser(List<Token> tokens)
                 Expect(TokenType.Punctuation, "}");
                 if (Current.Type == TokenType.Punctuation && Current.Value == ";")
                     Advance();
-                program.Structs.Add(new StructDeclNode(name, fields));
+                program.StructNodes.Add(new StructDeclNode(name, fields));
                 continue;
             }
             if (Current.Type == TokenType.Operator && Current.Value == "#")
@@ -44,7 +44,7 @@ public class Parser(List<Token> tokens)
                 if (directive != "include")
                     ThrowHelper.ThrowMiniC(ErrorCode.Parser_UnknownDirective, directive);
                 string filePath = Expect(TokenType.String).Value.Trim('"');
-                program.Includes.Add(filePath);
+                program.IncludesList.Add(filePath);
                 // точка с запятой не требуется
                 continue;
             }
@@ -94,7 +94,7 @@ public class Parser(List<Token> tokens)
                         IsExternal = true,
                         Parameters = parameters
                     };
-                    program.Functions.Add(extFunc);
+                    program.FunctionNodes.Add(extFunc);
                 }
                 else // переменная (пока не обрабатываем, но можно пропустить)
                 {
@@ -124,7 +124,7 @@ public class Parser(List<Token> tokens)
                 if (Current.Type == TokenType.Punctuation && Current.Value == "(")
                 {
                     var func = ParseFunction(type, name);
-                    program.Functions.Add(func);
+                    program.FunctionNodes.Add(func);
                 }
                 else
                 {
@@ -153,7 +153,7 @@ public class Parser(List<Token> tokens)
                         varNode.IsPointer = isPointer;
                         varNode.PointedType = pointedType;
                     }
-                    program.Globals.Add(varNode);
+                    program.GlobalVarNodes.Add(varNode);
                     Expect(TokenType.Punctuation, ";");
                 }
             }
@@ -196,6 +196,7 @@ public class Parser(List<Token> tokens)
             return Expect(TokenType.Identifier).Value;
         return Expect(TokenType.Keyword).Value;
     }
+    // EOF
     private FunctionNode ParseFunction(string returnType, string name)
     {
         Expect(TokenType.Punctuation, "(");

@@ -70,6 +70,14 @@ public class Assembler : AssemblerBase
         }
     }
 
+    public override void EmitData(string label, byte[] data)
+    {
+        if (label != null)
+            MarkLabel(label);
+        Align8(); // выравнивание до 8
+        _writer.Write(data);
+    }
+
     /// <summary>Собрать байт-код, подставить адреса меток.</summary>
     public override byte[] Build()
     {

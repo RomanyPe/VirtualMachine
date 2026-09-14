@@ -17,7 +17,7 @@ public class PropagateConstantsRule : IAstOptimizationRule
 
     private static void PropagateConstants(ProgramNode program, ASTNodesOptimization log)
     {
-        foreach (var func in program.Functions)
+        foreach (var func in program.FunctionNodes)
         {
             if (func.IsExternal || func.Body == null) continue;
 

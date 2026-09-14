@@ -1,5 +1,7 @@
 ﻿using Kernel.Common;
 using System.Buffers;
+using System.Buffers.Binary;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Kernel.RamSystem;
@@ -22,6 +24,26 @@ public unsafe sealed class NativeMemoryBuffer : IDisposable
     public int Length => (int)_length; // для совместимости, но лучше использовать nuint
     public nuint LengthU => _length;
     public byte* Pointer => _ptr;
+
+    public byte ReadUInt8(ulong address) => *(_ptr + address);
+    public ushort ReadUInt16(ulong address)
+    {
+        var value = Unsafe.ReadUnaligned<ushort>(_ptr + address); 
+        return BitConverter.IsLittleEndian? value : BinaryPrimitives.ReverseEndianness(value);
+    }
+
+    public uint ReadUInt32(ulong address)
+    {
+        var value = Unsafe.ReadUnaligned<uint>(_ptr + address);
+        return BitConverter.IsLittleEndian ? value : BinaryPrimitives.ReverseEndianness(value);
+
+    }
+
+    public ulong ReadUInt64(ulong address)
+    {
+        var value = Unsafe.ReadUnaligned<ulong>(_ptr + address);
+        return BitConverter.IsLittleEndian ? value : BinaryPrimitives.ReverseEndianness(value);
+    }
 
     public Span<byte> AsSpan() => new(_ptr, (int)_length);
     public ReadOnlySpan<byte> AsReadOnlySpan() => new(_ptr, (int)_length);

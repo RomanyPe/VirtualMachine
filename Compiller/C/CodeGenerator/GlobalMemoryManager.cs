@@ -3,37 +3,16 @@
 // ============================================================
 // GlobalMemoryManager – управление глобальной памятью
 // ============================================================
-public class GlobalMemoryManager(Dictionary<string, StructLayout> structTable)
+public class GlobalMemoryManager()
 {
-    private readonly Dictionary<string, GlobalInfo> _globalAddresses = [];
-    private ulong _nextGlobalAddress = 0x1000;
-    private readonly Dictionary<string, StructLayout> _structTable = structTable; // <-- добавить
+    private readonly Dictionary<string, GlobalInfo> _globals = [];
 
-    public IReadOnlyDictionary<string, GlobalInfo> Addresses => _globalAddresses;
-
-    public GlobalInfo Allocate(string name, string type, bool isArray = false, bool isPointer = false, string? pointedType = null, int arraySize = 0)
+    public void Allocate(string name, string type, bool isArray = false, bool isPointer = false,
+                         string? pointedType = null, int arraySize = 0)
     {
-        int size;
-        string realType = type;
-        if (CodeGenUtils.IsStructType(type, _structTable))
-        {
-            size = _structTable[type].Size;
-            realType = type; // сохраняем имя структуры
-        }
-        else if (isPointer)
-            size = 8;
-        else
-            size = CodeGenUtils.GetSizeInBytes(CodeGenUtils.GetSizeForType(type));
-
-        if (isArray)
-            size *= arraySize;
-
-        var info = new GlobalInfo(_nextGlobalAddress, realType, isArray, isPointer, pointedType);
-        _globalAddresses[name] = info;
-        _nextGlobalAddress += (ulong)size;
-        _nextGlobalAddress = (_nextGlobalAddress + 7) & ~7UL;
-        return info;
+        _globals[name] = new GlobalInfo(0, type, isArray, isPointer, pointedType, arraySize);
     }
+
     public void AllocatePseudoGlobals(FunctionNode func)
     {
         foreach (var param in func.Parameters)
@@ -59,7 +38,7 @@ public class GlobalMemoryManager(Dictionary<string, StructLayout> structTable)
 
     public bool TryGetAddress(string name, out ulong address)
     {
-        if (_globalAddresses.TryGetValue(name, out var info))
+        if (_globals.TryGetValue(name, out var info))
         {
             address = info.Address;
             return true;
@@ -70,8 +49,9 @@ public class GlobalMemoryManager(Dictionary<string, StructLayout> structTable)
 
     public GlobalInfo? GetInfo(string name)
     {
-        return _globalAddresses.TryGetValue(name, out var info) ? info : null;
+        return _globals.TryGetValue(name, out var info) ? info : null;
     }
 
-    public bool Contains(string name) => _globalAddresses.ContainsKey(name);
+    public static string GetLabel(string name) => $"__global_{name}";
+    public bool Contains(string name) => _globals.ContainsKey(name);
 }

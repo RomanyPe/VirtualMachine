@@ -61,7 +61,11 @@ public class IRAssembler(ulong baseAddress = 0) : AssemblerBase(baseAddress)
     {
         _items.Add(new AsmInstruction(instruction, targetLabel: label));
     }
-
+    public override void EmitData(string label, byte[] data)
+    {
+        MarkLabel(label);
+        _items.Add(new AsmData(data));
+    }
     public override bool HasLabel(string name) => _labelNames.Contains(name);
     public List<AsmItem> GetItems() => _items;
     public override byte[] Build()
@@ -77,13 +81,17 @@ public class IRAssembler(ulong baseAddress = 0) : AssemblerBase(baseAddress)
                     labelAddresses[label.Name] = _baseAddress + currentOffset;
                     break;
                 case AsmInstruction instr:
-                    currentOffset += 4; // 4 байта заголовка
+                    currentOffset += 4;
                     if (instr.HasImmediate || instr.IsJump)
                     {
-                        // выравнивание до 8
                         currentOffset = (currentOffset + 7) & ~7UL;
-                        currentOffset += 8; // 8 байт данных
+                        currentOffset += 8;
                     }
+                    break;
+                case AsmData data:
+                    // выравнивание
+                    currentOffset = (currentOffset + (ulong)data.Alignment - 1) & ~((ulong)data.Alignment - 1);
+                    currentOffset += (ulong)data.Data.Length;
                     break;
             }
         }
@@ -95,42 +103,58 @@ public class IRAssembler(ulong baseAddress = 0) : AssemblerBase(baseAddress)
         byte[] emptyPadding = new byte[7]; 
         foreach (var item in _items)
         {
-            if (item is AsmLabel)
-                continue; // метки не пишутся
-
-            var instr = (AsmInstruction)item;
-            // Кодируем заголовок обратно в uint
-            uint raw = InstructionEncoder.Encode(
-                instr.OpCode.Uint,
-                (uint)instr.FirstReg,
-                (uint)instr.SecondReg,
-                (uint)instr.Size);
-            writer.Write(raw);
-            currentOffset += 4;
-
-            if (instr.HasImmediate || instr.IsJump)
+            switch (item)
             {
-                // выравнивание
-                int pad = (int)((long)currentOffset + 7 & ~7L) - (int)currentOffset;
-                if (pad > 0)
-                    writer.Write(emptyPadding.AsSpan(0, pad));
-                
+                case AsmLabel:
+                    continue; // метки не пишутся
+                case AsmInstruction instr:
+                    {
+                        // Кодируем заголовок обратно в uint
+                        uint raw = InstructionEncoder.Encode(
+                            instr.OpCode.Uint,
+                            (uint)instr.FirstReg,
+                            (uint)instr.SecondReg,
+                            (uint)instr.Size);
+                        writer.Write(raw);
+                        currentOffset += 4;
 
-                currentOffset += (ulong)pad;
+                        if (instr.HasImmediate || instr.IsJump)
+                        {
+                            // выравнивание
+                            int pad = (int)((long)currentOffset + 7 & ~7L) - (int)currentOffset;
+                            if (pad > 0)
+                                writer.Write(emptyPadding.AsSpan(0, pad));
 
-                ulong data;
-                if (instr.IsJump)
-                {
-                    if (!labelAddresses.TryGetValue(instr.TargetLabel!, out var targetAddr))
-                        ThrowHelper.ThrowMiniC(ErrorCode.Asm_UndefinedLabel, instr.TargetLabel!, 0);
-                    data = targetAddr;
-                }
-                else
-                {
-                    data = instr.Immediate!.Value;
-                }
-                writer.Write(data);
-                currentOffset += 8;
+
+                            currentOffset += (ulong)pad;
+
+                            ulong data;
+                            if (instr.IsJump)
+                            {
+                                if (!labelAddresses.TryGetValue(instr.TargetLabel!, out var targetAddr))
+                                    ThrowHelper.ThrowMiniC(ErrorCode.Asm_UndefinedLabel, instr.TargetLabel!, 0);
+                                data = targetAddr;
+                            }
+                            else
+                            {
+                                data = instr.Immediate!.Value;
+                            }
+                            writer.Write(data);
+                            currentOffset += 8;
+                        }
+
+                        break;
+                    }
+
+                case AsmData data:
+                    {
+                        // выравнивание
+                        int pad = (int)((currentOffset + (ulong)data.Alignment - 1) & ~((ulong)data.Alignment - 1)) - (int)currentOffset;
+                        if (pad > 0) writer.Write(emptyPadding.AsSpan(0, pad));
+                        writer.Write(data.Data);
+                        currentOffset += (ulong)pad + (ulong)data.Data.Length;
+                        break;
+                    }
             }
         }
 

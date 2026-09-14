@@ -71,7 +71,7 @@
                 Интервал команд
             </TextBlock>
 
-            <TextBox Name="DelayInput" Margin="20,5,20,0" Text="5" TextChanged="DelayInput_TextChanged"/>
+            <TextBox Name="DelayInput" Margin="20,5,20,0" Text="0" TextChanged="DelayInput_TextChanged"/>
 
             <Button x:Name="ClearOutput" Click="BtnClearOutput" 
             Content="Очистить вывод" Margin="5,5,5,0" Height="20"/>

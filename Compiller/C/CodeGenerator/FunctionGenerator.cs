@@ -17,33 +17,62 @@ public class FunctionGenerator(AssemblerBase asm, Dictionary<string, StructLayou
 
     public void Generate(ProgramNode program)
     {
-        _globalMem = new GlobalMemoryManager(_structTable);
+        _globalMem = new GlobalMemoryManager();
 
         //foreach (var s in program.Structs)
         //{
         //    _structTable[s.Name] = new(s.Name, s.Fields, _structTable);
         //}
 
-        foreach (var global in program.Globals)
+        foreach (var global in program.GlobalVarNodes)
         {
             _globalMem.Allocate(global.Name, global.Type, global.IsArray, global.IsPointer, global.PointedType, global.ArraySize);
         }
 
 
         _functionTable.Clear();
-        foreach (var func in program.Functions)
+        foreach (var func in program.FunctionNodes)
             _functionTable[func.Name] = func;
-
-        foreach (var func in program.Functions)
-            _globalMem.AllocatePseudoGlobals(func);
 
         GenerateGlobalInit(program);
 
-        foreach (var func in program.Functions)
+        foreach (var func in program.FunctionNodes)
         {
             if (func.IsExternal) continue;
             GenerateFunction(func);
         }
+
+        foreach (var global in program.GlobalVarNodes)
+        {
+            int size = GetGlobalDataSize(global, _structTable);
+            byte[] data = new byte[(size + 7) & ~7]; // выравнивание до 8
+            _asm.EmitData(GlobalMemoryManager.GetLabel(global.Name), data);
+        }
+
+        foreach (var func in program.FunctionNodes)
+        {
+            for (int i = 4; i < func.Parameters.Count; i++)
+            {
+                var param = func.Parameters[i];
+                string globalName = $"__param_{func.Name}_{param.Name}";
+                // размер всегда 8 (для простоты)
+                byte[] data = new byte[8];
+                _asm.EmitData(GlobalMemoryManager.GetLabel(globalName), data);
+            }
+        }
+    }
+
+    private static int GetGlobalDataSize(VariableNode varNode, Dictionary<string, StructLayout> structTable)
+    {
+        int baseSize;
+        if (varNode.IsPointer)
+            baseSize = 8;
+        else if (structTable.TryGetValue(varNode.Type, out var layout))
+            baseSize = layout.Size;
+        else
+            baseSize = CodeGenUtils.GetSizeInBytes(CodeGenUtils.GetSizeForType(varNode.Type));
+
+        return varNode.IsArray ? baseSize * varNode.ArraySize : baseSize;
     }
 
     private void GenerateGlobalInit(ProgramNode program)
@@ -51,9 +80,9 @@ public class FunctionGenerator(AssemblerBase asm, Dictionary<string, StructLayou
         // Временный контекст для вычисления глобальных инициализаторов
         var dummyCtx = new FunctionContext(); // не используется для varMap
         var getLabel = GetLabel;
-        var exprGen = new ExpressionGenerator(_asm, _globalMem, dummyCtx, _functionTable, getLabel, _structTable);
+        var exprGen = new ExpressionGenerator(_asm, _globalMem, dummyCtx, _functionTable, getLabel, _structTable, new VariableAccessor(_asm, dummyCtx, _globalMem));
 
-        foreach (var global in program.Globals)
+        foreach (var global in program.GlobalVarNodes)
         {
             if (global.Initializer != null)
             {
@@ -62,12 +91,9 @@ public class FunctionGenerator(AssemblerBase asm, Dictionary<string, StructLayou
                     continue;
 
                 exprGen.GenerateExpression(global.Initializer);
-                if (_globalMem.TryGetAddress(global.Name, out var addr))
-                {
-                    var gInfo = _globalMem.GetInfo(global.Name)!.Value;
-                    var opSize = global.IsPointer ? OpCodeSize.S64 : CodeGenUtils.GetSizeForType(global.Type);
-                    _asm.EmitInstruction64(InstructionEncoder.EncodeSTORE((uint)RegType.r0, opSize.Uint), addr);
-                }
+                OpCodeSize opSize = global.IsPointer ? OpCodeSize.S64 : CodeGenUtils.GetSizeForType(global.Type);
+                string label = GlobalMemoryManager.GetLabel(global.Name);
+                _asm.EmitInstruction64WithLabel(InstructionEncoder.EncodeSTORE(RegType.r0.Uint, opSize.Uint), label);
             }
         }
     }
@@ -82,11 +108,11 @@ public class FunctionGenerator(AssemblerBase asm, Dictionary<string, StructLayou
 
         // Создание контекста функции
         var funcCtx = FunctionContext.Create(func, localVarNodes, _structTable);
-
+        var varAccessor = new VariableAccessor(_asm, funcCtx, _globalMem);
         // Генераторы для тела функции
         var getLabel = GetLabel;
-        var exprGen = new ExpressionGenerator(_asm, _globalMem, funcCtx, _functionTable, getLabel, _structTable);
-        var stmtGen = new StatementGenerator(_asm, exprGen, funcCtx, getLabel, _globalMem, _structTable);
+        var exprGen = new ExpressionGenerator(_asm, _globalMem, funcCtx, _functionTable, getLabel, _structTable, varAccessor);
+        var stmtGen = new StatementGenerator(_asm, exprGen, funcCtx, getLabel, _globalMem, _structTable, varAccessor);
 
         bool isMain = func.Name == "main";
 
@@ -96,20 +122,41 @@ public class FunctionGenerator(AssemblerBase asm, Dictionary<string, StructLayou
             foreach (var reg in funcCtx.UsedRegisters.OrderBy(r => (int)r))
                 _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.PUSH.Uint, (uint)reg));
 
-            foreach (var param in func.Parameters)
+            // Вместо загрузки из псевдоглобалов:
+            for (int i = 0; i < func.Parameters.Count; i++)
             {
-                if (!funcCtx.VarMap.TryGetValue(param.Name, out var loc) || !loc.IsRegister)
-                    ThrowHelper.ThrowMiniC(ErrorCode.CodeGen_ParameterNotInRegister, param.Name);
-                string globalName = $"__param_{func.Name}_{param.Name}";
-                var addr = _globalMem.GetInfo(globalName)!.Value.Address;
-                OpCodeSize size;
-                if (param.IsPointer)
-                    size = OpCodeSize.S64;
-                else if (_structTable.ContainsKey(param.Type))
-                    size = OpCodeSize.S64;   // значение-структура пока не передаётся в регистр, но на всякий случай
+                var param = func.Parameters[i];
+                if (i < 4)
+                {
+                    // Параметр пришёл в регистре r0..r3
+                    RegType incomingReg = (RegType)i;
+                    if (!funcCtx.VarMap.TryGetValue(param.Name, out var loc))
+                        ThrowHelper.ThrowMiniC(ErrorCode.CodeGen_ParameterNotInRegister, param.Name);
+
+                    if (loc.IsRegister)
+                    {
+                        // Перемещаем в выделенный регистр
+                        if (loc.Register != incomingReg)
+                            _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, loc.Register.Uint, incomingReg.Uint));
+                    }
+                    else
+                    {
+                        // Сохраняем в стек
+                        _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(CodeGenUtils.TMP_REG), (ulong)loc.StackOffset);
+                        _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, CodeGenUtils.TMP_REG, RegType.rSP.Uint));
+                        _asm.EmitInstruction(InstructionEncoder.EncodeSTORE_IND(incomingReg.Uint, CodeGenUtils.TMP_REG, loc.TypeSize.Uint));
+                    }
+                }
                 else
-                    size = CodeGenUtils.GetSizeForType(param.Type);
-                _asm.EmitInstruction64(InstructionEncoder.EncodeLOAD((uint)loc.Register, size.Uint), addr);
+                {
+                    // Для параметров > 4 оставляем старый механизм (псевдоглобалы)
+                    if (!funcCtx.VarMap.TryGetValue(param.Name, out var loc) || !loc.IsRegister)
+                        ThrowHelper.ThrowMiniC(ErrorCode.CodeGen_ParameterNotInRegister, param.Name);
+                    string globalName = $"__param_{func.Name}_{param.Name}";
+                    var addr = _globalMem.GetInfo(globalName)!.Value.Address;
+                    OpCodeSize size = param.IsPointer ? OpCodeSize.S64 : CodeGenUtils.GetSizeForType(param.Type);
+                    _asm.EmitInstruction64(InstructionEncoder.EncodeLOAD(loc.Register.Uint, size.Uint), addr);
+                }
             }
 
             if (funcCtx.TotalLocalSize > 0)

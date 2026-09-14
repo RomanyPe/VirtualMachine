@@ -2,7 +2,6 @@
 using Kernel.Common;
 using ThreadingSystem;
 using ThreadingSystem.ThreadControl;
-using VMApplication.CallBacks;
 using VMApplication.Project;
 
 namespace VMApplication.Emulator;
@@ -13,27 +12,21 @@ public class LaunchModeDevice
 
     internal LaunchModeDevice(Device device) => _device = device;
 
-    public void SetHeapAddress(ulong hp) => _device.InitHeap(hp);
-
-    [Obsolete(
-    """
-    Используйте метод 'LaunchDeviceAsThreadTask', работающий через ThreadScheduler.
-    Внимание: Прямой запуск потока может конфликтовать с планировщиком в режиме MaxThreadCPU, 
-    вызывая просадки производительности. Сохраняйте возвращаемый 'ThreadHandle' для последующей остановки.
-    """, error: false)]
     public void LaunchDeviceOnDedicatedThread(ulong startAddress = ProjectBuilder.BaseAdressProgram,
                              bool debug = false,
                              int delayMs = 0,
                              bool showTimer = false,
-                             CallBackOnLaunch callBack = default)
+                             Action<IDeviceLoggerContext>? onLaunch = null,
+                             Action<IDeviceLoggerContext>? onStart = null,
+                             Action<IDeviceLoggerContext>? onEnd = null)
     {
-        _device.LaunchDeviceOnDedicatedThread(startAddress,
+    _device.LaunchDeviceOnDedicatedThread(startAddress,
                              debug,
                              delayMs,
                              showTimer,
-                             callBack.OnTitleLaunch,
-                             callBack.OnStart,
-                             callBack.OnEnd);
+                             onLaunch,
+                             onStart,
+                             onEnd);
     }
 
     public ThreadHandle? LaunchManagedDeviceThread(ThreadScheduler scheduler,
@@ -41,56 +34,59 @@ public class LaunchModeDevice
         bool debug = false,
         int delayMs = 0,
         bool showTimer = false,
-        CallBackOnLaunch callBack = default)
+        Action<IDeviceLoggerContext>? onLaunch = null,
+        Action<IDeviceLoggerContext>? onStart = null,
+        Action<IDeviceLoggerContext>? onEnd = null)
     {
-        return _device.LaunchManagedDeviceThread(
+        return _device.LaunchDeviceAsThreadTask(
             scheduler,
             startAddress,
             debug,
             delayMs,
             showTimer,
-            callBack.OnTitleLaunch,
-            callBack.OnStart,
-            callBack.OnEnd);
+            onLaunch,
+            onStart,
+            onEnd);
     }
 
     public void LaunchDeviceOnMainThread(ulong startAddress = ProjectBuilder.BaseAdressProgram,
                              bool debug = false,
                              int delayMs = 0,
                              bool showTimer = false,
-                             CallBackOnLaunch callBack = default)
+                             Action<IDeviceLoggerContext>? onLaunch = null,
+                             Action<IDeviceLoggerContext>? onStart = null,
+                             Action<IDeviceLoggerContext>? onEnd = null)
     {
         _device.LaunchDeviceOnMainThread(startAddress,
                              debug,
                              delayMs,
                              showTimer,
-                             callBack.OnTitleLaunch,
-                             callBack.OnStart,
-                             callBack.OnEnd);
+                             onLaunch,
+                             onStart,
+                             onEnd);
     }
 
-    [Obsolete("""
-    Используйте новую перегрузку 'StopAndReset(ThreadHandle, ...)' и затем вручную сбросьте состояние.
-    
-    Внимание: Этот метод жестко завязан на старый механизм 'StopDevice'. 
-    Попытка вызвать его для задачи из ThreadScheduler приведет к утечке ресурсов или зависанию, 
-    так как у него нет доступа к дескриптору потока (ThreadHandle).
-    """, error: false)]
-    public DeviceContext StopAndReset(int stopTime = 3000, CallBackOnStopDecidedThread callBack = default)
+    public DeviceContext StopAndReset(int stopTime = 3000,
+            Action<IDeviceLoggerContext>? onThreadIsDead = null,
+            Action<IDeviceLoggerContext>? onThreadIsLiveTrue = null,
+            Action<IDeviceLoggerContext>? onThreadStopedTrue = null,
+            Action<IDeviceLoggerContext>? OnThreadStopedFalse = null)
     {
-        _device.StopDevice(stopTime,
-                           callBack.OnThreadIsLiveTrue,
-                           callBack.OnThreadIsDead,
-                           callBack.OnThreadStopedTrue,
-                           callBack.OnThreadIsDead);
-        return new DeviceContext(_device);
+            _device.StopDevice(stopTime,
+                               onThreadIsLiveTrue,
+                               onThreadIsDead,
+                               onThreadStopedTrue,
+                               OnThreadStopedFalse);
+            return new DeviceContext(_device);
     }
-    public DeviceContext StopAndReset(ThreadHandle handle, TimeSpan stopTime, CallBackOnStopDecidedThread callBack = default)
+    public DeviceContext StopAndReset(ThreadHandle handle, TimeSpan stopTime,
+                Action<IDeviceLoggerContext>? onSuccess = null,
+                Action<IDeviceLoggerContext>? onTimeout = null)
     {
         _device.Stop(handle,
                      stopTime,
-                     callBack.OnThreadStopedTrue,
-                     callBack.OnThreadIsDead);
+                     onSuccess,
+                     onTimeout);
         return new DeviceContext(_device);
     }
 

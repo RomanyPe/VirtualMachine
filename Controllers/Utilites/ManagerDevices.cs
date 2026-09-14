@@ -1,6 +1,10 @@
 ﻿using Kernel.BiosSystem;
 using Kernel.Common;
 using Kernel.ControllersData;
+using Kernel.ProcessorSystem;
+using Kernel.RamSystem;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace Kernel.Utilites;
 

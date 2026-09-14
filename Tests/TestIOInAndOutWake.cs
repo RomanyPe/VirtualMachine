@@ -116,18 +116,18 @@ public class TestIOInAndOutWake(ITestOutputHelper outPut)
 
     }
 
-    private static void OnEnd(Action<string, LogLevel> logger)
+    private static void OnEnd(IDeviceLoggerContext logger)
     {
-        logger.Invoke("Устройство выключилось штатно", LogLevel.Log);
+        logger.Log("Устройство выключилось штатно", LogLevel.Log);
     }
 
-    private static void OnTitle(Action<string, LogLevel> logger)
+    private static void OnTitle(IDeviceLoggerContext logger)
     {
-        logger.Invoke("Устройство запущено", LogLevel.Log);
+        logger.Log("Устройство запущено", LogLevel.Log);
     }
-    private static void OnWake(Action<string, LogLevel> logger)
+    private static void OnWake(IDeviceLoggerContext logger)
     {
-        logger.Invoke("Устройство проснулось", LogLevel.Log);
+        logger.Log("Устройство проснулось", LogLevel.Log);
     }
 
 

@@ -101,7 +101,7 @@ public sealed class VMHostProjectCompiler
         }
     }
 
-    public CompilationResult Compile(CompilationToILResult res, int peepholeOptimizationCount, RamSize size = RamSize.Size1MB)
+    public CompilationResult Compile(CompilationToILResult res, int peepholeOptimizationCount, RamSize size = RamSize.Size128KB)
     {
         try
         {

@@ -37,6 +37,12 @@ public class LoggerOutPut : ILogger
     }
 
     public override string ToString() => _output.ToString();
+
+    public void CharOutPut(char c)
+    {
+        lock (_lock)
+            _output.Append(c.AsText);
+    }
 }
 
 

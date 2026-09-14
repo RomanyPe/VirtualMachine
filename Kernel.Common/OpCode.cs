@@ -60,7 +60,5 @@ public enum OpCode : byte
     STORE_UNSAFE,
     STORE_IND_UNSAFE,
     LOAD_IND_UNSAFE,
-    PUSH_UNSAFE,
-    POP_UNSAFE
 }
 

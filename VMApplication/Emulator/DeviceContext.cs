@@ -1,6 +1,6 @@
 ﻿using Kernel.BiosSystem;
+using Kernel.Common;
 using ThreadingSystem.ThreadControl;
-using VMApplication.CallBacks;
 using VMApplication.Project;
 
 namespace VMApplication.Emulator;
@@ -25,22 +25,29 @@ public class DeviceContext : IDisposable
     Внимание: Этот метод предназначен только для потоков, запущенных через 'StartOnDedicatedThread'.
     Смешивание вызовов (например, запуск через Scheduler, а остановка этим методом) 
     приведет к зависанию задачи или утечке ресурсов в пуле воркеров.
-    """, error: false)]
-    public void Stop(int stopTime = 3000, CallBackOnStopDecidedThread callBack = default)
+    """, error: false, DiagnosticId = "VM0001")]
+    public void Stop(int stopTime = 3000, 
+        Action<IDeviceLoggerContext>? onThreadIsDead = null,
+        Action<IDeviceLoggerContext>? onThreadIsLiveTrue = null,
+        Action<IDeviceLoggerContext>? onThreadStopedTrue = null,
+        Action<IDeviceLoggerContext>? OnThreadStopedFalse = null)
     {
         _device.StopDevice(stopTime,
-                           callBack.OnThreadIsLiveTrue,
-                           callBack.OnThreadIsDead,
-                           callBack.OnThreadStopedTrue,
-                           callBack.OnThreadIsDead);
+                           onThreadIsLiveTrue,
+                           onThreadIsDead,
+                           onThreadStopedTrue,
+                           onThreadIsDead);
     }
 
-    public void Stop(ThreadHandle handle, TimeSpan stopTime, CallBackOnStopDecidedThread callBack = default)
+    public void Stop(ThreadHandle handle, TimeSpan stopTime, 
+        Action<IDeviceLoggerContext>? onThreadIsDead = null,
+        Action<IDeviceLoggerContext>? onThreadStopedTrue = null)
     {
+
         _device.Stop(handle,
                      stopTime,
-                     callBack.OnThreadStopedTrue,
-                     callBack.OnThreadIsDead);
+                     onThreadStopedTrue,
+                     onThreadIsDead);
     }
     private void SetLoadMode(bool isBios)
     {
@@ -58,6 +65,7 @@ public class DeviceContext : IDisposable
 
     public LaunchModeDevice? TryFastLoadProgram(ReadOnlySpan<byte> program, ulong loadAddress, out string? error)
     {
+
         if (_isBiosMode.HasValue)
         {
             error = $"Режим загрузки уже установлен как {(_isBiosMode.Value ? "BIOS" : "прямая загрузка")}.";

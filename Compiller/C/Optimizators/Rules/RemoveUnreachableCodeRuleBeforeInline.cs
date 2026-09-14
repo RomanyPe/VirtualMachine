@@ -30,13 +30,13 @@ public class RemoveUnreachableCodeRuleBeforeInline : IAstOptimizationRule
 
     public static void RemoveUnreachableCode(ProgramNode program, ILogOptimization removedNodesLog)
     {
-        foreach (var func in program.Functions)
+        foreach (var func in program.FunctionNodes)
         {
             if (func.Body != null)
                 OptimizeBlock(func.Body, removedNodesLog);
         }
 
-        foreach (var global in program.Globals)
+        foreach (var global in program.GlobalVarNodes)
         {
             if (global.Initializer is BlockNode block)
                 OptimizeBlock(block, removedNodesLog);

@@ -13,7 +13,7 @@ public static class PeepholeOptimizer
         new ConstantFoldingRule(),
         new RemoveMultiEndPairRule(),
     ];
-    public static void AddRule(IPeepholeRule rule) => _rules.Add(rule);
+    public static bool AddRule(IPeepholeRule rule) => _rules.Add(rule);
     public static void RemoveRule(IPeepholeRule rule) => _rules.Remove(rule);
     public static IReadOnlySet<IPeepholeRule> Rules => _rules;
     public static string Optimize(List<AsmItem> items, PeepholeLog log, int maxPasses = 5)

@@ -20,16 +20,11 @@ internal static class ThreadSchedulerHelper
         if (requestedWorkerCount <= 0)
             ThrowArgumentOutOfRangeException(nameof(requestedWorkerCount), "Worker count must be positive.");
 
-        int processorCount = Environment.ProcessorCount;
+        int processorCount = Environment.ProcessorCount - 1;
         int effectiveCount = requestedWorkerCount ?? processorCount;
 
-        if (effectiveCount < processorCount)
+        if (effectiveCount > processorCount)
             effectiveCount = processorCount;
-
-        effectiveCount &= ~1;
-
-        if (effectiveCount < 2)
-            effectiveCount = 2;
 
         return effectiveCount;
     }

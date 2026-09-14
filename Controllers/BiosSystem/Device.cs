@@ -33,15 +33,12 @@ public sealed class Device : IDisposable, IPortUse
     private readonly Lock __ctx = new();
     private long stepCounter = 0;
 
-    public Action<IDeviceLoggerContext>? ActionOnWake = null;
+    public Action<IDeviceLoggerContext>? ActionOnWake { get; set; } = null;
+
     public DateTime CreatedAt { get; } = DateTime.Now;
-    public Span<byte> AsRamSpan(int start, int length) => _ram.AsSpan(start, length);
-    public Span<byte> RamSpan => _ram.Span;
-    public Memory<byte> AsRamMemory() => _ram.Memory;
-    public Memory<byte> AsRamMemory(int start, int length) => _ram.AsMemory(start, length);
+    public ReadOnlyMemory<byte> AsRamMemory(int start, int length) => _ram.AsMemory(start, length);
     public ReadOnlyMemory<byte> RamArray => _ram.ReadOnlyMemory;
     public bool IsRunning => _processor.IsRunning;
-    public bool IsSleeping => _processor.IsSleeping;
     public bool HaveBios => _ram.HaveBios;
     public ulong MaxRamSize => _ram.RamSize;
     public long? StepCount => _processor.IsRunning ? null : stepCounter;
@@ -71,6 +68,7 @@ public sealed class Device : IDisposable, IPortUse
                 throw new InvalidOperationException(
                     $"Не удалось записать программу по адресу 0x{loadAddress + i:X}");
         }
+        InitHeap(loadAddress, program.AsSpan());
     }
 
     public bool TryLoadProgramFast(ReadOnlySpan<byte> program, ulong loadAddress)
@@ -86,19 +84,9 @@ public sealed class Device : IDisposable, IPortUse
 
         Span<byte> target = ram.Span.Slice((int)loadAddress, program.Length);
         program.CopyTo(target);
-
+        InitHeap(loadAddress, program);
         return true;
     }
-
-    [Obsolete(
-    """
-    Рекомендуется использовать 'LaunchDeviceAsThreadTask' с ThreadScheduler. 
-    Он эффективнее управляет потоками.
-    
-    Внимание: Прямой запуск потока безопасен, но если ThreadScheduler 
-    работает в режиме 'MaxThreadCPU', это может вызвать сильные 
-    просадки производительности из-за конкуренции за ядра процессора.
-    """, false)]
     public void LaunchDeviceOnDedicatedThread(ulong? start,
                              bool isDebug,
                              int delay,
@@ -140,7 +128,7 @@ public sealed class Device : IDisposable, IPortUse
         RunSimulationLoop(startIndex, isDebug, delay, snowTimer, startAct, endAct);
     }
 
-    public ThreadHandle? LaunchManagedDeviceThread(ThreadScheduler scheduler, ulong? start,
+    public ThreadHandle? LaunchDeviceAsThreadTask(ThreadScheduler scheduler, ulong? start,
                              bool isDebug,
                              int delay,
                              bool snowTimer,
@@ -172,14 +160,6 @@ public sealed class Device : IDisposable, IPortUse
         _processor.LaunchProgramm(startIndex);
     }
 
-
-    [Obsolete("""
-    Используйте перегрузку 'Stop(ThreadHandle, ...)' для работы через ThreadScheduler.
-    
-    Внимание: Этот метод предназначен только для потоков, запущенных через 'StartOnDedicatedThread'.
-    Смешивание вызовов (например, запуск через Scheduler, а остановка этим методом) 
-    приведет к зависанию задачи или утечке ресурсов в пуле воркеров.
-    """, error: false)]
     public void StopDevice(int timeoutMilliseconds,
                            Action<IDeviceLoggerContext>? threadLiveTrue,
                            Action<IDeviceLoggerContext>? threadLiveFalse,
@@ -195,7 +175,7 @@ public sealed class Device : IDisposable, IPortUse
 
         threadLiveTrue?.Invoke(_ctx);
 
-        _processor.EnqueueBiosStatus(BiosStatus.EndProgramm);
+        RequestStop();
 
         if (_simulationThread.Join(timeoutMilliseconds))
         {
@@ -209,12 +189,19 @@ public sealed class Device : IDisposable, IPortUse
         _simulationThread = null;
     }
 
+    private void RequestStop()
+    {
+        _processor.EnqueueBiosStatus(BiosStatus.EndProgramm);
+        _processor.EnqueueExternalCommand((uint)OpCode.WAKE);
+        _wakeSignal.Set();
+    }
+
     public void Stop(ThreadHandle handle,
                      TimeSpan timeout,
                      Action<IDeviceLoggerContext>? onSuccess = null,
                      Action<IDeviceLoggerContext>? onTimeout = null)
     {
-        _processor.EnqueueBiosStatus(BiosStatus.EndProgramm);
+        RequestStop();
 
         if (handle.Wait(timeout))
         {
@@ -227,7 +214,12 @@ public sealed class Device : IDisposable, IPortUse
         }
     }
 
-    public void InitHeap(ulong hp) => _processor.InitRegHP(hp);
+    private void InitHeap(ulong loadAddress, ReadOnlySpan<byte> program)
+    {
+        ulong programEnd = loadAddress + (ulong)program.Length;
+        ulong heapStart = programEnd.AlignUp(8UL);
+        _processor.InitRegHP(heapStart);
+    }
 
     public void RunSimulationLoop(ulong start,
                                   bool isDebug,
@@ -248,15 +240,17 @@ public sealed class Device : IDisposable, IPortUse
 
         while (_processor.IsRunning)
         {
-            _processor.ExternalCommandExecute();
+            _processor.Step();
+
             if (_processor.IsSleeping)
             {
-                _wakeSignal.Wait(10);
+                _wakeSignal.Wait(15);
                 _wakeSignal.Reset();
-                continue;
             }
-            stepCounter++;
-            _processor.Step(isDebug);
+            else
+            {
+                stepCounter++;
+            }
 
             if (isDebug) DebugOutput();
             if (useSleepMode) Thread.Sleep(delay);
@@ -335,7 +329,7 @@ public sealed class Device : IDisposable, IPortUse
     {
         if (!_processor.IsRunning) return;
 
-        _processor.Step(isDebug);
+        _processor.Step();
         stepCounter++;
         if (isDebug) DebugOutput();
 
@@ -346,7 +340,7 @@ public sealed class Device : IDisposable, IPortUse
         if (!_processor.IsRunning) return;
         for (int i = 0; i < count; i++)
         {
-            _processor.Step(isDebug);
+            _processor.Step();
             stepCounter++;
             if (isDebug) DebugOutput();
         }

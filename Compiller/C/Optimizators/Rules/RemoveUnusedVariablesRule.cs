@@ -17,7 +17,7 @@ public class RemoveUnusedVariablesRule : IAstOptimizationRule
 
     private static void RemoveUnusedVariables(ProgramNode program, ILogOptimization log)
     {
-        foreach (var func in program.Functions)
+        foreach (var func in program.FunctionNodes)
         {
             if (func.IsExternal || func.Body == null) continue;
 

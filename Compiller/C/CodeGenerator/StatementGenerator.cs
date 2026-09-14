@@ -7,7 +7,7 @@ namespace Compiller.C.CodeGenerator;
 // ============================================================
 // StatementGenerator – генерация инструкций
 // ============================================================
-public class StatementGenerator(AssemblerBase asm, ExpressionGenerator exprGen, FunctionContext funcCtx, Func<string> getLabel, GlobalMemoryManager globalMem, Dictionary<string, StructLayout> structTable)
+public class StatementGenerator(AssemblerBase asm, ExpressionGenerator exprGen, FunctionContext funcCtx, Func<string> getLabel, GlobalMemoryManager globalMem, Dictionary<string, StructLayout> structTable, VariableAccessor varAccessor)
 {
     private readonly GlobalMemoryManager _globalMem = globalMem;
     private readonly AssemblerBase _asm = asm;
@@ -15,6 +15,7 @@ public class StatementGenerator(AssemblerBase asm, ExpressionGenerator exprGen, 
     private readonly FunctionContext _funcCtx = funcCtx;
     private readonly Dictionary<string, StructLayout> _structTable = structTable;
     private readonly Func<string> _getLabel = getLabel;
+    private readonly VariableAccessor _varAccessor = varAccessor;
 
     public void GenerateBlock(BlockNode block)
     {
@@ -22,21 +23,21 @@ public class StatementGenerator(AssemblerBase asm, ExpressionGenerator exprGen, 
         {
             switch (stmt)
             {
-               case VariableNode var:
-    if (var.Initializer != null)
-    {
-        if (_funcCtx.VarMap.TryGetValue(var.Name, out var varLoc) && varLoc.IsRegister)
-        {
-            // Генерируем инициализатор сразу в регистр переменной
-            _exprGen.GenerateExpression(var.Initializer, varLoc.Register);
-        }
-        else
-        {
-            _exprGen.GenerateExpression(var.Initializer);
-            _exprGen.StoreR0ToVariable(var.Name);
-        }
-    }
-    break;
+                case VariableNode var:
+                    if (var.Initializer != null)
+                    {
+                        if (_funcCtx.VarMap.TryGetValue(var.Name, out var varLoc) && varLoc.IsRegister)
+                        {
+                            // Генерируем инициализатор сразу в регистр переменной
+                            _exprGen.GenerateExpression(var.Initializer, varLoc.Register);
+                        }
+                        else
+                        {
+                            _exprGen.GenerateExpression(var.Initializer);
+                            _varAccessor.StoreFromRegister(var.Name, RegType.r0);
+                        }
+                    }
+                    break;
                 case AssignmentNode assign:
                     GenerateAssignment(assign);
                     break;
@@ -122,32 +123,32 @@ public class StatementGenerator(AssemblerBase asm, ExpressionGenerator exprGen, 
             return;
         }
 
-        if (assign.Value is BinaryOpNode binop2 &&
-            binop2.Left is IdentifierNode leftId2 &&
-            leftId2.Name == assign.Name &&
-            _funcCtx.VarMap.TryGetValue(assign.Name, out var loc2) &&
-            loc2.IsRegister &&
-            (binop2.Operator == "+" || binop2.Operator == "-" ||
-             binop2.Operator == "*" || binop2.Operator == "/"))
+        if (_funcCtx.VarMap.TryGetValue(assign.Name, out var loc) && loc.IsRegister)
         {
-            RegType xReg = loc2.Register;
-            // Правый операнд генерируем в r0
-            _exprGen.GenerateExpression(binop2.Right, RegType.r0);
-            // Выполняем операцию с регистром переменной
-            switch (binop2.Operator)
+            if (assign.Value is BinaryOpNode binop && binop.Left is IdentifierNode id && id.Name == assign.Name
+                && (binop.Operator == "+" || binop.Operator == "-" || binop.Operator == "*" || binop.Operator == "/"))
             {
-                case "+": _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, (uint)xReg, (uint)RegType.r0)); break;
-                case "-": _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.SUB.Uint, (uint)xReg, (uint)RegType.r0)); break;
-                case "*": _asm.EmitInstruction(InstructionEncoder.EncodeMULT_INT((uint)xReg, (uint)RegType.r0)); break;
-                case "/": _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.DIV.Uint, (uint)xReg, (uint)RegType.r0)); break;
+                // x = x op expr
+                RegType xReg = loc.Register;
+                RegType tempReg = (xReg != RegType.r0) ? RegType.r0 : RegType.r1;
+                _exprGen.GenerateExpression(binop.Right, tempReg);
+                switch (binop.Operator)
+                {
+                    case "+": _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, xReg.Uint, tempReg.Uint)); break;
+                    case "-": _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.SUB.Uint, xReg.Uint, tempReg.Uint)); break;
+                    case "*": _asm.EmitInstruction(InstructionEncoder.EncodeMULT_INT(xReg.Uint, tempReg.Uint)); break;
+                    case "/": _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.DIV.Uint, xReg.Uint, tempReg.Uint)); break;
+                }
+                return;
             }
+
+            // Простое присваивание: генерируем значение прямо в регистр переменной
+            _exprGen.GenerateExpression(assign.Value, loc.Register);
             return;
         }
 
-        
-        // Обычное скалярное присваивание
         _exprGen.GenerateExpression(assign.Value);
-        _exprGen.StoreR0ToVariable(assign.Name);
+        _varAccessor.StoreFromRegister(assign.Name, RegType.r0);
     }
 
 
@@ -238,7 +239,7 @@ public class StatementGenerator(AssemblerBase asm, ExpressionGenerator exprGen, 
                     return CodeGenUtils.GetSizeForType(gInfo.PointedType!);
             }
         }
-        return ThrowHelper.ThrowMiniC<OpCodeSize>(ErrorCode.CodeGen_UnknownPointedType); 
+        return ThrowHelper.ThrowMiniC<OpCodeSize>(ErrorCode.CodeGen_UnknownPointedType);
     }
     private void GenerateIf(IfNode ifNode)
     {
@@ -281,8 +282,13 @@ public class StatementGenerator(AssemblerBase asm, ExpressionGenerator exprGen, 
             {
                 if (varInit.Initializer != null)
                 {
-                    _exprGen.GenerateExpression(varInit.Initializer);
-                    _exprGen.StoreR0ToVariable(varInit.Name);
+                    if (_funcCtx.VarMap.TryGetValue(varInit.Name, out var varLoc) && varLoc.IsRegister)
+                        _exprGen.GenerateExpression(varInit.Initializer, varLoc.Register);
+                    else
+                    {
+                        _exprGen.GenerateExpression(varInit.Initializer);
+                        _varAccessor.StoreFromRegister(varInit.Name, RegType.r0);
+                    }
                 }
             }
             else if (forNode.Init is AssignmentNode assignInit)
