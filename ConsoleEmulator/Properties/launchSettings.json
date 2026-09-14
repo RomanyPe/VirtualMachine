@@ -1,8 +1,0 @@
-{
-  "profiles": {
-    "ConsoleEmulator": {
-      "commandName": "Project",
-      "commandLineArgs": "-prog \"C:\\Users\\xity4\\source\\repos\\Virtual Machine\\ASM gen\\bin\\Release\\net10.0-windows\\userProjects\\tests\\bin\\program.bin\""
-    }
-  }
-}
