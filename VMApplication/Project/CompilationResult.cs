@@ -17,7 +17,7 @@ public class OptimizationResultLog()
 {
     public Dictionary<TypeOptimization, IReadOnlyLogOptimization> Logs { get; private set; } = [];
 
-    public void AddOtherLog(IReadOnlyLogOptimization log) => Logs.Add(log.Id, log);
+    public bool AddLog(IReadOnlyLogOptimization log) => Logs.TryAdd(log.Id, log);
     public void AddLog(IEnumerable<IReadOnlyLogOptimization> log)
     {
         foreach (var logItem in log)

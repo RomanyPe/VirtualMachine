@@ -72,7 +72,7 @@ public sealed class PortBus(SizePort ports, SizePortOnDevice portsOnDev, NameDev
         var (device, offset) = ResolveAddress(address);
         return device != null
             ? new(device.ReadPort(offset))
-            : new(BiosStatus.NullDeviceOutput, address, _nameDevice);
+            : new(BiosStatus.NullDeviceOutput, address);
     }
 
     public RAMResultInt8 WritePort(ulong address, byte value)
@@ -83,7 +83,7 @@ public sealed class PortBus(SizePort ports, SizePortOnDevice portsOnDev, NameDev
             device.WritePort(offset, value);
             return new(value);
         }
-        return new(BiosStatus.NullDeviceInput, address, _nameDevice);
+        return new(BiosStatus.NullDeviceInput, address);
     }
 
     public bool WakeProcessor(ulong address)

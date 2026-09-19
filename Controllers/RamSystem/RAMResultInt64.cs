@@ -6,7 +6,6 @@ public readonly struct RAMResultInt64
 {
     public readonly ulong Data;
     private readonly ulong _statusAndAddress;
-    public readonly NameDeviceToken NameDeviceToken;
 
     public BiosStatus Status => (BiosStatus)(_statusAndAddress >> 48);
 
@@ -29,9 +28,8 @@ public readonly struct RAMResultInt64
     /// </summary>
     /// <param name="status"> Статус ошибки </param>
     /// <param name="adress"> Адресс ошибки в памяти</param>
-    public RAMResultInt64(BiosStatus status, ulong adress, NameDeviceToken nameDeviceToken)
+    public RAMResultInt64(BiosStatus status, ulong adress)
     {
-        NameDeviceToken = nameDeviceToken;
         Data = 0;
         _statusAndAddress = ((ulong)status << 48) | (adress & 0x0000FFFFFFFFFFFFUL);
     }
@@ -42,7 +40,6 @@ public readonly struct RAMResultInt32
 {
     public readonly uint Data;
     private readonly ulong _statusAndAddress;
-    public readonly NameDeviceToken NameDeviceToken;
 
     public BiosStatus Status => (BiosStatus)(_statusAndAddress >> 48);
 
@@ -65,9 +62,8 @@ public readonly struct RAMResultInt32
     /// </summary>
     /// <param name="status"> Статус ошибки </param>
     /// <param name="adress"> Адресс ошибки в памяти</param>
-    public RAMResultInt32(BiosStatus status, ulong adress, NameDeviceToken nameDeviceToken)
+    public RAMResultInt32(BiosStatus status, ulong adress)
     {
-        NameDeviceToken = nameDeviceToken;
         Data = 0;
         _statusAndAddress = ((ulong)status << 48) | (adress & 0x0000FFFFFFFFFFFFUL);
     }
@@ -77,7 +73,6 @@ public readonly struct RAMResultInt16
 {
     public readonly ushort Data;
     private readonly ulong _statusAndAddress;
-    public readonly NameDeviceToken NameDeviceToken;
     public BiosStatus Status => (BiosStatus)(_statusAndAddress >> 48);
 
     public ulong FaultAddress => _statusAndAddress & 0x0000FFFFFFFFFFFFUL;
@@ -92,9 +87,8 @@ public readonly struct RAMResultInt16
     }
 
     /// <summary> Конструктор для ошибки </summary>
-    public RAMResultInt16(BiosStatus status, ulong faultAddress, NameDeviceToken nameDeviceToken)
+    public RAMResultInt16(BiosStatus status, ulong faultAddress)
     {
-        NameDeviceToken = nameDeviceToken;
         Data = 0;
         _statusAndAddress = ((ulong)status << 48) | (faultAddress & 0x0000FFFFFFFFFFFFUL);
 
@@ -105,7 +99,6 @@ public readonly struct RAMResultInt8
 {
     public readonly byte Data;
     private readonly ulong _statusAndAddress;
-    public readonly NameDeviceToken NameDeviceToken;
 
     public BiosStatus Status => (BiosStatus)(_statusAndAddress >> 48);
 
@@ -121,9 +114,8 @@ public readonly struct RAMResultInt8
     }
 
     /// <summary> Конструктор для ошибки </summary>
-    public RAMResultInt8(BiosStatus status, ulong faultAddress, NameDeviceToken nameDeviceToken)
+    public RAMResultInt8(BiosStatus status, ulong faultAddress)
     {
-        NameDeviceToken = nameDeviceToken;
         Data = 0;
         _statusAndAddress = ((ulong)status << 48) | (faultAddress & 0x0000FFFFFFFFFFFFUL);
     }

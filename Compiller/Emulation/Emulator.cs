@@ -40,14 +40,12 @@ public class Emulator : IDisposable
         uint sector,
         string? name = null,
         string? nameProc = null,
-        string? nameRam = null,
         string? namePortBus = null)
     {
         int id = _manager.CreateNewDevice(
             size,
             name,
             nameProc,
-            nameRam,
             namePortBus,
             sector,
             biosFirmware

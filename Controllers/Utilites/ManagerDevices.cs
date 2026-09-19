@@ -19,7 +19,6 @@ public class ManagerDevices : IDisposable
 
     private readonly string?[] _name = new string[MaxCountElements];
     private readonly string?[] _nameProc = new string[MaxCountElements];
-    private readonly string?[] _nameRam = new string[MaxCountElements];
     private readonly string?[] _namePortBus = new string[MaxCountElements];
 
     private readonly Device?[] _devices = new Device[MaxCountElements];
@@ -92,7 +91,6 @@ public class ManagerDevices : IDisposable
         RamSize size,
         string? name,
         string? nameProc,
-        string? nameRam,
         string? namePortBus,
         uint sector,
         byte[] biosFirmware = null!)
@@ -110,13 +108,12 @@ public class ManagerDevices : IDisposable
         _size[denseIndex] = size;
         _name[denseIndex] = name;
         _nameProc[denseIndex] = nameProc;
-        _nameRam[denseIndex] = nameRam;
         _namePortBus[denseIndex] = namePortBus;
         _sectorByDenseIndex[denseIndex] = sector;
 
         // Создаём само устройство
         
-        var device = new Device(biosFirmware, _portBus, size, name, nameProc, nameRam);
+        var device = new Device(biosFirmware, _portBus, size, name, nameProc);
         // Регистрируем в PortBus
         if (!_portBus.RegisterDevice(device, sector))
         {
@@ -169,7 +166,6 @@ public class ManagerDevices : IDisposable
             _size[denseIndex] = _size[lastDenseIndex];
             _name[denseIndex] = _name[lastDenseIndex];
             _nameProc[denseIndex] = _nameProc[lastDenseIndex];
-            _nameRam[denseIndex] = _nameRam[lastDenseIndex];
             _namePortBus[denseIndex] = _namePortBus[lastDenseIndex];
             _sectorByDenseIndex[denseIndex] = _sectorByDenseIndex[lastDenseIndex];
             _devices[denseIndex] = _devices[lastDenseIndex];
@@ -184,7 +180,6 @@ public class ManagerDevices : IDisposable
         _size[lastDenseIndex] = default;
         _name[lastDenseIndex] = null;
         _nameProc[lastDenseIndex] = null;
-        _nameRam[lastDenseIndex] = null;
         _namePortBus[lastDenseIndex] = null;
         _sectorByDenseIndex[lastDenseIndex] = 0;
         _devices[lastDenseIndex] = null;
@@ -203,7 +198,6 @@ public class ManagerDevices : IDisposable
         {
             _name[i] = null;
             _nameProc[i] = null;
-            _nameRam[i] = null;
             _namePortBus[i] = null;
             _devices[i]?.Dispose();
             _devices[i] = null;

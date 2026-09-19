@@ -164,7 +164,7 @@ public class DiskBootTests(ITestOutputHelper output)
                 var res1 = emu.PortBus.ReadPort(i);
                 if (res1.IsSuccess)
                 {
-                    logger.Info($"1 Порт[{i}] устройство, владелец:{res1.NameDeviceToken}");
+                    logger.Info($"1 Порт[{i}] устройство, владелец:вфвффвы");
                 }
                 else
                 {
@@ -174,21 +174,16 @@ public class DiskBootTests(ITestOutputHelper output)
 
             // 4. Запускаем устройство с BIOS (стартовый адрес = RamSize)
             using var done = new ManualResetEventSlim(false);
-            device.LaunchDeviceOnDedicatedThread(device.MaxRamSize, false, 0, false,
+            var thread = new Thread(() => device.RunSimulation(device.MaxRamSize, false, 0, false,
                 title => title.Log("Запуск", LogLevel.Log),
                 null,
-                end => { end.Log("Завершено", LogLevel.Log); done.Set(); });
-
+                (end, _)=> { end.Log("Завершено", LogLevel.Log); done.Set(); }));
+            thread.Start();
             // 5. Ждём завершения
             bool finished = done.Wait(TimeSpan.FromSeconds(10));
             Assert.True(finished, "Устройство не завершило выполнение за 10 секунд.");
 
-            device.StopDevice(200, 
-                log => log.Log("Остановка устройства", LogLevel.Log),
-                log => log.Log("Устройство уже остановлено или не запускалось", LogLevel.Log), 
-                log => log.Log("Устройство успешно остановлено", LogLevel.Log), 
-                log => log.Log("По неизвестной причине устрйоство продолжает работу", LogLevel.Log));
-
+            device.Stop();
 
             logger.Info(imagePath);
             Assert.Contains("65", logger.ToString());
@@ -281,14 +276,13 @@ wait_ready:
             // Программа чтения байта
             byte[] program = new AssemblerParser().Assemble(ReadDiskProgramAsm);
             device.LoadProgram(program, 0);
-            device.InitHeap((ulong)program.Length);
 
             using var done = new ManualResetEventSlim(false);
-            device.LaunchDeviceOnDedicatedThread(0, false, 0, false,
+            var thread = new Thread(() => device.RunSimulation(0, false, 0, false,
                 title => title.Log("Запуск", LogLevel.Log),
                 null,
-                end => { end.Log("Завершено", LogLevel.Log); done.Set(); });
-
+                (end, _) => { end.Log("Завершено", LogLevel.Log); done.Set(); }));
+            thread.Start();
             Assert.True(done.Wait(TimeSpan.FromSeconds(10)), "Устройство не завершилось.");
 
             Assert.Contains("65", logger.ToString());

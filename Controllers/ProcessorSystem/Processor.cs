@@ -40,9 +40,8 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
     private int _hasSimulationStatus = 0;
     private int _hasExternalCommand = 0;
     private int _sleeping = 0;
-
-    public bool IsSleeping => Volatile.Read(ref _sleeping) == 1;
-    public bool IsRunning => Volatile.Read(ref _isRunning) == 1;
+    public bool IsSleeping => _sleeping == 1;
+    public bool IsRunning => _isRunning == 1;
     private bool IsZero => (_registers[RegType.rFL.Int] & 1UL) == 0UL;
     private bool IsNegative => (_registers[RegType.rFL.Int] & 2UL) == 0UL;
     private bool IsPositive => (_registers[RegType.rFL.Int] & 3UL) == 0UL;
@@ -111,9 +110,9 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
 
     public void LaunchProgramm(ulong startAddress)
     {
-        Volatile.Write(ref _sleeping, 0);
+        _sleeping = 0;
         _registers[RegType.rIP.Int] = startAddress;
-        Volatile.Write(ref _isRunning, 1);
+        _isRunning = 1;
 
         _registers[RegType.rCL.Int] = 0;
         _registers[RegType.rCD.Int] = 0;
@@ -129,10 +128,10 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ProcessControlSignals()
     {
-        if (Volatile.Read(ref _hasExternalCommand) == 1)
+        if (_hasExternalCommand == 1)
             ProcessExternalCommandsSlow();
 
-        if (Volatile.Read(ref _hasSimulationStatus) == 1)
+        if (_hasSimulationStatus == 1)
             ProcessSimulationStatusSlow();
     }
 
@@ -787,22 +786,15 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
             {
                 return new ResultInstruction(BiosStatus.SegmentationFault, sp);
             }
-            RAMResultInt64 writeResult = _ram.WriteInt64LE(sp, currentLink);
-            if (!writeResult.IsSuccess)
-            {
-                return new ResultInstruction(writeResult.Status, sp);
-            }
+            _ram.WriteInt64LEUnSafe(sp, currentLink);
 
             _registers[RegType.rSP.Int] = sp;
         }
 
-        // Сохраняем адрес возврата в быстрый регистр rCL
         _registers[RegType.rCL.Int] = ip;
 
-        // Увеличиваем счетчик вложенности
         callDepth++;
 
-        // Переходим к коду вызванного метода
         ip = targetAddress;
 
         _registers[RegType.rCD.Int] = callDepth;
@@ -833,13 +825,7 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         {
             ulong sp = _registers[RegType.rSP.Int];
 
-            RAMResultInt64 readResult = _ram.ReadInt64LE(sp);
-            if (!readResult.IsSuccess)
-            {
-                return new ResultInstruction(readResult.Status, sp);
-            }
-
-            _registers[RegType.rCL.Int] = readResult.Data;
+            _registers[RegType.rCL.Int] = _ram.ReadInt64LEUnSafe(sp);
             sp += 8;
             _registers[RegType.rSP.Int] = sp;
         }
@@ -881,13 +867,13 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
     {
         lock (_regLock)
         {
-            Volatile.Write(ref _isRunning, 0);
-            Volatile.Write(ref _sleeping, 0);
+            _isRunning = 0;
+            _sleeping = 0;
             ClearRegs();
             while (_externalCommands.TryDequeue(out _));
             while (_statusFromSimulation.TryDequeue(out _));
-            Volatile.Write(ref _hasExternalCommand, 0);
-            Volatile.Write(ref _hasSimulationStatus, 0);
+            _hasExternalCommand = 0;
+            _hasSimulationStatus = 0;
         }
     }
 
@@ -904,14 +890,14 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         _externalCommands.Enqueue(instruction);
     }
 
-    public void ExecuteExternalCommand(uint rawInst)
+    private void ExecuteExternalCommand(uint rawInst)
     {
         OpCode opCode = GetOpCode(rawInst);
         switch (opCode)
         {
-            case OpCode.END: Volatile.Write(ref _isRunning, 0); return;
-            case OpCode.HALT: Volatile.Write(ref _sleeping, 1); return;
-            case OpCode.WAKE: Volatile.Write(ref _sleeping, 0); return;
+            case OpCode.END: _isRunning = 0; return;
+            case OpCode.HALT: _sleeping = 1; return;
+            case OpCode.WAKE: _sleeping = 0; return;
 
             default: return;
         }

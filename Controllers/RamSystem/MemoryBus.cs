@@ -3,10 +3,8 @@ using System.Buffers.Binary;
 
 namespace Kernel.RamSystem;
 
-public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<char> name, byte[] biosRom = null!) : IDisposable
+public class MemoryBus(RamSize size, byte[] biosRom = null!) : IDisposable
 {
-    private readonly NameDeviceToken _nameDevice = nameDevice.CreateChild(name);
-
     private NativeMemoryBuffer _memory = new (size);
     private byte[] _biosRom = biosRom;
     private ulong _biosRomSize = (ulong)biosRom.Length;
@@ -36,7 +34,7 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
         ulong biosAddress = address - _biosRomStartCode;
         return biosAddress < _biosRomSize
             ? new RAMResultInt8(_biosRom[biosAddress])
-            : new RAMResultInt8(BiosStatus.SegmentationFault, address, _nameDevice);
+            : new RAMResultInt8(BiosStatus.SegmentationFault, address);
     }
 
     /// <summary>
@@ -47,7 +45,7 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
 
     public RAMResultInt16 ReadInt16LE(ulong address)
     {
-        if ((address & 0x01) != 0) return new RAMResultInt16(BiosStatus.AlignmentFault, (uint)address, _nameDevice);
+        if ((address & 0x01) != 0) return new RAMResultInt16(BiosStatus.AlignmentFault, (uint)address);
 
         if (address + 2 <= _ramSize)
         {
@@ -57,7 +55,7 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
         ulong biosAddress = address - _biosRomStartCode;
         return biosAddress + 2 <= _biosRomSize
             ? MemoryBusHelpers.GenerateInt16Le(_biosRom.AsSpan((int)biosAddress, 2))
-            : new RAMResultInt16(BiosStatus.SegmentationFault, (uint)address, _nameDevice);
+            : new RAMResultInt16(BiosStatus.SegmentationFault, (uint)address);
     }
 
     /// <summary>
@@ -67,7 +65,7 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
     /// <returns> Успешность операции, при возврате не BiosStatus.Success происходит исключение и остановка работы биоса </returns>
     public RAMResultInt32 ReadInt32LE(ulong address)
     {
-        if ((address & 0x03) != 0) return new RAMResultInt32(BiosStatus.AlignmentFault, address, _nameDevice);
+        if ((address & 0x03) != 0) return new RAMResultInt32(BiosStatus.AlignmentFault, address);
 
         if (address + 4 <= _ramSize)
             return new RAMResultInt32(_memory.ReadUInt32(address));
@@ -76,7 +74,7 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
         ulong biosAddress = address - _biosRomStartCode;
         return biosAddress + 4 <= _biosRomSize
             ? MemoryBusHelpers.GenerateInt32Le(_biosRom.AsSpan((int)biosAddress, 4))
-            : new RAMResultInt32(BiosStatus.SegmentationFault, address, _nameDevice);
+            : new RAMResultInt32(BiosStatus.SegmentationFault, address);
     }
 
     /// <summary>
@@ -87,7 +85,7 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
 
     public RAMResultInt64 ReadInt64LE(ulong address)
     {
-        if ((address & 0x07) != 0) return new RAMResultInt64(BiosStatus.AlignmentFault, address, _nameDevice);
+        if ((address & 0x07) != 0) return new RAMResultInt64(BiosStatus.AlignmentFault, address);
 
         if (address + 8 <= _ramSize)
         {
@@ -97,7 +95,7 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
         ulong biosAddress = address - _biosRomStartCode;
         return biosAddress + 8 <= _biosRomSize
             ? MemoryBusHelpers.GenerateInt64Le(_biosRom.AsSpan((int)biosAddress, 8))
-            : new RAMResultInt64(BiosStatus.SegmentationFault, address, _nameDevice);
+            : new RAMResultInt64(BiosStatus.SegmentationFault, address);
     }
 
     /// <summary>
@@ -108,7 +106,7 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
     /// <returns> Успешность операции, при возврате False программа остановится и выведится ошибка </returns>
     public RAMResultInt8 WriteInt8LE(ulong address, byte value)
     {
-        if (address >= _ramSize) return new RAMResultInt8(BiosStatus.SegmentationFault, address, _nameDevice);
+        if (address >= _ramSize) return new RAMResultInt8(BiosStatus.SegmentationFault, address);
 
         _memory[address] = value;
         return new RAMResultInt8(value);
@@ -122,8 +120,8 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
     /// <returns> Успешность операции, при возврате False программа остановится и выведится ошибка </returns>
     public RAMResultInt16 WriteInt16LE(ulong address, ushort value)
     {
-        if ((address & 0x01) != 0) return new RAMResultInt16(BiosStatus.AlignmentFault, address, _nameDevice);
-        if (address + 2 > _ramSize) return new RAMResultInt16(BiosStatus.SegmentationFault, address, _nameDevice);
+        if ((address & 0x01) != 0) return new RAMResultInt16(BiosStatus.AlignmentFault, address);
+        if (address + 2 > _ramSize) return new RAMResultInt16(BiosStatus.SegmentationFault, address);
 
         BinaryPrimitives.WriteUInt16LittleEndian(_memory.AsSpan((int)address, 2), value);
         return new RAMResultInt16(value);
@@ -138,8 +136,8 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
     /// <returns> Успешность операции, при возврате False программа остановится и выведится ошибка </returns>
     public RAMResultInt32 WriteInt32LE(ulong address, uint value)
     {
-        if ((address & 0x03) != 0) return new RAMResultInt32(BiosStatus.AlignmentFault, address, _nameDevice);
-        if (address + 4 > _ramSize) return new RAMResultInt32(BiosStatus.SegmentationFault, address, _nameDevice);
+        if ((address & 0x03) != 0) return new RAMResultInt32(BiosStatus.AlignmentFault, address);
+        if (address + 4 > _ramSize) return new RAMResultInt32(BiosStatus.SegmentationFault, address);
 
         BinaryPrimitives.WriteUInt32LittleEndian(_memory.AsSpan((int)address, 4), value);
         return new RAMResultInt32(value);
@@ -153,8 +151,8 @@ public class MemoryBus(RamSize size, NameDeviceToken nameDevice, ReadOnlySpan<ch
     /// <returns> Успешность операции, при возврате False программа остановится и выведится ошибка </returns>
     public RAMResultInt64 WriteInt64LE(ulong address, ulong value)
     {
-        if ((address & 0x07) != 0) return new RAMResultInt64(BiosStatus.AlignmentFault, address, _nameDevice);
-        if (address + 8 > _ramSize) return new RAMResultInt64(BiosStatus.SegmentationFault, address, _nameDevice);
+        if ((address & 0x07) != 0) return new RAMResultInt64(BiosStatus.AlignmentFault, address);
+        if (address + 8 > _ramSize) return new RAMResultInt64(BiosStatus.SegmentationFault, address);
 
         BinaryPrimitives.WriteUInt64LittleEndian(_memory.AsSpan((int)address, 8), value);
         return new RAMResultInt64(value);

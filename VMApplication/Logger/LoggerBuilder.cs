@@ -24,7 +24,7 @@ public class LoggerBuilder
         }
 
         var logger = new VMHostLogger(_outputView, _nameLogger!);
-        logger.RegistryLogger(_nameLogger, _outputView);
+        VMHostLogger.RegistryLogger(_nameLogger, _outputView);
         logger.ChoiceLogger(_nameLogger);
         return logger;
     }

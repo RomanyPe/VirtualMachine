@@ -87,7 +87,7 @@ public class TestStandartVMWorking(ITestOutputHelper output)
 
             Assert.NotNull(launchMode);
 
-            launchMode.LaunchDeviceOnMainThread(
+            launchMode.Launch(
                 startAddress: 0,
                 debug: false,
                 delayMs: 0,

@@ -3,26 +3,23 @@ using Compiller.ASM.Optimizators;
 using Compiller.ASM.Optimizators.Rules;
 using Compiller.C;
 using Kernel.Common;
-using System.Data;
 using System.Text.RegularExpressions;
 using VMApplication.Logger;
 
 namespace VMApplication.Project;
 
-public sealed class VMHostProjectCompiler
+public sealed class VMHostProjectCompiler(
+    IProjectFilesConfig paths,
+    VMHostLogger logger,
+    IFileService fileService)
 {
-    private readonly ReplaceSafeMemAccessWithUnsafeRule _rule;
-    private readonly VMHostLogger _logger;
-    private readonly ProjectBuilder _projectBuilder;
+    private static readonly ReplaceSafeMemAccessWithUnsafeRule _rule;
+    private readonly VMHostLogger _logger = logger;
+    private readonly ProjectBuilder _projectBuilder = new(fileService, paths);
 
-    public VMHostProjectCompiler(
-        IProjectFilesConfig paths,
-        VMHostLogger logger,
-        IFileService fileService)
+    static VMHostProjectCompiler()
     {
         _rule = new();
-        _logger = logger;
-        _projectBuilder = new(fileService, paths);
         PeepholeOptimizer.AddRule(_rule);
 
     }
@@ -115,7 +112,7 @@ public sealed class VMHostProjectCompiler
                 var peepholeLog = new PeepholeOptimizationLogs(log);
                 var logger = res.OptimizationResultLog;
                 logger ??= new();
-                logger.AddOtherLog(peepholeLog);
+                logger.AddLog(peepholeLog);
 
                 return new CompilationResult(asm.Build(), asm.BaseAddress, null, logger);
             }

@@ -83,9 +83,9 @@ public class Program
             return;
         }
         // 5. Запускаем эмуляцию (в том же потоке или через планировщик)
-        launchMode?.LaunchDeviceOnMainThread(
+        launchMode?.Launch(
             onStart: ctx => ctx.Log("Симуляция началась", LogLevel.Log),
-            onEnd: ctx => ctx.Log("Симуляция завершена", LogLevel.Log)
+            onEnd: (ctx, _) => ctx.Log("Симуляция завершена", LogLevel.Log)
         );
     }
     private static void EndEmulator()

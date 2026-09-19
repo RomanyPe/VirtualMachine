@@ -9,9 +9,9 @@ public sealed class VMEmulator(Compiller.Emulation.Emulator emulator, VMHostLogg
 {
     private readonly Compiller.Emulation.Emulator _emulator = emulator;
     private readonly VMHostLogger _outputView = outputView;
-    private readonly SizePortOnDevice _portsPerDevice = portsPerDevice;
+    private readonly uint _portsOnDevice = 1U << (byte)portsPerDevice;
 
-    public uint PortsPerDevice => (uint)_portsPerDevice;
+    public uint PortsPerDevice => _portsOnDevice;
 
     public event Action<IEnumerable<DeviceInfo>>? DeviceListChanged;
 
@@ -59,10 +59,10 @@ public sealed class VMEmulator(Compiller.Emulation.Emulator emulator, VMHostLogg
         return res;
     }
 
-    public int CreateDevice(byte[] bios, RamSize ramSize, uint sector, string? name = null, string? procName = null, string? ramName = null, string? portBusName = null)
+    public int CreateDevice(byte[] bios, RamSize ramSize, uint sector, string? name = null, string? procName = null, string? portBusName = null)
     {
-        int id = _emulator.CreateDevice(bios, ramSize, sector, name, procName, ramName, portBusName);
-        if (id != -1)
+        int id = _emulator.CreateDevice(bios, ramSize, sector, name, procName, portBusName);
+        if (id >= 0)
             DeviceListChanged?.Invoke(_emulator.AllDevices);
         return id;
     }
@@ -84,7 +84,7 @@ public sealed class VMEmulator(Compiller.Emulation.Emulator emulator, VMHostLogg
     {
         int sector = _emulator.CreateDisk(imagePath);
         if (sector != -1)
-            _outputView.AppendLine($"Disk created in sector {sector} (base port address: {sector * (int)_portsPerDevice})", LogLevel.Log);
+            _outputView.AppendLine($"Disk created in sector {sector} (base port address: {sector * (int)_portsOnDevice})", LogLevel.Log);
         else
             _outputView.AppendLine("Failed to create disk (no free port sectors available)", LogLevel.Error);
         return sector;

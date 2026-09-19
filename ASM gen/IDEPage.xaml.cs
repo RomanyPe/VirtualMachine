@@ -6,6 +6,7 @@ using ASM_gen.Services;
 using ASM_gen.StartWindow;
 using Kernel.Common;
 using System.IO;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using VMApplication;
@@ -31,6 +32,7 @@ public partial class IDEPage : Page
     private DeviceStepMode? _deviceStepMode;
     private int _delayDeviceThred = 0;
     private int _countStepsBreakDown = 5;
+    private Thread? _threadDevice;
 
     public bool BiosMode => UseBiosMode.IsChecked ?? false;
     public bool IsDebugMode => DebugMode.IsChecked ?? false;
@@ -299,7 +301,14 @@ public partial class IDEPage : Page
                 _device.ResetRegistors();
                 _device.ResetMemoryRam();
                 _launchModeDevice = _device.GetLaunchMode();
-                _launchModeDevice.LaunchDeviceOnDedicatedThread(_device.MaxRamSize, IsDebugMode, _delayDeviceThred, SnowTimer, onEnd: OnEndLaunch);
+                bool isDebug = IsDebugMode;
+                bool snowTimer = SnowTimer;
+                int delay = _delayDeviceThred;
+                _threadDevice = new Thread(() =>_launchModeDevice.Launch(_device.MaxRamSize, isDebug,
+                                                                          delay,
+                                                                          snowTimer,
+                                                                          onEnd: OnEndLaunch));            
+                _threadDevice.Start();
             }
             else
             {
@@ -316,13 +325,22 @@ public partial class IDEPage : Page
                 _device.ResetRegistors();
                 _device.ResetMemoryRam();
                 _launchModeDevice = _device.LoadProgram(result.Program!);
-                _launchModeDevice.LaunchDeviceOnDedicatedThread(ProjectBuilder.BaseAdressProgram, IsDebugMode, _delayDeviceThred, SnowTimer, onEnd: OnEndLaunch);
+                bool isDebug = IsDebugMode;
+                bool snowTimer = SnowTimer;
+                int delay = _delayDeviceThred;
+                _threadDevice = new Thread(() => _launchModeDevice.Launch(ProjectBuilder.BaseAdressProgram,
+                                                                          isDebug,
+                                                                          delay,
+                                                                          snowTimer,
+                                                                          onEnd: OnEndLaunch));
+                _threadDevice.Start();
             }
         }
         catch(Exception ex) 
         {
             _outputView.AppendLine(ex.Message, LogLevel.Error);
-            _launchModeDevice?.StopAndReset();
+            _launchModeDevice?.Stop();
+            _threadDevice?.Join();
         }
     }
     private string? PrepareBootDisk(byte[] program, out int diskSector)
@@ -343,10 +361,44 @@ public partial class IDEPage : Page
         }
     }
 
-    private void OnEndLaunch(IDeviceLoggerContext logger)
+    private void OnEndLaunch(IDeviceLoggerContext logger, ISimulationResult? res)
     {
         logger.Log(_hostEmulator.GetDumpRegisters(), LogLevel.Log);
+        logger.Log(PrintFullTimeSpanInfo(res), LogLevel.Log);
     }
+
+    private static string PrintFullTimeSpanInfo(ISimulationResult? res)
+    {
+        if (res == null) return string.Empty;
+        StringBuilder sb = new();
+        TimeSpan ts = res.Elapsed;
+
+        // Используем ISpanFormattable под капотом .NET, который пишет числа прямо в буфер
+        sb.Append($"=== ПОДРОБНАЯ СТАТИСТИКА ВРЕМЕНИ ===\n" +
+                                $"Дни:          {ts.Days}\n" +
+                                $"Часы:         {ts.Hours}\n" +
+                                $"Минуты:       {ts.Minutes}\n" +
+                                $"Секунды:      {ts.Seconds}\n" +
+                                $"Миллисекунды: {ts.Milliseconds}\n" +
+                                $"Микросекунды: {ts.Microseconds}\n" +
+                                $"Наносекунды:  {ts.Nanoseconds}\n" +
+                                "------------------------------------\n" +
+                                $"Всего дней:          {ts.TotalDays:F6}\n" +
+                                $"Всего часов:         {ts.TotalHours:F4}\n" +
+                                $"Всего минут:         {ts.TotalMinutes:F2}\n" +
+                                $"Всего секунд:        {ts.TotalSeconds:F3}\n" +
+                                $"Всего миллисекунд:   {ts.TotalMilliseconds:F0}\n" +
+                                $"Всего микросекунд:   {ts.TotalMicroseconds:F0}\n" +
+                                $"Всего наносекунд:    {ts.TotalNanoseconds:F0}\n" +
+                                $"Всего тиков (.NET):  {ts.Ticks}\n" +
+                                "------------------------------------\n" +
+                                $"Общее количество тактов: {res.Steps}\n" +
+                                "====================================\n");
+
+        return sb.ToString();
+        
+    }
+
     private void NewFile_Click(object sender, RoutedEventArgs e) => this.NewFile(_projectPath, _editorService);
 
     private void SaveAll_Click(object sender, RoutedEventArgs e) => _projectManager.SaveAllFiles();
@@ -383,6 +435,18 @@ public partial class IDEPage : Page
             return;
         }
         _device.Stop();
+
+        if (_threadDevice != null && _threadDevice.IsAlive)
+        {
+            bool stoppedSimultaneously = _threadDevice.Join(1000);
+            _outputView.AppendLine("Поток еще жив", LogLevel.Error);
+
+            if (!stoppedSimultaneously)
+            {
+                _outputView.AppendLine("Поток не смог остановится", LogLevel.Error);
+
+            }
+        }
     }
 
     private void BtnDiskManager_Click(object sender, RoutedEventArgs e)

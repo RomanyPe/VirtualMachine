@@ -168,7 +168,7 @@ public partial class DeviceManagerWindow : Window
             {
                 int deviceId = _host.CreateDevice(res.Bios, res.RamSize, res.Sector,
                                                   res.DeviceName, res.ProcName,
-                                                  res.RamName, res.PortBusName);
+                                                  res.PortBusName);
                 if (deviceId != -1)
                 {
                     _outputView.AppendLine($" {NameSystem} Устройство создано с ID: {deviceId}");

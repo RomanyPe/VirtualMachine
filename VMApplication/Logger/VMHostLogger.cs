@@ -18,19 +18,19 @@ public sealed class VMHostLogger
 
     public void TestCurrentLoggerSystem()
     {
-        _outputView?.AppendLine("Log [Debug log]", LogLevel.Log);
-        _outputView?.AppendLine("Warning [Debug log]", LogLevel.Warning);
-        _outputView?.AppendLine("Error [Debug log]", LogLevel.Error);
+        _outputView.AppendLine("Log [Debug log]", LogLevel.Log);
+        _outputView.AppendLine("Warning [Debug log]", LogLevel.Warning);
+        _outputView.AppendLine("Error [Debug log]", LogLevel.Error);
     }
 
-    public void RegistryLogger(string name, IOutputView outPutView)
+    public static void RegistryLogger(string name, IOutputView outPutView)
     {
-        LoggerProvider.RegistryLogger(name, new ActionLogger(_outputView.AppendLine, outPutView.Clear, _outputView.Append));
+        LoggerProvider.RegistryLogger(name, new ActionLogger(outPutView.AppendLine, outPutView.Clear, outPutView.Append));
     }
 
     public void ChoiceLogger(string? name = null)
     {
-        LoggerName = name!;
+        LoggerName = name ?? _defaultName;
         LoggerProvider.ChoiceLogger(LoggerName);
     }
 

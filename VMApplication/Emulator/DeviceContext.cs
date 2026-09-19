@@ -1,6 +1,4 @@
 ﻿using Kernel.BiosSystem;
-using Kernel.Common;
-using ThreadingSystem.ThreadControl;
 using VMApplication.Project;
 
 namespace VMApplication.Emulator;
@@ -18,37 +16,8 @@ public class DeviceContext : IDisposable
     public bool HaveBios => _device.HaveBios;
     public DateTime CreatedAt => _device.CreatedAt;
 
-    [Obsolete(
-    """
-    Используйте перегрузку 'Stop(ThreadHandle, ...)' для работы через ThreadScheduler.
-    
-    Внимание: Этот метод предназначен только для потоков, запущенных через 'StartOnDedicatedThread'.
-    Смешивание вызовов (например, запуск через Scheduler, а остановка этим методом) 
-    приведет к зависанию задачи или утечке ресурсов в пуле воркеров.
-    """, error: false, DiagnosticId = "VM0001")]
-    public void Stop(int stopTime = 3000, 
-        Action<IDeviceLoggerContext>? onThreadIsDead = null,
-        Action<IDeviceLoggerContext>? onThreadIsLiveTrue = null,
-        Action<IDeviceLoggerContext>? onThreadStopedTrue = null,
-        Action<IDeviceLoggerContext>? OnThreadStopedFalse = null)
-    {
-        _device.StopDevice(stopTime,
-                           onThreadIsLiveTrue,
-                           onThreadIsDead,
-                           onThreadStopedTrue,
-                           onThreadIsDead);
-    }
+    public void Stop() => _device.Stop();
 
-    public void Stop(ThreadHandle handle, TimeSpan stopTime, 
-        Action<IDeviceLoggerContext>? onThreadIsDead = null,
-        Action<IDeviceLoggerContext>? onThreadStopedTrue = null)
-    {
-
-        _device.Stop(handle,
-                     stopTime,
-                     onThreadStopedTrue,
-                     onThreadIsDead);
-    }
     private void SetLoadMode(bool isBios)
     {
         if (_isBiosMode.HasValue)
