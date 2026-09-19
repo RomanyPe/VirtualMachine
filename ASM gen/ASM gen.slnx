@@ -15,6 +15,7 @@
   <Project Path="../Controllers/Kernel.csproj" Id="9d1173c7-0c5f-402c-a10c-a5f7752b4b31" />
   <Project Path="../Kernel.Common/Kernel.Common.csproj" Id="e0c23665-b03d-415f-8e85-c395a482ef5b" />
   <Project Path="../Tests/Tests.csproj" Id="c8fc1914-3fb2-432d-81b8-4c2764e89862" />
+  <Project Path="../TestVMSpeed/TestVMSpeed.csproj" Id="ca2eb761-5c06-4622-8663-b639d3da1812" />
   <Project Path="../ThreadingSystem/ThreadingSystem.csproj" Id="92c1680c-9009-4b76-9979-b1777599d213" />
   <Project Path="../VMApplication/VMApplication.csproj" />
   <Project Path="ASM gen.csproj" />

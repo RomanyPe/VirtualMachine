@@ -34,13 +34,13 @@ public class DeviceContext : IDisposable
 
     public LaunchModeDevice? TryFastLoadProgram(ReadOnlySpan<byte> program, ulong loadAddress, out string? error)
     {
-
-        if (_isBiosMode.HasValue)
+        if (!_isBiosMode.HasValue)
+            SetLoadMode(false);
+        if (_isBiosMode!.Value)
         {
-            error = $"Режим загрузки уже установлен как {(_isBiosMode.Value ? "BIOS" : "прямая загрузка")}.";
+            error = $"Режим загрузки уже установлен как {(_isBiosMode.Value ? "BIOS" : "прямая загрузка")}. Изменить его нельзя.";
             return null;
         }
-        _isBiosMode = false;   // фиксируем прямую загрузку перед попыткой
 
         if (_device.TryLoadProgramFast(program, loadAddress))
         {
