@@ -6,7 +6,6 @@ public interface IFileService
     IEnumerable<string> GetSourceFiles();
     string ReadFile(string fileName);
     void SaveFile(string fileName, string content);
-    void SaveBinaryFile(string fileName, byte[] content);
     bool Exist(string fileName);
     string CombinePath(string path1, string path2);
 

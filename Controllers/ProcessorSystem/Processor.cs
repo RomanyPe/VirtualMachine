@@ -45,6 +45,7 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
     private bool IsZero => (_registers[RegType.rFL.Int] & 1UL) == 0UL;
     private bool IsNegative => (_registers[RegType.rFL.Int] & 2UL) == 0UL;
     private bool IsPositive => (_registers[RegType.rFL.Int] & 3UL) == 0UL;
+    private const bool NeedLogEnd = false;
 
     public bool TryInitInPool(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus portBus, Lock regLock, ReadOnlySpan<char> name)
     {
@@ -155,7 +156,7 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         {
             if (result != BiosStatus.Success)
             {
-                Volatile.Write(ref _isRunning, ProcessorHelpers.TryContinueAfterStatus(new ResultInstruction(result, 1UL), ulong.MaxValue, _regLock));
+                Volatile.Write(ref _isRunning, ProcessorHelpers.TryContinueAfterStatus(new ResultInstruction(result, 1UL), ulong.MaxValue, _regLock, NeedLogEnd));
                 return;
             }
         }
@@ -253,7 +254,7 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
 
         if (dat.BiosStatus != BiosStatus.Success)
         {
-            Volatile.Write(ref _isRunning, ProcessorHelpers.TryContinueAfterStatus(dat, ip, _regLock));
+            Volatile.Write(ref _isRunning, ProcessorHelpers.TryContinueAfterStatus(dat, ip, _regLock, NeedLogEnd));
         }
     }
 

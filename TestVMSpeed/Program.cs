@@ -1,11 +1,17 @@
 ﻿using Kernel.Common;
+using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using VMApplication;
 using VMApplication.Emulator;
 using VMApplication.Project;
 
-const string text1 =
-    """
+namespace TestVMSpeed;
+
+internal class Program
+{
+    const string text1 =
+"""
     int main() {
 
         asm{
@@ -31,8 +37,8 @@ const string text1 =
     """;
 
 
-const string text2 =
-    """
+    const string text2 =
+        """
     int main() {
 
         asm{
@@ -55,127 +61,210 @@ const string text2 =
     """;
 
 
+    private static readonly int _runs = 15;
+    private static readonly int _runsWarmup = 3;
 
-File.WriteAllText(AppDomain.CurrentDomain.BaseDirectory + "test.mic", text1);
-List<double> logsWithCall = [];
-List<double> logsOnlyMath = [];
+    private static void Main()
+    {
+        KernelWarmup.WarmupAll();
+        FileService fileService = new();
+        using var host = VMHostFactory.CreateDefault(fileService: fileService);
 
-KernelWarmup.WarmupAll();
+        int deviceId = host.Emulator.CreateDevice(
+            bios: [], // биос 
+            ramSize: RamSize.Size1KB,
+            sector: 0,
+            name: "ConsoleVM"
+        );
 
-using var host = VMHostFactory.CreateDefault();
-
-CompilationToILResult il = host.Project.CompileToIL(ProjectBuilder.BaseAdressProgram, true);
-var res = host.Project.Compile(il);
-if (!res.Success)
-{
-    Console.WriteLine(res.Errors);
-    Console.ReadLine();
-    return;
-}
-
-int deviceId = host.Emulator.CreateDevice(
-    bios: [], // биос 
-    ramSize: RamSize.Size1KB,
-    sector: 0,
-    name: "ConsoleVM"
-);
-
-Console.WriteLine("Прогрев JIT");
-var flowControl = Run([], host, deviceId, 2);
-if (flowControl == null) return;
-
-Console.WriteLine();
-Console.WriteLine("Запущена проверка скорости на вызовах с Call");
-flowControl = Run(logsWithCall, host, deviceId, 5);
-if (flowControl == null) return;
-
-File.WriteAllText(AppDomain.CurrentDomain.BaseDirectory + "test.mic", text2);
-
-Console.WriteLine();
-Console.WriteLine("Запущена проверка скорости на только математику");
-flowControl = Run(logsOnlyMath, host, deviceId, 5);
-if (flowControl == null) return;
-
-StringBuilder sb = new();
-
-double l = Sum(logsOnlyMath);
-sb.AppendLine("Test only Math");
-sb.AppendLine(CreateLog(l));
-sb.AppendLine();
-l = Sum(logsWithCall);
-sb.AppendLine("Test with Call");
-sb.AppendLine(CreateLog(l));
-var path = AppDomain.CurrentDomain.BaseDirectory + "resLogs.txt";
-var logRes = sb.ToString();
-File.WriteAllText(path, logRes);
-Console.WriteLine(logRes);
-Console.WriteLine();
-Console.WriteLine($"Файл результатов логов сохранен по пути: \"{path}\"");
-
-static void Launch(List<double> log, LaunchModeDevice? launchMode) =>
-    launchMode?.Launch(
-        showTimer: true,
-        onStart: ctx => ctx.Log("Симуляция запустилась \n", LogLevel.Log),
-        onEnd: (ctx, res) =>
+        var cases = new[]
         {
-            ctx.Log("Симуляция завершена \n", LogLevel.Log);
-            if (res != null) MetricTime(res, log);
-        });
+            new BenchCase("Math", text2, Runs: _runs, WarmupRuns: _runsWarmup),
+            new BenchCase("Call", text1, Runs: _runs, WarmupRuns: _runsWarmup),
+        };
 
-static void MetricTime(ISimulationResult res, List<double> log)
-{
-    if (res.Elapsed.TotalMilliseconds <= 0)
-    {
-        log.Add(0); // или не добавлять вовсе
-        return;
-    }
-    double mips = res.Steps / res.Elapsed.TotalSeconds / 1_000_000.0;
-    log.Add(mips);
-}
+        var sb = new StringBuilder();
 
-static double Sum(List<double> logs)
-{
-    if (logs.Count <= 0)
-    {
-        Console.WriteLine("Метрика вернула 0");
-        return 0;
-    }
-    double log = logs.Sum();
-    return log / logs.Count;
-}
+        var runners = cases.Select(c => new BenchRunner(host, deviceId, c, fileService)).ToArray();
+        foreach (var runner in runners)
+        {
+            if (!runner.TryPrepare())
+            {
+                sb.AppendLine($"Test '{runner.Case.Name}': prepare failed");
+                continue;
+            }
 
-static string CreateLog(double mips)
-{
-    return $"MIPS: {mips}";
-}
+            int warmRuns = runner.Case.WarmupRuns;
+            for (int i = 0; i < warmRuns; i++)
+            {
+                runner.Warmup();
+                PrintProgress(runner.Case.Name, "warm run", i + 1, warmRuns);
+            }
 
-static DeviceContext? Run(List<double> logsOnlyMath, VMHost host, int deviceId, int count = 5)
-{
-    var il = host.Project.CompileToIL(ProjectBuilder.BaseAdressProgram, true);
-    var res = host.Project.Compile(il);
-    if (!res.Success)
-    {
-        Console.WriteLine(res.Errors);
+            int runs = runner.Case.Runs;
+            for (int i = 0; i < runs; i++)
+            {
+                runner.RunOnce();
+                PrintProgress(runner.Case.Name, "run", i + 1, runs);
+            }
+
+            sb.AppendLine($"Test '{runner.Case.Name}':");
+            sb.AppendLine();
+
+            sb.AppendLine("  Elapsed (s) per iteration:");
+            AppendIterations(sb, runner.ElapsedSecondsLog, "F4");
+            
+            sb.AppendLine();
+            sb.AppendLine("  MIPS per iteration:");
+            AppendIterations(sb, runner.MipsLogs, "F2");
+
+            sb.AppendLine();
+            sb.AppendLine("  Elapsed stats (s):");
+            AppendStats(sb, StatsResult.From(runner.ElapsedSecondsLog));
+
+            sb.AppendLine();
+            sb.AppendLine("  MIPS stats:");
+            AppendStats(sb, StatsResult.From(runner.MipsLogs));
+
+            sb.AppendLine();
+        }
+
+        Console.Clear();
+        var path = AppDomain.CurrentDomain.BaseDirectory + "result_Benchmark_Logs.txt";
+        var logRes = sb.ToString();
+        //File.WriteAllText(path, logRes);
+        Console.WriteLine(logRes);
+        Console.WriteLine($"Файл результатов логов сохранен по пути: \"{path}\"");
         Console.ReadLine();
-        return null;
+
     }
-    DeviceContext deviceContext = host.Emulator.CreateDeviceContext(deviceId)!;
-
-    var launchModeMath = deviceContext.TryFastLoadProgram(res.Program, 0, out string? errorMath);
-
-    if (launchModeMath == null)
+    private static void PrintProgress(string test, string phase, int done, int total)
     {
-        Console.WriteLine("Ошибка при загрузке программы для метрики блока математики");
-        Console.WriteLine(errorMath);
-        Console.ReadLine();
-        deviceContext?.Dispose();
-        return null;
+        if (Console.IsOutputRedirected) return;
+        Console.Write($"\r[{test}] {phase} {done}/{total}               ");
     }
 
-    for (int i = 1; i < count + 1; i++)
+    private static void AppendStats(StringBuilder sb, StatsResult s)
     {
-        Console.WriteLine($"Запуск номер {i}");
-        Launch(logsOnlyMath, launchModeMath);
+        sb.AppendLine($"    mean:   {s.Mean:F4}");
+        sb.AppendLine($"    median: {s.Median:F4}");
+        sb.AppendLine($"    min:    {s.Min:F4}");
+        sb.AppendLine($"    p95:    {s.P95:F4}");
+        sb.AppendLine($"    max:    {s.Max:F4}");
+        sb.AppendLine($"    stddev: {s.StdDev:F4}");
+        sb.AppendLine($"    N:           {s.N}");
     }
-    return deviceContext;
+
+    private static void AppendIterations(StringBuilder sb, IReadOnlyList<double> logs, string format)
+    {
+        sb.AppendLine($"  Iterations:");
+        if (logs.Count == 0)
+        {
+            sb.AppendLine("    <нет данных>");
+            return;
+        }
+
+        for (int i = 0; i < logs.Count; i++)
+        {
+            sb.Append("    [")
+              .Append((i + 1).ToString("D3"))
+              .Append("] ")
+              .AppendLine(logs[i].ToString(format, CultureInfo.InvariantCulture));
+        }
+    }
 }
+
+
+public class FileService : IFileService
+{
+    private readonly Dictionary<string, string> _files = [];
+    public string ProjectPath => "this";
+
+    public string CombinePath(string path1, string path2) => Path.Combine(path1, path2);
+
+    public bool Exist(string fileName) => _files.ContainsKey(fileName);
+
+    public IEnumerable<string> GetSourceFiles() => _files.Keys;
+
+    public string ReadFile(string fileName) => _files[fileName];
+
+    public void SaveFile(string fileName, string content) => _files[fileName] = content;
+}
+
+
+public class BenchRunner(VMHost host, int deviceId, BenchCase benchCase, IFileService fileService)
+{
+    private readonly VMHost _host = host;
+    private readonly int _deviceId = deviceId;
+    private readonly BenchCase _case = benchCase;
+    private readonly List<double> _mipsLogs = []; 
+    private readonly List<double> _elapsedSecondsLogs = [];
+    private readonly IFileService _fileService = fileService;
+    public LaunchModeDevice? LaunchMode { get; private set; } = null; 
+    public BenchCase Case => _case;
+    public IReadOnlyList<double> MipsLogs => _mipsLogs;
+    public IReadOnlyList<double> ElapsedSecondsLog => _elapsedSecondsLogs;
+    public bool IsPrepared { get; private set; } = false;
+
+    public bool TryPrepare()
+    {
+        IsPrepared = false;
+        _fileService.SaveFile($"test.mic", _case.ProgramText);
+
+        var il = _host.Project.CompileToIL(ProjectBuilder.BaseAdressProgram, true);
+        var res = _host.Project.Compile(il);
+        if (!res.Success)
+        {
+            Console.WriteLine(res.Errors);
+            Console.ReadLine();
+            return false;
+        }
+        var ctx = _host.Emulator.CreateDeviceContext(_deviceId)!;
+
+        var launchModeMath = ctx.TryFastLoadProgram(res.Program, 0, out string? errorMath);
+        LaunchMode = launchModeMath;
+
+        if (launchModeMath == null)
+        {
+            Console.WriteLine($"Ошибка при загрузке программы для метрики блока {_case.Name}");
+            Console.WriteLine(errorMath);
+            Console.ReadLine();
+            ctx?.Dispose();
+            return false;
+        }
+        GC.Collect(2, GCCollectionMode.Forced, true);
+        GC.WaitForPendingFinalizers();
+        IsPrepared = true;
+        return true;
+    }
+
+    private static void Metric(ISimulationResult res, List<double> elapsetSecondsLong, List<double> mipsLogs)
+    {
+        mipsLogs.Add(res.Steps / res.Elapsed.TotalSeconds / 1_000_000.0);
+        elapsetSecondsLong.Add(res.Elapsed.TotalSeconds);
+    }
+
+
+    public void RunOnce()
+    {
+        Launch(_elapsedSecondsLogs, _mipsLogs, LaunchMode);
+    }
+
+    public void Warmup()
+    {
+        Launch([],[], LaunchMode); // warmup не пишем в лог
+    }
+
+    public static void Launch(List<double> log, List<double> logTime, LaunchModeDevice? launchMode) => launchMode?.Launch(
+                    showTimer: true,
+                    onEnd: (ctx, res) =>
+                    {
+                        if (res != null) Metric(res, logTime, log);
+                    });
+}
+
+public record BenchCase(
+    string Name,
+    string ProgramText,
+    int Runs,
+    int WarmupRuns);

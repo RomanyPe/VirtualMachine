@@ -1,5 +1,4 @@
 ﻿using Kernel.Common;
-using System.Collections.Immutable;
 using System.Runtime.CompilerServices;
 using static Kernel.ProcessorSystem.Processor;
 
@@ -7,14 +6,16 @@ namespace Kernel.ProcessorSystem;
 
 public static class ProcessorHelpers
 {
+
     [MethodImpl(MethodImplOptions.NoInlining)]
-    public static int TryContinueAfterStatus(ResultInstruction dat, ulong ip, Lock regLock)
+    public static int TryContinueAfterStatus(ResultInstruction dat, ulong ip, Lock regLock, bool needLogEnd = false)
     {
         if (dat.BiosStatus == BiosStatus.EndProgramm)
         {
             lock (regLock)
             {
-                LoggerProvider.Info($"\n [INFO] Программа успешно завершила работу (HALT). Ip [{ip}]");
+                if (needLogEnd)
+                    LoggerProvider.Info($"Программа успешно завершила работу (HALT). Ip [{ip}]");
                 return 0;
             }
         }

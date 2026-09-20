@@ -72,7 +72,7 @@ public sealed class ConsoleOutputView : IOutputView
             LogLevel.Error => ConsoleColor.Red,
             _ => originalColor
         };
-        Console.WriteLine($"[{level}] {message}");
+        Console.WriteLine($"{message}");
         Console.ForegroundColor = originalColor;
     }
 
