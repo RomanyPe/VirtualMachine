@@ -16,7 +16,7 @@ namespace Compiller.ASM;
 ///   STORE.S8|.S16|.S32|.S64 (регистр, адрес),
 ///   JMP, JZ, JNZ, JG, JL, CALL (метка или абсолютный адрес).
 /// </summary>
-public class AssemblerParser
+public partial class AssemblerParser
 {
     private static readonly Dictionary<string, RegType> _regMapLex = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -99,6 +99,8 @@ public class AssemblerParser
         { "LOAD_UNSAFE", OpCode.LOAD_UNSAFE},
         { "STORE_IND_UNSAFE", OpCode.STORE_IND_UNSAFE},
         { "STORE_UNSAFE", OpCode.STORE_UNSAFE},
+        { "CMP", OpCode.CMP},
+        { "TEST", OpCode.TEST},
     };
 
     private AssemblerBase _asm = null!;
@@ -160,35 +162,31 @@ public class AssemblerParser
             ParseInstruction(line);
         }
     }
+    private string _currentLine = "";
     private void ParseInstruction(string instruction)
     {
-        var tokens = instruction.Split([' ', ','], StringSplitOptions.RemoveEmptyEntries);
+        _currentLine = instruction;
+        instruction = GetRexExtensionAsm().Replace(instruction, "$1.$2");
+
+        var tokens = instruction.Split([' ', '\t', ','], StringSplitOptions.RemoveEmptyEntries);
         if (tokens.Length == 0) return;
 
         string mnemonic = tokens[0].ToUpperInvariant();
+
         OpCodeSize size = OpCodeSize.S64;
         string baseMnemonic = mnemonic;
 
-        // Обработка суффиксов размера для LOAD/STORE
-        if (mnemonic.StartsWith("LOAD."))
+        int dot = mnemonic.IndexOf('.');
+        if (dot > 0)
         {
-            baseMnemonic = mnemonic[..4]; // Выделяем "LOAD" как срез (0 аллокаций!)
-            size = ParseSize(mnemonic[5..]); // Передаем в парсер всё, что после точки
-        }
-        else if (mnemonic.StartsWith("STORE."))
-        {
-            baseMnemonic = mnemonic[..5]; // "STORE"
-            size = ParseSize(mnemonic[6..]);
-        }
-        else if (mnemonic.StartsWith("LOAD_IND."))
-        {
-            baseMnemonic = mnemonic[..8]; // "LOAD_IND"
-            size = ParseSize(mnemonic[9..]);
-        }
-        else if (mnemonic.StartsWith("STORE_IND."))
-        {
-            baseMnemonic = mnemonic[..9]; // "STORE_IND"
-            size = ParseSize(mnemonic[10..]); // Точка на 9-й позиции, размер начинается с 10
+            string sizePart = mnemonic[(dot + 1)..];
+            if (TryParseSize(sizePart, out var sz))
+            {
+                baseMnemonic = mnemonic[..dot];
+                size = sz;
+            }
+            // если TryParseSize вернул false — оставляем как есть,
+            // и если это опечатка — вылетит по _opMap с внятным сообщением
         }
 
         if (!_opMap.TryGetValue(baseMnemonic, out OpCode opCode))
@@ -215,6 +213,8 @@ public class AssemblerParser
             case "SHR":
             case "DIV":
             case "MULT_INT":
+            case "CMP":
+            case "TEST":
                 FormatR(tokens, baseMnemonic, opCode);
                 break;
 
@@ -227,6 +227,7 @@ public class AssemblerParser
             case "PUSH":
             case "POP":
             case "PRINT_INT":
+            case "ALLOC":
                 FormatU(tokens, baseMnemonic, opCode);
                 break;
 
@@ -260,15 +261,11 @@ public class AssemblerParser
                 FormatJumpType(tokens, baseMnemonic, opCode);
                 break;
 
-            case "ALLOC":
-                _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.ALLOC.Uint, 0));
-                break;
-
             case "INT":
                 if (tokens.Length < 2)
                     ThrowHelper.ThrowMiniC(ErrorCode.Asm_InvalidInstruction,baseMnemonic);
                 RegType rInt = ParseReg(tokens[1]);
-                _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.INT.Uint, (uint)rInt));
+                _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.INT.Uint, rInt.Uint));
                 break;
 
             case "IRET":
@@ -280,7 +277,17 @@ public class AssemblerParser
                 break;
         }
     }
-
+    private static bool TryParseSize(string s, out OpCodeSize size)
+    {
+        switch (s.ToUpperInvariant())
+        {
+            case "S8": case "8": size = OpCodeSize.S8; return true;
+            case "S16": case "16": size = OpCodeSize.S16; return true;
+            case "S32": case "32": size = OpCodeSize.S32; return true;
+            case "S64": case "64": size = OpCodeSize.S64; return true;
+            default: size = default; return false;
+        }
+    }
     private void FormatJumpType(string[] tokens, string baseMnemonic, OpCode opCode)
     {
         if (tokens.Length < 2)
@@ -358,7 +365,7 @@ public class AssemblerParser
     {
         if (_regMap.TryGetValue(s, out RegType reg))
             return reg;
-        return ThrowHelper.ThrowMiniC<RegType>(ErrorCode.Asm_UnknownRegister, s);
+        return ThrowHelper.ThrowMiniC<RegType>(ErrorCode.Asm_UnknownRegister, _currentLine);
     }
 
     private static ulong ParseNumber(string s)
@@ -379,12 +386,14 @@ public class AssemblerParser
 
     private static OpCodeSize ParseSize(string s) => s.ToUpperInvariant() switch
     {
-        "S8" => OpCodeSize.S8,
-        "S16" => OpCodeSize.S16,
-        "S32" => OpCodeSize.S32,
-        "S64" => OpCodeSize.S64,
+        "S8" or "8" => OpCodeSize.S8,
+        "S16" or "16" => OpCodeSize.S16,
+        "S32" or "32" => OpCodeSize.S32,
+        "S64" or "64" => OpCodeSize.S64,
         _ => ThrowHelper.ThrowMiniC<OpCodeSize>(ErrorCode.CodeGen_UnknownOpCodeSize,s)
     };
+    [GeneratedRegex(@"(\w)\s*\.\s*(\w)")]
+    private static partial Regex GetRexExtensionAsm();
 }
 
 public static class AsmLanguageDefinition

@@ -36,7 +36,7 @@ public class Emulator : IDisposable
 
     public int CreateDevice(
         byte[] biosFirmware,
-        RamSize size,
+        RamSize size, RamSize sizeBios,
         uint sector,
         string? name = null,
         string? nameProc = null,
@@ -44,6 +44,7 @@ public class Emulator : IDisposable
     {
         int id = _manager.CreateNewDevice(
             size,
+            sizeBios,
             name,
             nameProc,
             namePortBus,
@@ -64,9 +65,14 @@ public class Emulator : IDisposable
     public void Step(bool debugMode) => MainDevice?.NextStepProcessor(debugMode);
     public void Step(int count, bool debugMode) => MainDevice?.NextStepProcessorCount(count, debugMode);
 
-    public string? DumpRegisters() => MainDevice?.GetAllData();
 
-    public string? DumpRegisters(int id) => _manager.GetDevice(id)?.GetAllData();
+    public void CopyRegisters(Span<ulong> destination) => MainDevice?.CopyRegisters(destination);
+
+    public void CopyRegisters(Span<ulong> destination, int id) => _manager.GetDevice(id)?.CopyRegisters(destination);
+
+    public ulong[]? GetRegistersSnapshot() => MainDevice?.GetRegistersSnapshot();
+
+    public ulong[]? GetRegistersSnapshot(int id) => _manager.GetDevice(id)?.GetRegistersSnapshot();
 
 
     public void Reset()

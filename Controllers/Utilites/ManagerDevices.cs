@@ -89,6 +89,7 @@ public class ManagerDevices : IDisposable
 
     public int CreateNewDevice(
         RamSize size,
+        RamSize sizeBios,
         string? name,
         string? nameProc,
         string? namePortBus,
@@ -113,7 +114,7 @@ public class ManagerDevices : IDisposable
 
         // Создаём само устройство
         
-        var device = new Device(biosFirmware, _portBus, size, name, nameProc);
+        var device = new Device(biosFirmware, _portBus, size, sizeBios, name, nameProc);
         // Регистрируем в PortBus
         if (!_portBus.RegisterDevice(device, sector))
         {

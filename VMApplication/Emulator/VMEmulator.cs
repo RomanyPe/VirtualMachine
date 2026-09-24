@@ -1,5 +1,8 @@
-﻿using Kernel.Common;
+﻿using Compiller.ASM;
+using Kernel.Common;
 using Kernel.LocalMemorySystem;
+using System.Diagnostics.Metrics;
+using System.Text;
 using VMApplication.Logger;
 using static Kernel.Utilites.ManagerDevices;
 
@@ -39,29 +42,34 @@ public sealed class VMEmulator(Compiller.Emulation.Emulator emulator, VMHostLogg
     public IEnumerable<DeviceView> GetAllDevices() 
         => _emulator.AllDevices.Select(VMHostHelper.ConvertDeviceInfo);
 
-    public string GetDumpRegisters()
+    public string GetDumpRegistersAsString()
     {
-        var res = _emulator.DumpRegisters();
-        if (string.IsNullOrEmpty(res))
-        {
-            return "Не получилось получить дамб регистров";
-        }
-        return res;
+        Span<ulong> destination = stackalloc ulong[32];
+        _emulator.CopyRegisters(destination);
+        return GetStringRegisters(destination);
+
     }
 
-    public string GetDumpRegisters(int id)
+    public string GetDumpRegistersAsString(int id)
     {
-        var res = _emulator.DumpRegisters(id);
-        if (string.IsNullOrEmpty(res))
-        {
-            return $"Не получилось получить дамб регистров для устройства {id}";
-        }
-        return res;
+        Span<ulong> destination = stackalloc ulong[32];
+        _emulator.CopyRegisters(destination, id);
+        return GetStringRegisters(destination);
+        
     }
 
-    public int CreateDevice(byte[] bios, RamSize ramSize, uint sector, string? name = null, string? procName = null, string? portBusName = null)
+    public void CopyRegisters(Span<ulong> destination) => _emulator.CopyRegisters(destination);
+
+    public void CopyRegisters(Span<ulong> destination, int id) => _emulator.CopyRegisters(destination, id);
+
+    public ulong[]? GetRegistersSnapshot() => _emulator.GetRegistersSnapshot();
+
+    public ulong[]? GetRegistersSnapshot(int id) => _emulator.GetRegistersSnapshot(id);
+
+
+    public int CreateDevice(byte[] bios, RamSize ramSize, RamSize biosSize, uint sector, string? name = null, string? procName = null, string? portBusName = null)
     {
-        int id = _emulator.CreateDevice(bios, ramSize, sector, name, procName, portBusName);
+        int id = _emulator.CreateDevice(bios, ramSize, biosSize, sector, name, procName, portBusName);
         if (id >= 0)
             DeviceListChanged?.Invoke(_emulator.AllDevices);
         return id;
@@ -218,4 +226,21 @@ public sealed class VMEmulator(Compiller.Emulation.Emulator emulator, VMHostLogg
     public void Reset() => _emulator.Reset();
 
     public void Dispose() => _emulator.Dispose();
+
+
+    private static string GetStringRegisters(ReadOnlySpan<ulong> destination)
+    {
+        StringBuilder stringBuilder = new(512);
+        for (int i = 0; i < destination.Length; i++)
+        {
+            stringBuilder.Append('[')
+                .Append(((RegType)i).Name)
+                .Append("] = ")
+                .Append(destination[i])
+                .Append('\n');
+        }
+        stringBuilder.Append("IP ").Append(destination[RegType.rIP.Int]);
+        return stringBuilder.ToString();
+    }
+
 }

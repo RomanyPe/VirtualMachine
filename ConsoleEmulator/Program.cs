@@ -67,7 +67,8 @@ public class Program
         // 3. Создаём устройство (ВМ) с BIOS (можно без BIOS передать пустой массив)
         int deviceId = host.Emulator.CreateDevice(
             bios: [], // биос 
-            ramSize: RamSize.Size1MB,
+            ramSize: RamSize.Size1MB, 
+            biosSize: RamSize.Size64KB,
             sector: 0,
             name: "ConsoleVM"
         );

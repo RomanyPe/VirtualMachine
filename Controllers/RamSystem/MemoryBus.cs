@@ -3,16 +3,18 @@ using System.Buffers.Binary;
 
 namespace Kernel.RamSystem;
 
-public class MemoryBus(RamSize size, byte[] biosRom = null!) : IDisposable
+public class MemoryBus : IDisposable
 {
-    private NativeMemoryBuffer _memory = new (size);
-    private byte[] _biosRom = biosRom;
-    private ulong _biosRomSize = (ulong)biosRom.Length;
-    private readonly ulong _ramSize = (ulong)size;
-    private readonly ulong _biosRomStartCode = (ulong)size;
+    private NativeMemoryBuffer _memory;
 
-    public bool HaveBios => _biosRom != null && _biosRom.Length > 0;
-    public ulong RamSize => _ramSize;
+    public bool HaveBios => _memory.HaveBios;
+    public ulong RamSize => _memory.LengthRam;
+
+    public MemoryBus(RamSize size, byte[] biosRom = null!, RamSize sizeBios = Common.RamSize.Size128KB)
+    {
+        _memory = new(size, sizeBios);
+        _memory.SetBios(biosRom.AsSpan());
+    }
 
     public Memory<byte> Memory => _memory.AsMemory();
     public Memory<byte> AsMemory(int start, int length) => _memory.AsMemory(start, length);
@@ -26,14 +28,8 @@ public class MemoryBus(RamSize size, byte[] biosRom = null!) : IDisposable
     /// <returns> Успешность операции, при возврате не BiosStatus.Success происходит исключение и остановка работы биоса </returns>
     public RAMResultInt8 ReadInt8LE(ulong address)
     {
-        if (address < _ramSize)
-        {
-            return new RAMResultInt8(_memory[address]);
-        }
-
-        ulong biosAddress = address - _biosRomStartCode;
-        return biosAddress < _biosRomSize
-            ? new RAMResultInt8(_biosRom[biosAddress])
+        return address < _memory.Length 
+            ? new RAMResultInt8(_memory[address]) 
             : new RAMResultInt8(BiosStatus.SegmentationFault, address);
     }
 
@@ -47,15 +43,9 @@ public class MemoryBus(RamSize size, byte[] biosRom = null!) : IDisposable
     {
         if ((address & 0x01) != 0) return new RAMResultInt16(BiosStatus.AlignmentFault, (uint)address);
 
-        if (address + 2 <= _ramSize)
-        {
-            return new RAMResultInt16(_memory.ReadUInt16(address));
-        }
-
-        ulong biosAddress = address - _biosRomStartCode;
-        return biosAddress + 2 <= _biosRomSize
-            ? MemoryBusHelpers.GenerateInt16Le(_biosRom.AsSpan((int)biosAddress, 2))
-            : new RAMResultInt16(BiosStatus.SegmentationFault, (uint)address);
+        return address + 2 <= _memory.Length
+            ? new RAMResultInt16(_memory.ReadUInt16(address))
+            : new RAMResultInt16(BiosStatus.SegmentationFault, address);
     }
 
     /// <summary>
@@ -67,13 +57,8 @@ public class MemoryBus(RamSize size, byte[] biosRom = null!) : IDisposable
     {
         if ((address & 0x03) != 0) return new RAMResultInt32(BiosStatus.AlignmentFault, address);
 
-        if (address + 4 <= _ramSize)
-            return new RAMResultInt32(_memory.ReadUInt32(address));
-
-
-        ulong biosAddress = address - _biosRomStartCode;
-        return biosAddress + 4 <= _biosRomSize
-            ? MemoryBusHelpers.GenerateInt32Le(_biosRom.AsSpan((int)biosAddress, 4))
+        return address + 4 <= _memory.Length
+            ? new RAMResultInt32(_memory.ReadUInt32(address))
             : new RAMResultInt32(BiosStatus.SegmentationFault, address);
     }
 
@@ -87,14 +72,8 @@ public class MemoryBus(RamSize size, byte[] biosRom = null!) : IDisposable
     {
         if ((address & 0x07) != 0) return new RAMResultInt64(BiosStatus.AlignmentFault, address);
 
-        if (address + 8 <= _ramSize)
-        {
-            return new RAMResultInt64(_memory.ReadUInt64(address));
-        }
-
-        ulong biosAddress = address - _biosRomStartCode;
-        return biosAddress + 8 <= _biosRomSize
-            ? MemoryBusHelpers.GenerateInt64Le(_biosRom.AsSpan((int)biosAddress, 8))
+        return address + 8 <= _memory.Length
+            ? new RAMResultInt64(_memory.ReadUInt64(address))
             : new RAMResultInt64(BiosStatus.SegmentationFault, address);
     }
 
@@ -106,7 +85,7 @@ public class MemoryBus(RamSize size, byte[] biosRom = null!) : IDisposable
     /// <returns> Успешность операции, при возврате False программа остановится и выведится ошибка </returns>
     public RAMResultInt8 WriteInt8LE(ulong address, byte value)
     {
-        if (address >= _ramSize) return new RAMResultInt8(BiosStatus.SegmentationFault, address);
+        if (address >= _memory.Length) return new RAMResultInt8(BiosStatus.SegmentationFault, address);
 
         _memory[address] = value;
         return new RAMResultInt8(value);
@@ -121,9 +100,10 @@ public class MemoryBus(RamSize size, byte[] biosRom = null!) : IDisposable
     public RAMResultInt16 WriteInt16LE(ulong address, ushort value)
     {
         if ((address & 0x01) != 0) return new RAMResultInt16(BiosStatus.AlignmentFault, address);
-        if (address + 2 > _ramSize) return new RAMResultInt16(BiosStatus.SegmentationFault, address);
+        if (address + 2 > _memory.Length) return new RAMResultInt16(BiosStatus.SegmentationFault, address);
+        
+        _memory.WriteUInt16(address, value);
 
-        BinaryPrimitives.WriteUInt16LittleEndian(_memory.AsSpan((int)address, 2), value);
         return new RAMResultInt16(value);
     }
 
@@ -137,9 +117,9 @@ public class MemoryBus(RamSize size, byte[] biosRom = null!) : IDisposable
     public RAMResultInt32 WriteInt32LE(ulong address, uint value)
     {
         if ((address & 0x03) != 0) return new RAMResultInt32(BiosStatus.AlignmentFault, address);
-        if (address + 4 > _ramSize) return new RAMResultInt32(BiosStatus.SegmentationFault, address);
+        if (address + 4 > _memory.Length) return new RAMResultInt32(BiosStatus.SegmentationFault, address);
 
-        BinaryPrimitives.WriteUInt32LittleEndian(_memory.AsSpan((int)address, 4), value);
+        _memory.WriteUInt32(address, value);
         return new RAMResultInt32(value);
     }
 
@@ -152,72 +132,27 @@ public class MemoryBus(RamSize size, byte[] biosRom = null!) : IDisposable
     public RAMResultInt64 WriteInt64LE(ulong address, ulong value)
     {
         if ((address & 0x07) != 0) return new RAMResultInt64(BiosStatus.AlignmentFault, address);
-        if (address + 8 > _ramSize) return new RAMResultInt64(BiosStatus.SegmentationFault, address);
+        if (address + 8 > _memory.Length) return new RAMResultInt64(BiosStatus.SegmentationFault, address);
 
-        BinaryPrimitives.WriteUInt64LittleEndian(_memory.AsSpan((int)address, 8), value);
+        _memory.WriteUInt64(address, value);
         return new RAMResultInt64(value);
     }
 
-    public void WriteInt8LEUnSafe(ulong address, byte value)
-    {
-        _memory[address] = value;
-    }
+    public void WriteInt8LEUnSafe(ulong address, byte value) => _memory[address] = value;
 
-    public void WriteInt16LEUnSafe(ulong address, ushort value)
-    {
-        BinaryPrimitives.WriteUInt16LittleEndian(_memory.AsSpan((int)address, 2), value);
-    }
+    public void WriteInt16LEUnSafe(ulong address, ushort value) => _memory.WriteUInt16(address, value);
 
-    public void WriteInt32LEUnSafe(ulong address, uint value)
-    {
-        BinaryPrimitives.WriteUInt32LittleEndian(_memory.AsSpan((int)address, 4), value);
-    }
+    public void WriteInt32LEUnSafe(ulong address, uint value) => _memory.WriteUInt32(address, value);
 
-    public void WriteInt64LEUnSafe(ulong address, ulong value)
-    {
-        BinaryPrimitives.WriteUInt64LittleEndian(_memory.AsSpan((int)address, 8), value);
-    }
+    public void WriteInt64LEUnSafe(ulong address, ulong value) => _memory.WriteUInt64(address, value);
 
-    public byte ReadInt8LEUnSafe(ulong address)
-    {
-        const int size = sizeof(byte);
-        ulong biosAddress = address - _biosRomStartCode;
+    public byte ReadInt8LEUnSafe(ulong address) => _memory[address];
 
-        return address + size <= _ramSize
-            ? _memory[address]
-            : _biosRom[biosAddress];
-    }
+    public ushort ReadInt16LEUnSafe(ulong address) => _memory.ReadUInt16(address);
 
-    public ushort ReadInt16LEUnSafe(ulong address)
-    {
-        const int size = sizeof(ushort);
-        ulong biosAddress = address - _biosRomStartCode;
+    public uint ReadInt32LEUnSafe(ulong address) => _memory.ReadUInt32(address);
 
-        return address + size <= _ramSize
-            ? _memory.ReadUInt16(address)
-            : BinaryPrimitives.ReadUInt16LittleEndian(_biosRom.AsSpan((int)biosAddress, size));
-    }
-
-    public uint ReadInt32LEUnSafe(ulong address)
-    {
-        const int size = sizeof(uint);
-        ulong biosAddress = address - _biosRomStartCode;
-
-        return address + size <= _ramSize
-            ? _memory.ReadUInt32(address)
-            : BinaryPrimitives.ReadUInt32LittleEndian(_biosRom.AsSpan((int)biosAddress, size));
-    }
-
-
-    public ulong ReadInt64LEUnSafe(ulong address)
-    {
-        const int size = sizeof(ulong);
-        ulong biosAddress = address - _biosRomStartCode;
-
-        return address + size <= _ramSize
-            ? _memory.ReadUInt64(address)
-            : BinaryPrimitives.ReadUInt64LittleEndian(_biosRom.AsSpan((int)biosAddress, size));
-    }
+    public ulong ReadInt64LEUnSafe(ulong address) => _memory.ReadUInt64(address);
 
     // ==============================
     //              API 
@@ -228,13 +163,10 @@ public class MemoryBus(RamSize size, byte[] biosRom = null!) : IDisposable
     /// </summary>
     public void ClearMemory() => _memory.Clear();
 
-    public void SetBios(byte[] bios)
-    {
-        _biosRom = bios ?? [];
-        _biosRomSize = (ulong)_biosRom.Length;
-    }
+    public void SetBios(byte[] bios) => _memory.SetBios(bios.AsSpan());
 
     private int _disposed;
+
 
     public void Dispose()
     {

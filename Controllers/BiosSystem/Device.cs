@@ -47,17 +47,27 @@ public sealed class Device : IDisposable, IPortUse
     public long? StepCount => _processor.IsRunning ? null : stepCounter;
     public ulong CurrentIP => _processor.GetRegValue(RegType.rIP);
 
-    public Device(byte[] biosFirmware, PortBus portBus, RamSize size, string? name = null!, string? nameProc = null!)
+    public Device(byte[] biosFirmware, PortBus portBus, RamSize size, RamSize sizeBios, string? name = null!, string? nameProc = null!)
     {
         _nameDevice = new(name);
         _portBus = portBus;
-        _ram = new MemoryBus(size, biosFirmware);
+        _ram = new MemoryBus(size, biosFirmware, sizeBios);
         _processor = new Processor(_ram, _nameDevice, _portBus, _ctx, nameProc);
         _ioMemory = new byte[_portBus.PortsOnDevice];
         _deviceCtx = new DeviceExecutionContext(_nameDevice);
     }
 
-    public string GetAllData() => _processor.IsRunning ? string.Empty : _processor.DumbRegs();
+    public void CopyRegisters(Span<ulong> destination)
+    {
+        if (!_processor.IsRunning)
+        {
+            _processor.CopyRegisters(destination);
+        }
+    }
+    public ulong[]? GetRegistersSnapshot()
+    {
+        return _processor.IsRunning ? null : _processor.GetRegistersSnapshot();
+    }
 
     public void LoadProgram(byte[] program, ulong loadAddress)
     {
@@ -164,8 +174,8 @@ public sealed class Device : IDisposable, IPortUse
                 stepCounter++;
             }
 
-            if (isDebug) DebugOutput();
-            if (useSleepMode) Thread.Sleep(delay);
+            //if (isDebug) DebugOutput();
+            //if (useSleepMode) Thread.Sleep(delay);
         }
         Volatile.Write(ref _running, _processor.IsRunning);
 

@@ -37,7 +37,7 @@ END";
 
         try
         {
-            int deviceIdFirst = emu.CreateDevice([], RamSize.Size16KB, 0, "Device");
+            int deviceIdFirst = emu.CreateDevice([], RamSize.Size16KB, RamSize.Size64KB, 0, "Device");
             Assert.InRange(deviceIdFirst, 0, int.MaxValue);
 
             deviceFirst = emu.GetDevice(deviceIdFirst);
@@ -50,13 +50,15 @@ END";
             Assert.NotNull(programFirstDevice);
 
             deviceFirst.LoadProgram(programFirstDevice, 0);
-            deviceFirst.InitHeap((ulong)programFirstDevice.LongLength);
 
             using var doneFirst = new ManualResetEventSlim(false);
 
-            deviceFirst.LaunchDeviceOnDedicatedThread(0, false, 0, false, OnTitle, null,
-                log => { OnEnd(log); doneFirst.Set(); });
-
+            using var done = new ManualResetEventSlim(false);
+            var thread = new Thread(() => deviceFirst.RunSimulation(0, false, 0, false,
+                title => title.Log("Запуск", LogLevel.Log),
+                null,
+                (end, _) => { end.Log("Завершено", LogLevel.Log); done.Set(); }));
+            thread.Start();
             bool firstFinished = doneFirst.Wait(TimeSpan.FromSeconds(10));
 
             Assert.True(firstFinished, "Первое устройство не завершилось за отведённое время.");
@@ -108,10 +110,10 @@ END";
 
         try
         {
-            int deviceIdFirst = emu.CreateDevice([], RamSize.Size16KB, 0, "Device First");
+            int deviceIdFirst = emu.CreateDevice([], RamSize.Size16KB, RamSize.Size64KB, 0, "Device First");
             Assert.InRange(deviceIdFirst, 0, int.MaxValue);
 
-            int deviceIdSecond = emu.CreateDevice([], RamSize.Size16KB, 1, "Device Second");
+            int deviceIdSecond = emu.CreateDevice([], RamSize.Size16KB, RamSize.Size64KB, 1, "Device Second");
             Assert.InRange(deviceIdSecond, 0, int.MaxValue);
 
             deviceFirst = emu.GetDevice(deviceIdFirst);
@@ -127,23 +129,27 @@ END";
             Assert.NotNull(programFirstDevice);
 
             deviceFirst.LoadProgram(programFirstDevice, 0);
-            deviceFirst.InitHeap((ulong)programFirstDevice.LongLength);
 
             byte[]? programSecondDevice = GetByteCode(Code_Second_Device_Test_1);
             Assert.NotNull(programSecondDevice);
 
             deviceSecond.LoadProgram(programSecondDevice, 0);
-            deviceSecond.InitHeap((ulong)programSecondDevice.LongLength);
 
             // После загрузки программ, перед запуском:
             using var doneFirst = new ManualResetEventSlim(false);
             using var doneSecond = new ManualResetEventSlim(false);
 
             // Запускаем с колбэками, которые сигнализируют о завершении
-            deviceFirst.LaunchDeviceOnDedicatedThread(0, false, 0, false, OnTitle, null,
-                log => { OnEnd(log); doneFirst.Set(); });
-            deviceSecond.LaunchDeviceOnDedicatedThread(0, false, 0, false, OnTitle, null,
-                log => { OnEnd(log); doneSecond.Set(); });
+            var threadFirst = new Thread(() => deviceFirst.RunSimulation(0, false, 0, false,
+                           title => title.Log("Запуск", LogLevel.Log),
+                           null,
+                           (end, _) => { end.Log("Завершено", LogLevel.Log); doneFirst.Set(); }));
+            var threadSecond = new Thread(() => deviceSecond.RunSimulation(0, false, 0, false,
+                           title => title.Log("Запуск", LogLevel.Log),
+                           null,
+                           (end, _) => { end.Log("Завершено", LogLevel.Log); doneSecond.Set(); }));
+            threadFirst.Start();
+            threadSecond.Start();
 
             // Ждём завершения обоих устройств (максимум 10 секунд каждое)
             bool firstFinished = doneFirst.Wait(TimeSpan.FromSeconds(10));

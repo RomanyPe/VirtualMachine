@@ -8,9 +8,9 @@ public static class ProcessorHelpers
 {
 
     [MethodImpl(MethodImplOptions.NoInlining)]
-    public static int TryContinueAfterStatus(ResultInstruction dat, ulong ip, Lock regLock, bool needLogEnd = false)
+    public static int TryContinueAfterStatus(BiosStatus status, ulong data, ulong ip, Lock regLock, bool needLogEnd = false)
     {
-        if (dat.BiosStatus == BiosStatus.EndProgramm)
+        if (status == BiosStatus.EndProgramm)
         {
             lock (regLock)
             {
@@ -20,18 +20,18 @@ public static class ProcessorHelpers
             }
         }
 
-        string errorMessage = dat.BiosStatus switch
+        string errorMessage = status switch
         {
-            BiosStatus.ReadViolation => $"Попытка чтения из защищенной области памяти, адрес [{dat.Adress}]",
-            BiosStatus.AlignmentFault => $"Попытка прочесть целочисленные данные по невыравненной памяти, адрес [{dat.Adress}]",
-            BiosStatus.SegmentationFault => $"Ошибка выхода за границы ОЗУ, по обращению, адрес [{dat.Adress}]",
-            BiosStatus.NotImplementedOpCode => $"Неизвестный код операции OpCode [{dat.Adress}]",
-            BiosStatus.NullDeviceInput => $"Попытка записать данные в отсутствующий девайс, адрес обращения [{dat.Adress}],\n проверьте таблицу секторов портов, формула: [Adress / AdressPerSector]",
-            BiosStatus.NullDeviceOutput => $"Попытка прочесть данные из отсутсвующего девайса, адрес обращения [{dat.Adress}],\n проверьте таблицу секторов портов, формула: [Adress / AdressPerSector]",
-            _ => $"НЕПРЕДВИДЕННАЯ ОШИБКА СИМУЛЯЦИИ адрес [{dat.Adress}]"
+            BiosStatus.ReadViolation => $"Попытка чтения из защищенной области памяти, адрес [{data}]",
+            BiosStatus.AlignmentFault => $"Попытка прочесть целочисленные данные по невыравненной памяти, адрес [{data}]",
+            BiosStatus.SegmentationFault => $"Ошибка выхода за границы ОЗУ, по обращению, адрес [{data}]",
+            BiosStatus.NotImplementedOpCode => $"Неизвестный код операции OpCode [{data}]",
+            BiosStatus.NullDeviceInput => $"Попытка записать данные в отсутствующий девайс, адрес обращения [{data}],\n проверьте таблицу секторов портов, формула: [Adress / AdressPerSector]",
+            BiosStatus.NullDeviceOutput => $"Попытка прочесть данные из отсутсвующего девайса, адрес обращения [{data}],\n проверьте таблицу секторов портов, формула: [Adress / AdressPerSector]",
+            _ => $"НЕПРЕДВИДЕННАЯ ОШИБКА СИМУЛЯЦИИ адрес [{data}]"
         };
 
-        return OutputLog(dat.BiosStatus, regLock, errorMessage, ip) ? 1 : 0;
+        return OutputLog(status, regLock, errorMessage, ip) ? 1 : 0;
     }
 
 

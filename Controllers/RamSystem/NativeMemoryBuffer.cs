@@ -9,52 +9,107 @@ namespace Kernel.RamSystem;
 public unsafe sealed class NativeMemoryBuffer : IDisposable
 {
     private readonly NativeMemoryManager _manager;
-    private byte* _ptr;
-    private readonly nuint _length;
+
+    private nuint _sizeBios;
+    private readonly nuint _maxSizeBios;
+
+    private byte* _ptrRam;
+    private readonly nuint _sizeRam;
+
     private int _isDisposed;
 
-    public NativeMemoryBuffer(RamSize size)
+    public NativeMemoryBuffer(RamSize sizeRam, RamSize sizeBios = RamSize.Size128KB)
     {
-        _length = (nuint)size;
-        _ptr = (byte*)NativeMemory.Alloc(_length);
-        NativeMemory.Clear(_ptr, _length);
-        _manager = new(this);
+        var locker = new Lock();
+        lock (locker)
+        {
+            _sizeRam = (nuint)sizeRam;
+            _maxSizeBios = (nuint)sizeBios;
+
+            _ptrRam = (byte*)NativeMemory.Alloc(_sizeRam + _sizeBios);
+            NativeMemory.Clear(_ptrRam, _sizeRam + _sizeBios);
+
+            _manager = new(this);
+        }
+    }
+    public bool HaveBios => _sizeBios > 0;
+    public nuint LengthRam => _sizeRam;
+    public nuint LengthBios => _sizeBios;
+    public nuint Length => _sizeRam + _sizeBios; // для совместимости, но лучше использовать nuint
+    public nuint MaxLenghtBios => _maxSizeBios;
+
+    public byte* PointerRAM => _ptrRam;
+    public byte* PointerBios => _ptrRam;
+
+
+    public void SetBios(ReadOnlySpan<byte> bios)
+    {
+        if (bios.IsEmpty)
+        {
+            _sizeBios = 0;
+            return;
+        }
+
+        if (bios.Length >= (int)_maxSizeBios) throw new InvalidOperationException(
+            $"BIOS size {bios.Length} exceeds reserved {_maxSizeBios}.");
+
+        Span<byte> span = new(_ptrRam + _sizeRam, (int)_maxSizeBios);
+        span.Clear();
+        bios.CopyTo(span);
+        _sizeBios = (nuint)bios.Length;
     }
 
-    public int Length => (int)_length; // для совместимости, но лучше использовать nuint
-    public nuint LengthU => _length;
-    public byte* Pointer => _ptr;
 
-    public byte ReadUInt8(ulong address) => *(_ptr + address);
     public ushort ReadUInt16(ulong address)
     {
-        var value = Unsafe.ReadUnaligned<ushort>(_ptr + address); 
-        return BitConverter.IsLittleEndian? value : BinaryPrimitives.ReverseEndianness(value);
+        var value = Unsafe.ReadUnaligned<ushort>(_ptrRam + address);
+        return BitConverter.IsLittleEndian ? value : BinaryPrimitives.ReverseEndianness(value);
     }
 
     public uint ReadUInt32(ulong address)
     {
-        var value = Unsafe.ReadUnaligned<uint>(_ptr + address);
+        var value = Unsafe.ReadUnaligned<uint>(_ptrRam + address);
         return BitConverter.IsLittleEndian ? value : BinaryPrimitives.ReverseEndianness(value);
-
     }
 
     public ulong ReadUInt64(ulong address)
     {
-        var value = Unsafe.ReadUnaligned<ulong>(_ptr + address);
+        var value = Unsafe.ReadUnaligned<ulong>(_ptrRam + address);
         return BitConverter.IsLittleEndian ? value : BinaryPrimitives.ReverseEndianness(value);
     }
 
-    public Span<byte> AsSpan() => new(_ptr, (int)_length);
-    public ReadOnlySpan<byte> AsReadOnlySpan() => new(_ptr, (int)_length);
 
-    public Span<byte> AsSpan(int start, int length) => new(_ptr + start, length);
-    public ReadOnlySpan<byte> AsReadOnlySpan(int start, int length) => new(_ptr + start, length);
+    public void WriteUInt16(ulong address, ushort value)
+    {
+        if (!BitConverter.IsLittleEndian)
+            value = BinaryPrimitives.ReverseEndianness(value);
+        Unsafe.WriteUnaligned(_ptrRam + address, value);
+    }
+
+    public void WriteUInt32(ulong address, uint value)
+    {
+        if (!BitConverter.IsLittleEndian)
+            value = BinaryPrimitives.ReverseEndianness(value);
+        Unsafe.WriteUnaligned(_ptrRam + address, value);
+    }
+
+    public void WriteUInt64(ulong address, ulong value)
+    {
+        if (!BitConverter.IsLittleEndian)
+            value = BinaryPrimitives.ReverseEndianness(value);
+        Unsafe.WriteUnaligned(_ptrRam + address, value);
+    }
+
+    public Span<byte> AsSpan() => new(_ptrRam, (int)_sizeRam);
+    public ReadOnlySpan<byte> AsReadOnlySpan() => new(_ptrRam, (int)_sizeRam);
+
+    public Span<byte> AsSpan(int start, int length) => new(_ptrRam + start, length);
+    public ReadOnlySpan<byte> AsReadOnlySpan(int start, int length) => new(_ptrRam + start, length);
 
     public byte this[ulong index]
     {
-        get => *(_ptr + index);
-        set => *(_ptr + index) = value;
+        get => *(_ptrRam + index);
+        set => *(_ptrRam + index) = value;
     }
 
     public void Clear() => AsSpan().Clear();
@@ -63,8 +118,8 @@ public unsafe sealed class NativeMemoryBuffer : IDisposable
     {
         if (Interlocked.Exchange(ref _isDisposed, 1) == 0)
         {
-            NativeMemory.Free(_ptr);
-            _ptr = null;
+            NativeMemory.Free(_ptrRam);
+            _ptrRam = null;
         }
     }
 
@@ -86,8 +141,8 @@ public unsafe sealed class NativeMemoryBuffer : IDisposable
 
 public sealed unsafe class NativeMemoryManager(NativeMemoryBuffer buffer) : MemoryManager<byte>
 {
-    private readonly int _length = buffer.Length;
-    private byte* _ptr = buffer.Pointer; // копия указателя для быстрого доступа
+    private readonly int _length = (int)buffer.Length;
+    private byte* _ptr = buffer.PointerRAM; // копия указателя для быстрого доступа
 
     protected override void Dispose(bool disposing)
     {

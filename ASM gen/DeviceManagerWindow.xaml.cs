@@ -166,7 +166,7 @@ public partial class DeviceManagerWindow : Window
             DeviceCreationResult? res = dialog.ViewModel.Result;
             if (res != null)
             {
-                int deviceId = _host.CreateDevice(res.Bios, res.RamSize, res.Sector,
+                int deviceId = _host.CreateDevice(res.Bios, res.RamSize, RamSize.Size64KB, res.Sector,
                                                   res.DeviceName, res.ProcName,
                                                   res.PortBusName);
                 if (deviceId != -1)

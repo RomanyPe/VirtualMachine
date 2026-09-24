@@ -192,69 +192,77 @@ public static class InstructionEncoder
 
     #region Декодирование (для отладки)
 
+    private static string R1(uint i) => GetReg1(i).Name;
+    private static string R2(uint i) => GetReg2(i).Name;
+    private static string Size(uint i) => GetDataSizeCode(i).SizeName;
+
     /// <summary>
     /// Декодирует инструкцию в читаемый вид (для отладки)
     /// </summary>
     public static string Decode(uint instruction)
     {
-        OpCode opcode = GetOpCode(instruction);
+        var opcode = GetOpCode(instruction);
+        var op = opcode.OpName;
 
         return opcode switch
         {
-            OpCode.NOP => opcode.OpName,
-            OpCode.END => opcode.OpName,
-            OpCode.PRINT => $"{opcode.OpName} {GetReg1(instruction).Name}",
-            OpCode.HALT => opcode.OpName,
-            OpCode.WAKE => opcode.OpName,
-            OpCode.WAKE_INT => $"{opcode.OpName} {GetReg1(instruction).Name}",
+            OpCode.NOP or 
+            OpCode.END or 
+            OpCode.HALT or 
+            OpCode.WAKE or 
+            OpCode.RET or 
+            OpCode.IRET
+                => op,
 
-            OpCode.MOV => $"{opcode.OpName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
-            OpCode.LOAD => $"{opcode.OpName}.{GetDataSizeCode(instruction).SizeName} {GetReg1(instruction).Name}, [data64]",
-            OpCode.STORE => $"{opcode.OpName}.{GetDataSizeCode(instruction).SizeName} [data64], {GetReg1(instruction).Name}",
-            OpCode.LOAD_IND => $"{opcode.OpName}.{GetDataSizeCode(instruction).SizeName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
-            OpCode.STORE_IND => $"{opcode.OpName}.{GetDataSizeCode(instruction).SizeName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
-            OpCode.LOAD_UNSAFE => $"{opcode.OpName}.{GetDataSizeCode(instruction).SizeName} {GetReg1(instruction).Name}, [data64]",
-            OpCode.STORE_UNSAFE => $"{opcode.OpName}.{GetDataSizeCode(instruction).SizeName} [data64], {GetReg1(instruction).Name}",
-            OpCode.LOAD_IND_UNSAFE => $"{opcode.OpName}.{GetDataSizeCode(instruction).SizeName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
-            OpCode.STORE_IND_UNSAFE => $"{opcode.OpName}.{GetDataSizeCode(instruction).SizeName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
-            OpCode.LDI => $"{opcode.OpName} {GetReg1(instruction).Name}, [data64]",
+            OpCode.PRINT or 
+            OpCode.WAKE_INT or
+            OpCode.INC or 
+            OpCode.DEC or 
+            OpCode.NOT or 
+            OpCode.PUSH or 
+            OpCode.POP or 
+            OpCode.PRINT_INT or 
+            OpCode.ALLOC or 
+            OpCode.INT
+                => $"{op} {R1(instruction)}",
 
-            OpCode.ADD => $"{opcode.OpName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
-            OpCode.SUB => $"{opcode.OpName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
-            OpCode.INC => $"{opcode.OpName} {GetReg1(instruction).Name}",
-            OpCode.DEC => $"{opcode.OpName} {GetReg1(instruction).Name}",
+            OpCode.MOV or 
+            OpCode.ADD or 
+            OpCode.SUB or 
+            OpCode.AND or 
+            OpCode.OR or 
+            OpCode.XOR or 
+            OpCode.IN or 
+            OpCode.OUT or 
+            OpCode.MULT_INT or 
+            OpCode.SHR or 
+            OpCode.DIV or
+            OpCode.TEST or
+            OpCode.CMP
+                => $"{op} {R1(instruction)}, {R2(instruction)}",
 
-            OpCode.AND => $"{opcode.OpName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
-            OpCode.OR => $"{opcode.OpName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
-            OpCode.XOR => $"{opcode.OpName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
-            OpCode.NOT => $"{opcode.OpName} {GetReg1(instruction).Name}",
+            OpCode.JMP or 
+            OpCode.JZ or 
+            OpCode.JNZ or
+            OpCode.JG or 
+            OpCode.JL or 
+            OpCode.CALL
+                => $"{op} [data64]",
 
-            OpCode.JMP => $"{opcode.OpName} [data64]",
-            OpCode.JZ => $"{opcode.OpName} [data64]",
-            OpCode.JNZ => $"{opcode.OpName} [data64]",
-            OpCode.JG => $"{opcode.OpName} [data64]",
-            OpCode.JL => $"{opcode.OpName} [data64]",
-
-            OpCode.PUSH => $"{opcode.OpName} {GetReg1(instruction).Name}",
-            OpCode.POP => $"{opcode.OpName} {GetReg1(instruction).Name}",
-            OpCode.CALL => $"{opcode.OpName} [data64]",
-            OpCode.RET => $"{opcode.OpName}",
-
-            OpCode.IN => $"{opcode.OpName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
-            OpCode.OUT => $"{opcode.OpName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
-
-            OpCode.PRINT_INT => $"{opcode.OpName} {GetReg1(instruction).Name}",
-            OpCode.ALLOC => $"{opcode.OpName} {GetReg1(instruction).Name}",
-            OpCode.INT => $"{opcode.OpName} {GetReg1(instruction).Name}",
-            OpCode.IRET => "{opcode.OpName}",
-
-            OpCode.MULT_INT => $"{opcode.OpName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
-            OpCode.SHR => $"{opcode.OpName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
-            OpCode.DIV => $"{opcode.OpName} {GetReg1(instruction).Name}, {GetReg2(instruction).Name}",
+            OpCode.LOAD => $"{op}.{Size(instruction)} {R1(instruction)}, [data64]",
+            OpCode.STORE => $"{op}.{Size(instruction)} [data64], {R1(instruction)}",
+            OpCode.LOAD_IND => $"{op}.{Size(instruction)} {R1(instruction)}, {R2(instruction)}",
+            OpCode.STORE_IND => $"{op}.{Size(instruction)} {R1(instruction)}, {R2(instruction)}",
+            OpCode.LOAD_UNSAFE => $"{op}.{Size(instruction)} {R1(instruction)}, [data64]",
+            OpCode.STORE_UNSAFE => $"{op}.{Size(instruction)} [data64], {R1(instruction)}",
+            OpCode.LOAD_IND_UNSAFE => $"{op}.{Size(instruction)} {R1(instruction)}, {R2(instruction)}",
+            OpCode.STORE_IND_UNSAFE => $"{op}.{Size(instruction)} {R1(instruction)}, {R2(instruction)}",
+            OpCode.LDI => $"{op} {R1(instruction)}, [data64]",
 
             _ => $"UNKNOWN 0x{opcode.Uint:X2}"
         };
     }
+
     extension(OpCodeSize size)
     {
         public string SizeName => size switch
@@ -302,7 +310,7 @@ public static class InstructionEncoder
             RegType.rSP => "rSP",
             RegType.rHP => "rHP",
             RegType.rIP => "rIP",
-            _ => $"r?"
+            _ => "r?"
         };
     }
     extension(OpCode op)

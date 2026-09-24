@@ -137,7 +137,7 @@ public class DiskBootTests(ITestOutputHelper output)
         {
             // 1. Создаём устройство с BIOS (пока без программы)
             byte[] biosCode = new AssemblerParser().Assemble(BiosAsm, (ulong)SizePort.Size16KB);
-            int deviceId = emu.CreateDevice(biosCode, RamSize.Size16KB, sectorDevice, "BootDevice");
+            int deviceId = emu.CreateDevice(biosCode, RamSize.Size16KB, RamSize.Size64KB, sectorDevice, "BootDevice");
             Assert.InRange(deviceId, 0, int.MaxValue);
             logger.Info($"Device Id = {deviceId}");
             device = emu.GetDevice(deviceId);
@@ -168,7 +168,7 @@ public class DiskBootTests(ITestOutputHelper output)
                 }
                 else
                 {
-                    Assert.True(res1.IsSuccess, $"Port [{i}], {ProcessorHelpers.TryContinueAfterStatus(new(res1.Status, res1.FaultAddress), i, loc)}");
+                    Assert.True(res1.IsSuccess, $"Port [{i}], {ProcessorHelpers.TryContinueAfterStatus(res1.Status, res1.FaultAddress, i, loc)}");
                 }
             }
 
@@ -258,7 +258,7 @@ wait_ready:
         try
         {
             // Устройство в секторе 0
-            int deviceId = emu.CreateDevice([], RamSize.Size16KB, 0, "ReadDevice");
+            int deviceId = emu.CreateDevice([], RamSize.Size16KB, RamSize.Size64KB, 0, "ReadDevice");
             Assert.InRange(deviceId, 0, int.MaxValue);
             device = emu.GetDevice(deviceId);
             Assert.NotNull(device);

@@ -4,119 +4,124 @@ namespace Kernel.RamSystem;
 
 public readonly struct RAMResultInt64
 {
-    public readonly ulong Data;
-    private readonly ulong _statusAndAddress;
+    private const ulong ErrorFlag = 1UL << 63;
+    private const int StatusShift = 48;
+    private const ulong AddressMask = 0x0000FFFFFFFFFFFFUL;
 
-    public BiosStatus Status => (BiosStatus)(_statusAndAddress >> 48);
+    private readonly ulong _packed;
 
-    public ulong FaultAddress => _statusAndAddress & 0x0000FFFFFFFFFFFFUL;
+    public bool IsSuccess => (_packed & ErrorFlag) == 0;
 
-    public bool IsSuccess => Status == BiosStatus.Success;
+    public ulong Data => IsSuccess ? _packed : 0;
 
-    /// <summary>
-    /// Конструктор для успеха
-    /// </summary>
-    /// <param name="data"> Данные для передачи </param>
+    public BiosStatus Status =>
+        IsSuccess ? BiosStatus.Success : (BiosStatus)((_packed >> StatusShift) & 0xFF);
+
+    public ulong FaultAddress => IsSuccess ? 0 : (_packed & AddressMask);
+
+    /// <summary> Успех. data должно быть меньше 2^63. </summary>
     public RAMResultInt64(ulong data)
     {
-        Data = data;
-        _statusAndAddress = 0;
+        if ((data & ErrorFlag) != 0)
+            throw new ArgumentOutOfRangeException(nameof(data),
+                "Data must fit in 63 bits (0 .. 2^63-1).");
+        _packed = data;
     }
 
-    /// <summary>
-    /// Конструктор для ошибки
-    /// </summary>
-    /// <param name="status"> Статус ошибки </param>
-    /// <param name="adress"> Адресс ошибки в памяти</param>
-    public RAMResultInt64(BiosStatus status, ulong adress)
+    /// <summary> Ошибка. </summary>
+    public RAMResultInt64(BiosStatus status, ulong address)
     {
-        Data = 0;
-        _statusAndAddress = ((ulong)status << 48) | (adress & 0x0000FFFFFFFFFFFFUL);
+        if (status == BiosStatus.Success)
+            throw new ArgumentException("Use success constructor for Success.", nameof(status));
+        if ((ulong)status > 0xFF)
+            throw new ArgumentOutOfRangeException(nameof(status), "Status must fit in 8 bits.");
+        _packed = ErrorFlag | ((ulong)status << StatusShift) | (address & AddressMask);
     }
 }
 
-
 public readonly struct RAMResultInt32
 {
-    public readonly uint Data;
-    private readonly ulong _statusAndAddress;
+    private const ulong ErrorFlag = 1UL << 63;
+    private const int StatusShift = 48;
+    private const ulong AddressMask = 0x0000FFFFFFFFFFFFUL;
 
-    public BiosStatus Status => (BiosStatus)(_statusAndAddress >> 48);
+    private readonly ulong _packed;
 
-    public ulong FaultAddress => _statusAndAddress & 0x0000FFFFFFFFFFFFUL;
+    public bool IsSuccess => (_packed & ErrorFlag) == 0;
 
-    public bool IsSuccess => Status == BiosStatus.Success;
+    public uint Data => IsSuccess ? (uint)_packed : 0;
 
-    /// <summary>
-    /// Конструктор для успеха
-    /// </summary>
-    /// <param name="data"> Данные для передачи </param>
-    public RAMResultInt32(uint data)
+    public BiosStatus Status =>
+        IsSuccess ? BiosStatus.Success : (BiosStatus)((_packed >> StatusShift) & 0xFF);
+
+    public ulong FaultAddress => IsSuccess ? 0 : (_packed & AddressMask);
+
+    public RAMResultInt32(uint data) => _packed = data;
+
+    public RAMResultInt32(BiosStatus status, ulong address)
     {
-        Data = data;
-        _statusAndAddress = 0;
-    }
-
-    /// <summary>
-    /// Конструктор для ошибки
-    /// </summary>
-    /// <param name="status"> Статус ошибки </param>
-    /// <param name="adress"> Адресс ошибки в памяти</param>
-    public RAMResultInt32(BiosStatus status, ulong adress)
-    {
-        Data = 0;
-        _statusAndAddress = ((ulong)status << 48) | (adress & 0x0000FFFFFFFFFFFFUL);
+        if (status == BiosStatus.Success)
+            throw new ArgumentException("Use success constructor for Success.", nameof(status));
+        if ((ulong)status > 0xFF)
+            throw new ArgumentOutOfRangeException(nameof(status), "Status must fit in 8 bits.");
+        _packed = ErrorFlag | ((ulong)status << StatusShift) | (address & AddressMask);
     }
 }
 
 public readonly struct RAMResultInt16
 {
-    public readonly ushort Data;
-    private readonly ulong _statusAndAddress;
-    public BiosStatus Status => (BiosStatus)(_statusAndAddress >> 48);
+    private const ulong ErrorFlag = 1UL << 63;
+    private const int StatusShift = 48;
+    private const ulong AddressMask = 0x0000FFFFFFFFFFFFUL;
 
-    public ulong FaultAddress => _statusAndAddress & 0x0000FFFFFFFFFFFFUL;
+    private readonly ulong _packed;
 
-    public bool IsSuccess => Status == BiosStatus.Success;
+    public bool IsSuccess => (_packed & ErrorFlag) == 0;
 
-    /// <summary> Конструктор для успеха </summary>
-    public RAMResultInt16(ushort data)
+    public ushort Data => IsSuccess ? (ushort)_packed : (ushort)0;
+
+    public BiosStatus Status =>
+        IsSuccess ? BiosStatus.Success : (BiosStatus)((_packed >> StatusShift) & 0xFF);
+
+    public ulong FaultAddress => IsSuccess ? 0 : (_packed & AddressMask);
+
+    public RAMResultInt16(ushort data) => _packed = data;
+
+    public RAMResultInt16(BiosStatus status, ulong address)
     {
-        Data = data;
-        _statusAndAddress = 0;
-    }
-
-    /// <summary> Конструктор для ошибки </summary>
-    public RAMResultInt16(BiosStatus status, ulong faultAddress)
-    {
-        Data = 0;
-        _statusAndAddress = ((ulong)status << 48) | (faultAddress & 0x0000FFFFFFFFFFFFUL);
-
+        if (status == BiosStatus.Success)
+            throw new ArgumentException("Use success constructor for Success.", nameof(status));
+        if ((ulong)status > 0xFF)
+            throw new ArgumentOutOfRangeException(nameof(status), "Status must fit in 8 bits.");
+        _packed = ErrorFlag | ((ulong)status << StatusShift) | (address & AddressMask);
     }
 }
 
 public readonly struct RAMResultInt8
 {
-    public readonly byte Data;
-    private readonly ulong _statusAndAddress;
+    private const ulong ErrorFlag = 1UL << 63;
+    private const int StatusShift = 48;
+    private const ulong AddressMask = 0x0000FFFFFFFFFFFFUL;
 
-    public BiosStatus Status => (BiosStatus)(_statusAndAddress >> 48);
+    private readonly ulong _packed;
 
-    public ulong FaultAddress => _statusAndAddress & 0x0000FFFFFFFFFFFFUL;
+    public bool IsSuccess => (_packed & ErrorFlag) == 0;
 
-    public bool IsSuccess => Status == BiosStatus.Success;
+    public byte Data => IsSuccess ? (byte)_packed : (byte)0;
 
-    /// <summary> Конструктор для успеха </summary>
-    public RAMResultInt8(byte data)
+    public BiosStatus Status =>
+        IsSuccess ? BiosStatus.Success : (BiosStatus)((_packed >> StatusShift) & 0xFF);
+
+    public ulong FaultAddress => IsSuccess ? 0 : (_packed & AddressMask);
+
+    public RAMResultInt8(byte data) => _packed = data;
+
+    public RAMResultInt8(BiosStatus status, ulong address)
     {
-        Data = data;
-        _statusAndAddress = 0;
-    }
-
-    /// <summary> Конструктор для ошибки </summary>
-    public RAMResultInt8(BiosStatus status, ulong faultAddress)
-    {
-        Data = 0;
-        _statusAndAddress = ((ulong)status << 48) | (faultAddress & 0x0000FFFFFFFFFFFFUL);
+        if (status == BiosStatus.Success)
+            throw new ArgumentException("Use success constructor for Success.", nameof(status));
+        if ((ulong)status > 0xFF)
+            throw new ArgumentOutOfRangeException(nameof(status), "Status must fit in 8 bits.");
+        _packed = ErrorFlag | ((ulong)status << StatusShift) | (address & AddressMask);
     }
 }

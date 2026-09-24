@@ -10,13 +10,6 @@ namespace Kernel.ProcessorSystem;
 
 public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus portBus, Lock regLock, ReadOnlySpan<char> name)
 {
-    public readonly struct ResultInstruction(BiosStatus biosStatus, ulong adress)
-    {
-        public readonly BiosStatus BiosStatus = biosStatus;
-        public readonly ulong Adress = adress;
-
-        public static ResultInstruction IsSucced => new(BiosStatus.Success, 0);
-    }
 
     [InlineArray(CountReg)]
     private struct ArrayRegisters
@@ -42,10 +35,11 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
     private int _sleeping = 0;
     public bool IsSleeping => _sleeping == 1;
     public bool IsRunning => _isRunning == 1;
-    private bool IsZero => (_registers[RegType.rFL.Int] & 1UL) == 0UL;
-    private bool IsNegative => (_registers[RegType.rFL.Int] & 2UL) == 0UL;
-    private bool IsPositive => (_registers[RegType.rFL.Int] & 3UL) == 0UL;
+    private bool _hasCommand = false;
     private const bool NeedLogEnd = false;
+    private ulong _lastFaultAddress = 0;
+    private bool ZeroFlagSet => (_registers[RegType.rFL.Int] & 1UL) != 0UL;
+    private bool NegativeFlagSet => (_registers[RegType.rFL.Int] & 2UL) != 0UL;
 
     public bool TryInitInPool(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus portBus, Lock regLock, ReadOnlySpan<char> name)
     {
@@ -62,25 +56,16 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ulong GetRegValue(RegType reg)
-    {
-        return reg == RegType.rZ ? 0 : _registers[reg.Int];
-    }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void SetRegValue(RegType reg, ulong value)
-    {
-        if (reg == RegType.rZ) return;
-
-        _registers[reg.Int] = (reg == RegType.rFL) ? (value & 0x3UL) : value;
-    }
+    public ulong GetRegValue(RegType reg) => _registers[reg.Int];
 
     public void EnqueueBiosStatus(BiosStatus status)
     {
+        Volatile.Write(ref _hasCommand, true);
         Volatile.Write(ref _hasSimulationStatus, 1);
         _statusFromSimulation.Enqueue(status);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     private void ConsoleLock(string text, LogLevel level = LogLevel.Log)
     {
         LoggerKernel.LogFromDevice(in _nameDevice, text, level);
@@ -96,17 +81,30 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         stringBuilder.AppendLine($"IP {_registers[RegType.rIP.Int]}");
         return stringBuilder.ToString();
     }
-
-    private void UpdateFlags(ulong result)
+    public void CopyRegisters(Span<ulong> destination)
     {
-        // Вычисляем zeroFlag = 1, если result == 0, иначе 0 (без ветвления)
-        ulong zeroFlag = 1UL ^ ((result | (0UL - result)) >> 63);
-        // negativeFlag = 1, если старший бит (знак) установлен, иначе 0
-        ulong negativeFlag = result >> 63;
+        if (destination.Length < CountReg)
+            throw new ArgumentException($"Нужно минимум {CountReg} элементов", nameof(destination));
+        for (int i = 0; i < CountReg; i++)
+            destination[i] = _registers[i];
+    }
 
-        // Сбрасываем оба флага (биты 0 и 1) и устанавливаем новые
-        _registers[RegType.rFL.Int] =
-            (_registers[RegType.rFL.Int] & ~3UL) | zeroFlag | (negativeFlag << 1);
+    public ulong[] GetRegistersSnapshot()
+    {
+        var arr = new ulong[CountReg];
+        CopyRegisters(arr);
+        return arr;
+    }
+   
+
+    private ulong Get64IntData()
+    {
+        ulong ip = _registers[RegType.rIP.Int];
+        ip = (ip + 7) & ~7UL;
+        ulong data = _ram.ReadInt64LEUnSafe(ip);
+        ip += 8;
+        _registers[RegType.rIP.Int] = ip;
+        return data;
     }
 
     public void LaunchProgramm(ulong startAddress)
@@ -125,17 +123,6 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
 
         _registers[RegType.rSP.Int] = stackTop;
     }
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void ProcessControlSignals()
-    {
-        if (_hasExternalCommand == 1)
-            ProcessExternalCommandsSlow();
-
-        if (_hasSimulationStatus == 1)
-            ProcessSimulationStatusSlow();
-    }
-
 
 
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -156,19 +143,28 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         {
             if (result != BiosStatus.Success)
             {
-                Volatile.Write(ref _isRunning, ProcessorHelpers.TryContinueAfterStatus(new ResultInstruction(result, 1UL), ulong.MaxValue, _regLock, NeedLogEnd));
+                Volatile.Write(ref _isRunning, ProcessorHelpers.TryContinueAfterStatus(result, 1UL, ulong.MaxValue, _regLock, NeedLogEnd));
                 return;
             }
         }
         Volatile.Write(ref _hasSimulationStatus, 0);
     }
+
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public void Step()
     {
-        ProcessControlSignals();
 
-        if (!IsRunning || IsSleeping) return;
-        
+        if (_hasCommand)
+        {
+            if (_hasExternalCommand == 1)
+                ProcessExternalCommandsSlow();
+
+            if (_hasSimulationStatus == 1)
+                ProcessSimulationStatusSlow();
+            Volatile.Write(ref _hasCommand, false);
+
+            if (!IsRunning | IsSleeping) return;
+        }
 
         ulong ip = _registers[RegType.rIP.Int];        
 
@@ -177,38 +173,28 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
 
         ip += 4;
 
-        ulong data = 0;
-
-        if (HasNeed64IntData(opCode))
-        {
-            ip = (ip + 7) & ~7UL;
-
-            data = _ram.ReadInt64LEUnSafe(ip);
-            ip += 8;
-        }
-
         _registers[RegType.rIP.Int] = ip;
         
-        ResultInstruction dat = opCode switch
+        BiosStatus dat = opCode switch
         {
             // === 1. Системные команды ===
-            OpCode.NOP => ResultInstruction.IsSucced,
+            OpCode.NOP => BiosStatus.Success,
             OpCode.END => EndProgramm(),
             OpCode.PRINT => InstructionPRINT(GetReg1(rawInst)),
             // === 2. Работа с памятью (Указатели и регистры) ===
             OpCode.MOV => InstructionMOV(GetReg1(rawInst), GetReg2(rawInst)),
 
-            OpCode.LOAD => InstructionLOAD(GetDataSizeCode(rawInst), GetReg1(rawInst), data),
-            OpCode.STORE => InstructionSTORE(GetDataSizeCode(rawInst), GetReg1(rawInst), data),
+            OpCode.LOAD => InstructionLOAD(GetDataSizeCode(rawInst), GetReg1(rawInst), Get64IntData()),
+            OpCode.STORE => InstructionSTORE(GetDataSizeCode(rawInst), GetReg1(rawInst), Get64IntData()),
             OpCode.STORE_IND => InstructionSTORE_IND(GetDataSizeCode(rawInst), GetReg1(rawInst), GetReg2(rawInst)),
             OpCode.LOAD_IND => InstructionLOAD_IND(GetDataSizeCode(rawInst), GetReg1(rawInst), GetReg2(rawInst)),
 
-            OpCode.LOAD_UNSAFE => InstructionLOAD_UNSAFE(GetDataSizeCode(rawInst), GetReg1(rawInst), data),
-            OpCode.STORE_UNSAFE => InstructionSTORE_UNSAFE(GetDataSizeCode(rawInst), GetReg1(rawInst), data),
+            OpCode.LOAD_UNSAFE => InstructionLOAD_UNSAFE(GetDataSizeCode(rawInst), GetReg1(rawInst), Get64IntData()),
+            OpCode.STORE_UNSAFE => InstructionSTORE_UNSAFE(GetDataSizeCode(rawInst), GetReg1(rawInst), Get64IntData()),
             OpCode.STORE_IND_UNSAFE => InstructionSTORE_IND_UNSAFE(GetDataSizeCode(rawInst), GetReg1(rawInst), GetReg2(rawInst)),
             OpCode.LOAD_IND_UNSAFE => InstructionLOAD_IND_UNSAFE(GetDataSizeCode(rawInst), GetReg1(rawInst), GetReg2(rawInst)),
 
-            OpCode.LDI => InstructionLDI(GetReg1(rawInst), data),
+            OpCode.LDI => InstructionLDI(GetReg1(rawInst), Get64IntData()),
 
             // === 3. Арифметика и Логика (Тьюринг-базис) ===
             OpCode.ADD => InstructionADD(GetReg1(rawInst), GetReg2(rawInst)),
@@ -226,16 +212,16 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
             OpCode.NOT => InstructionNOT(GetReg1(rawInst)),
 
             // === 5. Управление потоком ===
-            OpCode.JMP => InstructionJMP(data),
-            OpCode.JZ => InstructionJZ(data),
-            OpCode.JNZ => InstructionJNZ(data),
-            OpCode.JG => InstructionJG(data),
-            OpCode.JL => InstructionJL(data),
+            OpCode.JMP => InstructionJMP(Get64IntData()),
+            OpCode.JZ => InstructionJZ(Get64IntData()),
+            OpCode.JNZ => InstructionJNZ(Get64IntData()),
+            OpCode.JG => InstructionJG(Get64IntData()),
+            OpCode.JL => InstructionJL(Get64IntData()),
 
             // === 6. Работа со Стеком ===
             OpCode.PUSH => InstructionPUSH(GetReg1(rawInst)),
             OpCode.POP => InstructionPOP(GetReg1(rawInst)),
-            OpCode.CALL => InstructionCALL(data),
+            OpCode.CALL => InstructionCALL(Get64IntData()),
             OpCode.RET => InstructionRET(),
 
             // === 7. Ввод-вывод ===
@@ -248,72 +234,99 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
             OpCode.ALLOC => InstructionALLOC(GetReg1(rawInst)),
             OpCode.WAKE_INT => InstructionWAKE_INT(GetReg1(rawInst)),
             OpCode.HALT => InstructionHALT(),
+            OpCode.CMP => InstructionCMP(GetReg1(rawInst), GetReg2(rawInst)),
+            OpCode.TEST => InstructionTEST(GetReg1(rawInst), GetReg2(rawInst)),
 
-            _ => new ResultInstruction(BiosStatus.NotImplementedOpCode, (ulong)GetOpCode(rawInst))
-        }; ;
+            _ => SetStatusNotImplementedOpCode(opCode),
+        };
 
-        if (dat.BiosStatus != BiosStatus.Success)
+        if (dat != BiosStatus.Success)
         {
-            Volatile.Write(ref _isRunning, ProcessorHelpers.TryContinueAfterStatus(dat, ip, _regLock, NeedLogEnd));
+            Volatile.Write(ref _isRunning, ProcessorHelpers.TryContinueAfterStatus(dat, _lastFaultAddress, ip, _regLock, NeedLogEnd));
         }
     }
-
-    private ResultInstruction InstructionHALT()
+    private BiosStatus InstructionCMP(RegType r1, RegType r2)
     {
-        Volatile.Write(ref _sleeping, 1);
-        return ResultInstruction.IsSucced;
+        ulong res = _registers[r1.Int] - _registers[r2.Int];
+
+        ulong zeroFlag = 1UL ^ ((res | (0UL - res)) >> 63);
+        ulong negativeFlag = res >> 63;
+
+        _registers[RegType.rFL.Int] = zeroFlag | (negativeFlag << 1);
+        return BiosStatus.Success;
     }
 
-    private ResultInstruction InstructionWAKE_INT(RegType reg1)
+    private BiosStatus InstructionTEST(RegType r1, RegType r2)
+    {
+        ulong res = _registers[r1.Int] & _registers[r2.Int];
+        ulong zeroFlag = 1UL ^ ((res | (0UL - res)) >> 63);
+        ulong negativeFlag = res >> 63;
+
+        _registers[RegType.rFL.Int] = zeroFlag | (negativeFlag << 1);
+        return BiosStatus.Success;
+    }
+
+
+    private BiosStatus SetStatusNotImplementedOpCode(OpCode code)
+    {
+        _lastFaultAddress = (ulong)code;
+        return BiosStatus.NotImplementedOpCode;
+    }
+
+    private BiosStatus InstructionHALT()
+    {
+        Volatile.Write(ref _sleeping, 1);
+        Volatile.Write(ref _hasCommand, true);
+        return BiosStatus.Success;
+    }
+
+    private BiosStatus InstructionWAKE_INT(RegType reg1)
     {
         ulong regV = _registers[reg1.Int];
         if (!_portBus.WakeProcessor(regV))
         {
             ulong ip = _registers[RegType.rIP.Int];
-            return new(BiosStatus.NullDeviceOutput, ip);
+            _lastFaultAddress = ip;
+            return BiosStatus.NullDeviceOutput;
         }
 
-        return ResultInstruction.IsSucced;
+        return BiosStatus.Success;
     }
 
-    private ResultInstruction InstructionDIV(RegType reg1, RegType reg2)
+    private BiosStatus InstructionDIV(RegType reg1, RegType reg2)
     {
         ulong divisor = _registers[reg2.Int];
         if (divisor == 0)
         {
             ulong ip = _registers[RegType.rIP.Int];
-            return new ResultInstruction(BiosStatus.DivOnZero, ip);
+            _lastFaultAddress = ip;
+            return BiosStatus.DivOnZero;
         }
         ulong dividend = _registers[reg1.Int];
         ulong res = dividend / divisor;
-        SetRegValue(reg1, res);
-        UpdateFlags(res);
-        return ResultInstruction.IsSucced;
+        _registers[reg1.Int] = res;
+        return BiosStatus.Success;
     }
 
-    private ResultInstruction InstructionSHR(RegType reg1, RegType reg2)
+    private BiosStatus InstructionSHR(RegType reg1, RegType reg2)
     {
         ulong regv1 = _registers[reg1.Int];
         byte regv2 = (byte)_registers[reg2.Int];
         ulong res = regv1 >> regv2;
-        SetRegValue(reg1, res);
-        UpdateFlags(res);
-        return ResultInstruction.IsSucced;
+        _registers[reg1.Int] = res;
+        return BiosStatus.Success;
     }
 
-    private ResultInstruction InstructionMULT_INT(RegType reg1, RegType reg2)
+    private BiosStatus InstructionMULT_INT(RegType reg1, RegType reg2)
     {
         ulong regv1 = _registers[reg1.Int];
         ulong regv2 = _registers[reg2.Int];
         ulong res = regv1 * regv2;
-        SetRegValue(reg1, res);
-        UpdateFlags(res);
-        return ResultInstruction.IsSucced;
+        _registers[reg1.Int] = res;
+        return BiosStatus.Success;
     }
 
-#pragma warning disable IDE0060 // Удалите неиспользуемый параметр
-    private ResultInstruction InstructionALLOC(RegType reg1)
-#pragma warning restore IDE0060 // Удалите неиспользуемый параметр
+    private BiosStatus InstructionALLOC(RegType reg1)
     {
         ulong size = _registers[RegType.r0.Int];
         ulong hp = _registers[RegType.rHP.Int];
@@ -323,22 +336,31 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         ulong newHp = hp + size;
         if (newHp >= _registers[(int)RegType.rSP])   // коллизия с стеком
         {
-            return new ResultInstruction(BiosStatus.SegmentationFault, result);
+            _lastFaultAddress = result;
+            return BiosStatus.SegmentationFault;
         }
         _registers[RegType.rHP.Int] = newHp;
-        _registers[RegType.r0.Int] = result;
-        UpdateFlags(result);
-        return ResultInstruction.IsSucced;
+
+        if (reg1 != RegType.r0)
+            _registers[reg1.Int] = result;
+        else
+            _registers[RegType.r0.Int] = result;
+
+        return BiosStatus.Success;
     }
 
-    private ResultInstruction InstructionINT(RegType reg)
+    private BiosStatus InstructionINT(RegType reg)
     {
         uint vector = (uint)_registers[reg.Int] & 0x1F; // 32 вектора
         ulong tableBase = _registers[RegType.rTB.Int];
         ulong handlerAddr;
         RAMResultInt64 readResult = _ram.ReadInt64LE(tableBase + (ulong)vector * 8);
         if (!readResult.IsSuccess)
-            return new ResultInstruction(readResult.Status, readResult.FaultAddress);
+        {
+            _lastFaultAddress = readResult.FaultAddress;
+            return readResult.Status;
+        }
+
         handlerAddr = readResult.Data;
 
         // Сохраняем текущий IP в стек
@@ -348,7 +370,10 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         RAMResultInt64 writeResult = _ram.WriteInt64LE(sp, ip);
 
         if (!writeResult.IsSuccess)
-            return new ResultInstruction(writeResult.Status, sp);
+        {
+            _lastFaultAddress = sp;
+            return writeResult.Status;
+        }
 
         _registers[RegType.rSP.Int] = sp;
         if (handlerAddr == 0)
@@ -358,46 +383,50 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         }
         // Переходим на обработчик
         _registers[RegType.rIP.Int] = handlerAddr;
-        return ResultInstruction.IsSucced;
+        return BiosStatus.Success;
     }
 
-    private ResultInstruction InstructionIRET()
+    private BiosStatus InstructionIRET()
     {
         // Восстанавливаем IP из стека
         ulong sp = _registers[RegType.rSP.Int];
         RAMResultInt64 readResult = _ram.ReadInt64LE(sp);
         if (!readResult.IsSuccess)
-            return new ResultInstruction(readResult.Status, sp);
+        {
+            _lastFaultAddress = sp;
+            return readResult.Status;
+        }
+
         sp += 8;
         _registers[RegType.rIP.Int] = readResult.Data;
         _registers[RegType.rSP.Int] = sp;
-        return ResultInstruction.IsSucced;
+        return BiosStatus.Success;
     }
 
-    public ResultInstruction EndProgramm()
+    public BiosStatus EndProgramm()
     {
         Volatile.Write(ref _isRunning, 0);
-        return new ResultInstruction(BiosStatus.EndProgramm, 0);
+        return BiosStatus.EndProgramm;
     }
 
-    public ResultInstruction InstructionPRINT_INT(RegType reg)
+    public BiosStatus InstructionPRINT_INT(RegType reg)
     {
         ConsoleLock(_registers[reg.Int].ToString());
-        return ResultInstruction.IsSucced;
+        return BiosStatus.Success;
     }
 
-    private ResultInstruction InstructionPRINT(RegType reg)
+    private BiosStatus InstructionPRINT(RegType reg)
     {
         LoggerProvider.CharOutPut((char)_registers[reg.Int]);
-        return ResultInstruction.IsSucced;
+        return BiosStatus.Success;
     }
 
-    private ResultInstruction InstructionMOV(RegType reg1, RegType reg2)
+    private BiosStatus InstructionMOV(RegType reg1, RegType reg2)
     {
-        SetRegValue(reg1, _registers[reg2.Int]);
-        return ResultInstruction.IsSucced;
+        _registers[reg1.Int] = _registers[reg2.Int];
+        return BiosStatus.Success;
     }
-    private ResultInstruction InstructionLOAD(OpCodeSize sizeT, RegType reg, ulong adress)
+    private BiosStatus InstructionLOAD(OpCodeSize sizeT, RegType reg, ulong adress)
     {
 
         switch (sizeT)
@@ -406,58 +435,54 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
                 RAMResultInt8 data8 = _ram.ReadInt8LE(adress);
                 if (data8.IsSuccess)
                 {
-                    SetRegValue(reg, data8.Data);
-                    UpdateFlags(data8.Data);
-                    return ResultInstruction.IsSucced;
+                    _registers[reg.Int] = data8.Data;
+                    return BiosStatus.Success;
                 }
-                return new(data8.Status, data8.FaultAddress);
+                _lastFaultAddress = data8.FaultAddress;
+                return data8.Status;
 
 
             case OpCodeSize.S16:
                 RAMResultInt16 data16 = _ram.ReadInt16LE(adress);
                 if (data16.IsSuccess)
                 {
-                    SetRegValue(reg, data16.Data);
-                    UpdateFlags(data16.Data);
+                    _registers[reg.Int] = data16.Data;
 
-                    return ResultInstruction.IsSucced;
+                    return BiosStatus.Success;
                 }
-                return new(data16.Status, data16.FaultAddress);
-
+                _lastFaultAddress = data16.FaultAddress;
+                return data16.Status;
 
             case OpCodeSize.S32:
                 RAMResultInt32 data32 = _ram.ReadInt32LE(adress);
                 if (data32.IsSuccess)
                 {
-                    SetRegValue(reg, data32.Data);
-                    UpdateFlags(data32.Data);
-
-                    return ResultInstruction.IsSucced;
+                    _registers[reg.Int] = data32.Data;
+                    return BiosStatus.Success;
                 }
-                return new(data32.Status, data32.FaultAddress);
-
+                _lastFaultAddress = data32.FaultAddress;
+                return data32.Status;
 
             case OpCodeSize.S64:
                 RAMResultInt64 data64 = _ram.ReadInt64LE(adress);
                 if (data64.IsSuccess)
                 {
-                    SetRegValue(reg, data64.Data);
-                    UpdateFlags(data64.Data);
-
-                    return ResultInstruction.IsSucced;
+                    _registers[reg.Int] = data64.Data;
+                    return BiosStatus.Success;
                 }
-                return new(data64.Status, data64.FaultAddress);
-
+                _lastFaultAddress = data64.FaultAddress;
+                return data64.Status;
 
             default:
                 // Защита на случай передачи некорректного или нереализованного OpCodeSize
-                return new(BiosStatus.SegmentationFault, adress);
+                _lastFaultAddress = adress;
+                return BiosStatus.SegmentationFault;
         }
 
 
     }
 
-    private ResultInstruction InstructionSTORE(OpCodeSize sizeT, RegType reg, ulong adress)
+    private BiosStatus InstructionSTORE(OpCodeSize sizeT, RegType reg, ulong adress)
     {
 
         switch (sizeT)
@@ -466,94 +491,92 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
                 RAMResultInt8 data8 = _ram.WriteInt8LE(adress, (byte)_registers[reg.Int]);
                 if (data8.IsSuccess)
                 {
-                    UpdateFlags(data8.Data);
-                    return ResultInstruction.IsSucced;
+                    return BiosStatus.Success;
                 }
-                return new(data8.Status, data8.FaultAddress);
+                _lastFaultAddress = data8.FaultAddress;
+                return data8.Status;
 
             case OpCodeSize.S16:
                 RAMResultInt16 data16 = _ram.WriteInt16LE(adress, (ushort)_registers[reg.Int]);
                 if (data16.IsSuccess)
                 {
-                    UpdateFlags(data16.Data);
-                    return ResultInstruction.IsSucced;
+                    return BiosStatus.Success;
                 }
-                return new(data16.Status, data16.FaultAddress);
+                _lastFaultAddress = data16.FaultAddress;
+                return data16.Status;
 
 
             case OpCodeSize.S32:
                 RAMResultInt32 data32 = _ram.WriteInt32LE(adress, (uint)_registers[reg.Int]);
                 if (data32.IsSuccess)
                 {
-                    UpdateFlags(data32.Data);
-                    return ResultInstruction.IsSucced;
+                    return BiosStatus.Success;
                 }
-                return new(data32.Status, data32.FaultAddress);
+                _lastFaultAddress = data32.FaultAddress;
+                return data32.Status;
 
 
             case OpCodeSize.S64:
                 RAMResultInt64 data64 = _ram.WriteInt64LE(adress, _registers[reg.Int]);
                 if (data64.IsSuccess)
                 {
-                    UpdateFlags(data64.Data);
-                    return ResultInstruction.IsSucced;
+                    return BiosStatus.Success;
                 }
-                return new(data64.Status, data64.FaultAddress);
+                _lastFaultAddress = data64.FaultAddress;
+                return data64.Status;
 
 
             default:
-                return new(BiosStatus.AlignmentFault, adress);
+                _lastFaultAddress = adress;
+                return BiosStatus.AlignmentFault;
         }
     }
 
-    private ResultInstruction InstructionLOAD_IND(OpCodeSize sizeT, RegType reg1, RegType reg2)
+    private BiosStatus InstructionLOAD_IND(OpCodeSize sizeT, RegType reg1, RegType reg2)
     {
         return InstructionLOAD(sizeT, reg1, _registers[reg2.Int]);
     }
 
-    private ResultInstruction InstructionSTORE_IND(OpCodeSize sizeT, RegType reg1, RegType reg2)
+    private BiosStatus InstructionSTORE_IND(OpCodeSize sizeT, RegType reg1, RegType reg2)
     {
         return InstructionSTORE(sizeT, reg1, _registers[reg2.Int]);
     }
-    private ResultInstruction InstructionLOAD_UNSAFE(OpCodeSize sizeT, RegType reg, ulong adress)
+    private BiosStatus InstructionLOAD_UNSAFE(OpCodeSize sizeT, RegType reg, ulong adress)
     {
 
         switch (sizeT)
         {
             case OpCodeSize.S8:
                 var data8 = _ram.ReadInt8LEUnSafe(adress);
-                SetRegValue(reg, data8);
-                UpdateFlags(data8);
-                return ResultInstruction.IsSucced;
+                _registers[reg.Int] = data8;
+                return BiosStatus.Success;
 
 
             case OpCodeSize.S16:
                 var data16 = _ram.ReadInt16LEUnSafe(adress);
-                SetRegValue(reg, data16);
-                UpdateFlags(data16);
-                return ResultInstruction.IsSucced;
+                _registers[reg.Int] = data16;
+                return BiosStatus.Success;
 
 
             case OpCodeSize.S32:
                 var data32 = _ram.ReadInt32LEUnSafe(adress);
                 
-                SetRegValue(reg, data32);
-                UpdateFlags(data32);
+                _registers[reg.Int] = data32;
 
-                return ResultInstruction.IsSucced;
+                return BiosStatus.Success;
 
 
             case OpCodeSize.S64:
                 var data64 = _ram.ReadInt64LEUnSafe(adress);
-                SetRegValue(reg, data64);
-                UpdateFlags(data64);
+                _registers[reg.Int] = data64;
 
-                return ResultInstruction.IsSucced;
+                return BiosStatus.Success;
         }
-        return new(BiosStatus.SegmentationFault, adress);
+        _lastFaultAddress = adress;
+        return BiosStatus.SegmentationFault;
     }
 
-    private ResultInstruction InstructionSTORE_UNSAFE(OpCodeSize sizeT, RegType reg, ulong adress)
+    private BiosStatus InstructionSTORE_UNSAFE(OpCodeSize sizeT, RegType reg, ulong adress)
     {
 
         switch (sizeT)
@@ -561,178 +584,149 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
             case OpCodeSize.S8:
                 var data8 = (byte)_registers[reg.Int];
                 _ram.WriteInt8LEUnSafe(adress, data8);
-                UpdateFlags(data8);
-                return ResultInstruction.IsSucced;
+                return BiosStatus.Success;
 
             case OpCodeSize.S16:
                 var data16 = (ushort)_registers[reg.Int];
                 _ram.WriteInt16LEUnSafe(adress, data16);
-                UpdateFlags(data16);
-                return ResultInstruction.IsSucced;
+                return BiosStatus.Success;
 
 
             case OpCodeSize.S32:
                 var data32 = (uint)_registers[reg.Int];
                 _ram.WriteInt32LEUnSafe(adress, data32);
-                UpdateFlags(data32);
-                return ResultInstruction.IsSucced;
+                return BiosStatus.Success;
 
 
             case OpCodeSize.S64:
                 var data64 = _registers[reg.Int];
                 _ram.WriteInt64LEUnSafe(adress, data64);
-                UpdateFlags(data64);
-                return ResultInstruction.IsSucced;
+                return BiosStatus.Success;
         }
-        return new(BiosStatus.AlignmentFault, adress);
+        _lastFaultAddress = adress;
+        return BiosStatus.AlignmentFault;
     }
 
-    private ResultInstruction InstructionLOAD_IND_UNSAFE(OpCodeSize sizeT, RegType reg1, RegType reg2)
+    private BiosStatus InstructionLOAD_IND_UNSAFE(OpCodeSize sizeT, RegType reg1, RegType reg2)
     {
         return InstructionLOAD_UNSAFE(sizeT, reg1, _registers[reg2.Int]);
     }
 
-    private ResultInstruction InstructionSTORE_IND_UNSAFE(OpCodeSize sizeT, RegType reg1, RegType reg2)
+    private BiosStatus InstructionSTORE_IND_UNSAFE(OpCodeSize sizeT, RegType reg1, RegType reg2)
     {
         return InstructionSTORE_UNSAFE(sizeT, reg1, _registers[reg2.Int]);
     }
 
-    private ResultInstruction InstructionLDI(RegType reg, ulong value)
+    private BiosStatus InstructionLDI(RegType reg, ulong value)
     {
-        SetRegValue(reg, value);
-        return ResultInstruction.IsSucced;
+        _registers[reg.Int] = value;
+        return BiosStatus.Success;
     }
 
-    private ResultInstruction InstructionADD(RegType reg1, RegType reg2)
+    private BiosStatus InstructionADD(RegType reg1, RegType reg2)
     {
         ulong value1 = _registers[reg1.Int];
         ulong value2 = _registers[reg2.Int];
         ulong res = value1 + value2;
-        SetRegValue(reg1, res);
-        UpdateFlags(res);
+        _registers[reg1.Int] = res;
 
-        return ResultInstruction.IsSucced;
+        return BiosStatus.Success;
     }
 
-    private ResultInstruction InstructionSUB(RegType reg1, RegType reg2)
+    private BiosStatus InstructionSUB(RegType reg1, RegType reg2)
     {
         ulong value1 = _registers[reg1.Int];
         ulong value2 = _registers[reg2.Int];
         ulong res = value1 - value2;
-        SetRegValue(reg1, res);
-        UpdateFlags(res);
+        _registers[reg1.Int] = res;
 
-        return ResultInstruction.IsSucced;
+        return BiosStatus.Success;
     }
 
-    private ResultInstruction InstructionINC(RegType reg)
+    private BiosStatus InstructionINC(RegType reg)
     {
         ulong value1 = _registers[reg.Int];
         ulong res = value1 + 1;
-        SetRegValue(reg, res);
-        UpdateFlags(res);
+        _registers[reg.Int] = res;
 
-        return ResultInstruction.IsSucced;
+        return BiosStatus.Success;
     }
 
-    private ResultInstruction InstructionDEC(RegType reg)
+    private BiosStatus InstructionDEC(RegType reg)
     {
         ulong value1 = _registers[reg.Int];
         ulong res = value1 - 1;
-        SetRegValue(reg, res);
-        UpdateFlags(res);
+        _registers[reg.Int] = res;
 
-        return ResultInstruction.IsSucced;
+        return BiosStatus.Success;
     }
 
-    private ResultInstruction InstructionAND(RegType reg1, RegType reg2)
+    private BiosStatus InstructionAND(RegType reg1, RegType reg2)
     {
         ulong value1 = _registers[reg1.Int];
         ulong value2 = _registers[reg2.Int];
         ulong res = value1 & value2;
-        SetRegValue(reg1, res);
-        UpdateFlags(res);
+        _registers[reg1.Int] = res;
 
-        return ResultInstruction.IsSucced;
+        return BiosStatus.Success;
     }
 
-    private ResultInstruction InstructionOR(RegType reg1, RegType reg2)
+    private BiosStatus InstructionOR(RegType reg1, RegType reg2)
     {
         ulong value1 = _registers[reg1.Int];
         ulong value2 = _registers[reg2.Int];
         ulong res = value1 | value2;
-        SetRegValue(reg1, res);
-        UpdateFlags(res);
+        _registers[reg1.Int] = res;
 
-        return ResultInstruction.IsSucced;
+        return BiosStatus.Success;
     }
 
-    private ResultInstruction InstructionXOR(RegType reg1, RegType reg2)
+    private BiosStatus InstructionXOR(RegType reg1, RegType reg2)
     {
         ulong value1 = _registers[reg1.Int];
         ulong value2 = _registers[reg2.Int];
         ulong res = value1 ^ value2;
-        SetRegValue(reg1, res);
-        UpdateFlags(res);
+        _registers[reg1.Int] = res;
 
-        return ResultInstruction.IsSucced;
+        return BiosStatus.Success;
     }
 
-    private ResultInstruction InstructionNOT(RegType reg)
+    private BiosStatus InstructionNOT(RegType reg)
     {
         ulong value = _registers[reg.Int];
         ulong res = ~value;
-        SetRegValue(reg, res);
-        UpdateFlags(res);
+        _registers[reg.Int] = res;
 
-        return ResultInstruction.IsSucced;
+        return BiosStatus.Success;
     }
-    private ResultInstruction InstructionJMP(ulong targetAddress)
+    private BiosStatus InstructionJMP(ulong targetAddress)
     {
         _registers[RegType.rIP.Int] = targetAddress;
-        return ResultInstruction.IsSucced;
+        return BiosStatus.Success;
     }
 
-    private ResultInstruction InstructionJZ(ulong targetAddress)
-    {
-        if (!IsZero)
-        {
-            _registers[RegType.rIP.Int] = targetAddress;
-        }
-
-        return ResultInstruction.IsSucced;
+    private BiosStatus InstructionJZ(ulong t) 
+    { 
+        if (ZeroFlagSet) _registers[RegType.rIP.Int] = t; 
+        return BiosStatus.Success; 
+    }
+    private BiosStatus InstructionJNZ(ulong t) 
+    { 
+        if (!ZeroFlagSet) _registers[RegType.rIP.Int] = t;
+        return BiosStatus.Success; 
+    }
+    private BiosStatus InstructionJL(ulong t) 
+    { 
+        if (NegativeFlagSet) _registers[RegType.rIP.Int] = t;
+        return BiosStatus.Success; 
+    }
+    private BiosStatus InstructionJG(ulong t) 
+    { 
+        if (!NegativeFlagSet & !ZeroFlagSet) _registers[RegType.rIP.Int] = t;
+        return BiosStatus.Success; 
     }
 
-    private ResultInstruction InstructionJNZ(ulong targetAddress)
-    {
-        if (IsZero)
-        {
-            _registers[RegType.rIP.Int] = targetAddress;
-        }
-        return ResultInstruction.IsSucced;
-    }
-
-
-    private ResultInstruction InstructionJG(ulong targetAddress)
-    {
-        if (IsPositive)
-        {
-            _registers[RegType.rIP.Int] = targetAddress;
-        }
-        return ResultInstruction.IsSucced;
-    }
-
-
-    private ResultInstruction InstructionJL(ulong targetAddress)
-    {
-        if (!IsNegative)
-        {
-            _registers[RegType.rIP.Int] = targetAddress;
-        }
-        return ResultInstruction.IsSucced;
-    }
-
-    private ResultInstruction InstructionPUSH(RegType reg)
+    private BiosStatus InstructionPUSH(RegType reg)
     {
         ulong value = _registers[reg.Int];
         ulong sp = _registers[RegType.rSP.Int];
@@ -742,37 +736,43 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         RAMResultInt64 writeResult = _ram.WriteInt64LE(sp, value);
 
         if (!writeResult.IsSuccess)
-            return new ResultInstruction(writeResult.Status, sp);
+        {
+            _lastFaultAddress = sp;
+            return writeResult.Status;
+        }
 
         if (_registers[RegType.rHP.Int] >= sp)   // коллизия с стеком
         {
-            return new ResultInstruction(BiosStatus.SegmentationFault, writeResult.Data);
+            _lastFaultAddress = writeResult.Data;
+            return BiosStatus.SegmentationFault;
         }
 
         _registers[RegType.rSP.Int] = sp;
-        return ResultInstruction.IsSucced;
+        return BiosStatus.Success;
     }
 
-    private ResultInstruction InstructionPOP(RegType reg)
+    private BiosStatus InstructionPOP(RegType reg)
     {
         ulong sp = _registers[RegType.rSP.Int];
 
         RAMResultInt64 readResult = _ram.ReadInt64LE(sp);
 
         if (!readResult.IsSuccess)
-            return new ResultInstruction(readResult.Status, sp);
-        
+        {
+            _lastFaultAddress = sp;
+            return readResult.Status;
+        }
 
         sp += 8;
 
-        SetRegValue(reg, readResult.Data);
+        _registers[reg.Int] = readResult.Data;
         _registers[RegType.rSP.Int] = sp;
 
-        return ResultInstruction.IsSucced;
+        return BiosStatus.Success;
     }
     
 
-    private ResultInstruction InstructionCALL(ulong targetAddress)
+    private BiosStatus InstructionCALL(ulong targetAddress)
     {
         ulong currentLink = _registers[RegType.rCL.Int];
         ulong callDepth = _registers[RegType.rCD.Int];
@@ -785,7 +785,7 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
             sp -= 8;
             if (_registers[RegType.rHP.Int] >= sp)   // коллизия с стеком
             {
-                return new ResultInstruction(BiosStatus.SegmentationFault, sp);
+                return BiosStatus.SegmentationFault;
             }
             _ram.WriteInt64LEUnSafe(sp, currentLink);
 
@@ -801,11 +801,11 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         _registers[RegType.rCD.Int] = callDepth;
         _registers[RegType.rIP.Int] = ip;
 
-        return ResultInstruction.IsSucced;
+        return BiosStatus.Success;
     }
 
     // Возврат из подпрограммы (RET)
-    private ResultInstruction InstructionRET()
+    private BiosStatus InstructionRET()
     {
         ulong callDepth = _registers[RegType.rCD.Int];
         ulong ip = _registers[RegType.rIP.Int];
@@ -813,7 +813,8 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         if (callDepth == 0)
         {
             ConsoleLock("Ошибка: RET вызван без предшествующего CALL. Программа остановлена.");
-            return new ResultInstruction((BiosStatus)9, ip);
+            _lastFaultAddress = ip;
+            return (BiosStatus)9;
         }
 
         ulong returnAddress = _registers[RegType.rCL.Int];
@@ -837,42 +838,43 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
 
         _registers[RegType.rCD.Int] = callDepth;
         _registers[RegType.rIP.Int] = ip;
-        return ResultInstruction.IsSucced;
+        return BiosStatus.Success;
     }
 
-    private ResultInstruction InstructionIN(RegType regDest, RegType regPort)
+    private BiosStatus InstructionIN(RegType regDest, RegType regPort)
     {
         ulong portAddress = _registers[regPort.Int];
         RAMResultInt8 result = _portBus.ReadPort(portAddress);
         if (!result.IsSuccess)
-            return new ResultInstruction(result.Status, result.FaultAddress);
+            return result.Status;
 
-        SetRegValue(regDest, result.Data);
-        UpdateFlags(result.Data);
-        return ResultInstruction.IsSucced;
+        _registers[regDest.Int] = result.Data;
+        return BiosStatus.Success;
     }
 
-    private ResultInstruction InstructionOUT(RegType regSrc, RegType regPort)
+    private BiosStatus InstructionOUT(RegType regSrc, RegType regPort)
     {
         ulong portAddress = _registers[regPort.Int];
         byte value = (byte)(_registers[regSrc.Int] & 0xFF);
         RAMResultInt8 result = _portBus.WritePort(portAddress, value);
         if (!result.IsSuccess)
-            return new ResultInstruction(result.Status, result.FaultAddress);
+            return result.Status;
 
         // Флаги обычно не меняются при выводе, но можно обновить по желанию
-        return ResultInstruction.IsSucced;
+        return BiosStatus.Success;
     }
 
     public void Reset()
     {
         lock (_regLock)
         {
+            _lastFaultAddress = 0;
             _isRunning = 0;
             _sleeping = 0;
             ClearRegs();
             while (_externalCommands.TryDequeue(out _));
             while (_statusFromSimulation.TryDequeue(out _));
+            _hasCommand = false;
             _hasExternalCommand = 0;
             _hasSimulationStatus = 0;
         }
@@ -888,11 +890,13 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
     public void EnqueueExternalCommand(uint instruction)
     {
         Volatile.Write(ref _hasExternalCommand, 1);
+        Volatile.Write(ref _hasCommand, true);
         _externalCommands.Enqueue(instruction);
     }
 
     private void ExecuteExternalCommand(uint rawInst)
     {
+        _hasCommand = true;
         OpCode opCode = GetOpCode(rawInst);
         switch (opCode)
         {

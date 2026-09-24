@@ -225,7 +225,7 @@ public partial class IDEPage : Page
         if (result.Success)
         {
             LogSystemData(in result, optimize);
-            _projectManager.FileService.SaveBinaryFile("bin", result.Program!);
+            File.WriteAllBytes(Path.Combine(_projectPath, "bin") + "program.bin", result.Program!);
         }
         else
         {
@@ -245,7 +245,7 @@ public partial class IDEPage : Page
         if (result.Success)
         {
             LogSystemData(in result, optimize);
-            _projectManager.FileService.SaveBinaryFile("bin" ,result.Program!);
+            File.WriteAllBytes(Path.Combine(_projectPath, "bin") + "program.bin" ,result.Program!);
         }
         else
         {
@@ -363,7 +363,7 @@ public partial class IDEPage : Page
 
     private void OnEndLaunch(IDeviceLoggerContext logger, ISimulationResult? res)
     {
-        logger.Log(_hostEmulator.GetDumpRegisters(), LogLevel.Log);
+        logger.Log(_hostEmulator.GetDumpRegistersAsString(), LogLevel.Log);
         logger.Log(PrintFullTimeSpanInfo(res), LogLevel.Log);
     }
 

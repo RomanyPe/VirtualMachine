@@ -148,24 +148,31 @@ public class ExpressionGenerator(AssemblerBase asm,
                 _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.NOT.Uint, targetReg.Uint));
                 _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.INC.Uint, targetReg.Uint));
                 break;
+
             case "!":
-                GenerateExpression(unop.Operand, targetReg);
-                string trueLabel = _getLabel();
-                string endLabel = _getLabel();
-                _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(RegType.r0.Uint), 1);
-                _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JNZ.Uint), trueLabel);
-                _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(RegType.r0.Uint), 0);
-                _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JMP.Uint), endLabel);
-                _asm.MarkLabel(trueLabel);
-                _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(RegType.r0.Uint), 1);
-                _asm.MarkLabel(endLabel);
-                break;
+                {
+                    GenerateExpression(unop.Operand, targetReg);           // targetReg = operand
+                    RegType scratch = targetReg == RegType.r1 ? RegType.r2 : RegType.r1;
+                    _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(scratch.Uint), 0);
+                    _asm.EmitInstruction(InstructionEncoder.EncodeR(
+                        OpCode.CMP.Uint, targetReg.Uint, scratch.Uint));   // flags = targetReg - 0
+
+                    string endLabel = _getLabel();
+                    _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(targetReg.Uint), 0);
+                    _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JNZ.Uint), endLabel);
+                    _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(targetReg.Uint), 1);
+                    _asm.MarkLabel(endLabel);
+                    break;
+                }
+
             case "~":
                 GenerateExpression(unop.Operand, targetReg);
                 _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.NOT.Uint, targetReg.Uint));
                 break;
+
             default:
-                ThrowHelper.ThrowMiniC(ErrorCode.NotSupported, $"Unsupported unary operator: {unop.Operator}");
+                ThrowHelper.ThrowMiniC(ErrorCode.NotSupported,
+                    $"Unsupported unary operator: {unop.Operator}");
                 return;
         }
     }
@@ -622,15 +629,23 @@ public class ExpressionGenerator(AssemblerBase asm,
 
         if (condition is BinaryOpNode binop && CodeGenUtils.IsComparisonOperator(binop.Operator))
         {
-            GenerateExpression(binop.Left);
-            _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, RegType.r1.Uint, RegType.r0.Uint));
-            GenerateExpression(binop.Right);
-            _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.SUB.Uint, RegType.r1.Uint, RegType.r0.Uint));
+            GenerateExpression(binop.Left);                                     // r0 = left
+            _asm.EmitInstruction(InstructionEncoder.EncodeR(
+                OpCode.MOV.Uint, RegType.r1.Uint, RegType.r0.Uint));            // r1 = left
+            GenerateExpression(binop.Right);                                    // r0 = right
+                                                                                // Только CMP обновляет флаги!
+            _asm.EmitInstruction(InstructionEncoder.EncodeR(
+                OpCode.CMP.Uint, RegType.r1.Uint, RegType.r0.Uint));            // flags = r1 - r0
             GenerateComparisonJump(binop.Operator, trueLabel, falseLabel);
         }
         else
         {
-            GenerateExpression(condition);
+            GenerateExpression(condition);                                      // r0 = значение
+                                                                                // Сравнение с нулём: CMP r0, 0 (через r1 как scratch)
+            _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(RegType.r1.Uint), 0);
+            _asm.EmitInstruction(InstructionEncoder.EncodeR(
+                OpCode.CMP.Uint, RegType.r0.Uint, RegType.r1.Uint));
+
             if (trueLabel != null && falseLabel != null)
             {
                 _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JNZ.Uint), trueLabel);
@@ -646,7 +661,6 @@ public class ExpressionGenerator(AssemblerBase asm,
             }
         }
     }
-
     private void GenerateComparisonJump(string op, string? trueLabel, string? falseLabel)
     {
         void EmitJmp(string label) => _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JMP.Uint), label);
@@ -698,7 +712,8 @@ public class ExpressionGenerator(AssemblerBase asm,
         string falseLabel = _getLabel();
 
         GenerateExpression(binop.Left);
-
+        _asm.EmitInstruction(InstructionEncoder.EncodeR(
+        OpCode.CMP.Uint, RegType.r0.Uint, RegType.r1.Uint));
         if (binop.Operator == "&&")
         {
             _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JZ.Uint), falseLabel);
@@ -709,7 +724,8 @@ public class ExpressionGenerator(AssemblerBase asm,
         }
 
         GenerateExpression(binop.Right);
-
+        _asm.EmitInstruction(InstructionEncoder.EncodeR(
+        OpCode.CMP.Uint, RegType.r0.Uint, RegType.r1.Uint));
         if (binop.Operator == "&&")
         {
             _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JZ.Uint), falseLabel);
@@ -778,7 +794,8 @@ public class ExpressionGenerator(AssemblerBase asm,
     {
         _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.SUB.Uint, RegType.r1.Uint, RegType.r0.Uint));
         _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, RegType.r0.Uint, RegType.r1.Uint));
-
+        _asm.EmitInstruction(InstructionEncoder.EncodeR(
+        OpCode.CMP.Uint, RegType.r1.Uint, RegType.r0.Uint));
         string trueLabel = _getLabel();
         string endLabel = _getLabel();
         _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(RegType.r0.Uint), 0);
@@ -865,6 +882,8 @@ public class ExpressionGenerator(AssemblerBase asm,
                 string trueLabel = _getLabel();
                 string endLabel = _getLabel();
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(RegType.r0.Uint), 1);
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(
+                OpCode.CMP.Uint, RegType.r0.Uint, RegType.r1.Uint));
                 _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JNZ.Uint), trueLabel);
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(RegType.r0.Uint), 0);
                 _asm.EmitJump(InstructionEncoder.EncodeJ(OpCode.JMP.Uint), endLabel);

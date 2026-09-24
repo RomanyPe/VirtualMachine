@@ -1,5 +1,4 @@
 ﻿using Kernel.Common;
-using System.Text;
 
 namespace VMApplication.Project;
 

@@ -74,7 +74,8 @@ public class TestStandartVMWorking(ITestOutputHelper output)
 
             int deviceId = host.Emulator.CreateDevice(
                 bios: [], // биос 
-                ramSize: RamSize.Size1MB,
+                ramSize: RamSize.Size1MB, 
+                biosSize: RamSize.Size64KB,
                 sector: 0,
                 name: "ConsoleVM"
             );
@@ -93,7 +94,7 @@ public class TestStandartVMWorking(ITestOutputHelper output)
                 delayMs: 0,
                 showTimer: true,
                 onStart: ctx => ctx.Log("Симуляция началась", LogLevel.Log),
-                onEnd: ctx => ctx.Log("Симуляция завершена", LogLevel.Log)
+                onEnd: (ctx, _) => ctx.Log("Симуляция завершена", LogLevel.Log)
             );
         }
         catch (Exception ex)

@@ -1,86 +1,372 @@
 ﻿using Kernel.Common;
-using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using VMApplication;
-using VMApplication.Emulator;
-using VMApplication.Project;
 
 namespace TestVMSpeed;
 
 internal class Program
 {
     const string text1 =
-"""
-    int main() {
-
-        asm{
+    """
+int main() {
+    asm{
     LDI r0, 0;
-    LDI r1, 0;
-    LDI r6, 10000000;   // константа 10000000
-    LDI r7, 1;         // константа 1
+    LDI r1, 10000000;
 
-    loop:
-        CALL Sum;       // rZ = sum + i  (Sum: ADD rZ, r0)
-        ADD r1, r7;     // i++
-        MOV r2, r1;     // копия i для сравнения
-        SUB r2, r6;     // r1 = i - 10000000
-        JL loop;        // если i < 10000000, продолжаем
+loop:
+    CALL Sum;
+    DEC r1;
+    TEST r1, r1;
+    JNZ loop;
 
     END;
-    Sum:
-        ADD r0, r1;
-        RET;
-        }
-        return 0;
-    }
-    """;
 
+Sum:
+    ADD r0, r1;
+    RET;
+    }
+    return 0;
+}
+""";
 
     const string text2 =
-        """
-    int main() {
-
-        asm{
+    """
+int main() {
+    asm{
     LDI r0, 0;
-    LDI r1, 0;
-    LDI r6, 10000000;   // константа 10000000
-    LDI r7, 1;         // константа 1
+    LDI r1, 10000000;
 
-    loop:
-        ADD r0, r1;       // rZ = sum + i  (Sum: ADD rZ, r0)
-        ADD r1, r7;     // i++
-        MOV r2, r1;     // копия i для сравнения
-        SUB r2, r6;     // r1 = i - 10000000
-        JL loop;        // если i < 10000000, продолжаем
+loop:
+    ADD r0, r1;
+    DEC r1;
+    TEST r1, r1;
+    JNZ loop;
 
     END;
-        }
-        return 0;
     }
-    """;
+    return 0;
+}
+""";
+
+    const string text3 =
+    """
+int main() {
+    asm{
+    LDI r0, 0;
+    LDI r7, 1;
+    LDI r6, 2500000;
+
+loop:
+    ADD r0, r7;
+    ADD r0, r7;
+    ADD r0, r7;
+    ADD r0, r7;
+    DEC r6;
+    TEST r6, r6;
+    JNZ loop;
+
+    END;
+    }
+    return 0;
+}
+""";
+
+    const string text3a =
+    """
+int main() {
+    asm{
+    LDI r0, 0;
+    LDI r1, 0;
+    LDI r2, 0;
+    LDI r3, 0;
+    LDI r7, 1;
+    LDI r6, 2500000;
+
+loop:
+    ADD r0, r7;
+    ADD r1, r7;
+    ADD r2, r7;
+    ADD r3, r7;
+    DEC r6;
+    TEST r6, r6;
+    JNZ loop;
+
+    END;
+    }
+    return 0;
+}
+""";
+
+    const string text4 =
+    """
+int main() {
+    asm{
+    LDI r8, 100;
+    LDI r0, 200000;
+    ALLOC r7;
+    MOV r1, r7;
+    LDI r2, 0;
+    LDI r4, 4;
+
+outer:
+    MOV r1, r7;
+    LDI r2, 0;
+    LDI r6, 50000;
+
+fill:
+    STORE_IND.S32 r2, r1;
+    ADD r1, r4;
+    INC r2;
+    DEC r6;
+    TEST r6, r6;
+    JNZ fill;
+
+    MOV r1, r7;
+    LDI r0, 0;
+    LDI r6, 50000;
+
+sum:
+    LOAD_IND.S32 r5, r1;
+    ADD r0, r5;
+    ADD r1, r4;
+    DEC r6;
+    TEST r6, r6;
+    JNZ sum;
+
+    DEC r8;
+    TEST r8, r8;
+    JNZ outer;
+
+END;
+    }
+    return 0;
+}
+""";
+
+    const string text4u =
+    """
+int main() {
+    asm{
+    LDI r8, 100;
+    LDI r0, 200000;
+    ALLOC r7;
+    MOV r1, r7;
+    LDI r2, 0;
+    LDI r4, 4;
+
+outer:
+    MOV r1, r7;
+    LDI r2, 0;
+    LDI r6, 50000;
+
+fill:
+    STORE_IND_UNSAFE.S32 r2, r1;
+    ADD r1, r4;
+    INC r2;
+    DEC r6;
+    TEST r6, r6;
+    JNZ fill;
+
+    MOV r1, r7;
+    LDI r0, 0;
+    LDI r6, 50000;
+
+sum:
+    LOAD_IND_UNSAFE.S32 r5, r1;
+    ADD r0, r5;
+    ADD r1, r4;
+    DEC r6;
+    TEST r6, r6;
+    JNZ sum;
+
+    DEC r8;
+    TEST r8, r8;
+    JNZ outer;
+
+END;
+    }
+    return 0;
+}
+""";
+
+    const string text5 =
+    """
+int main() {
+    asm{
+    LDI r0, 0;
+    LDI r6, 10000000;
+
+loop:
+    PUSH r0;
+    POP  r0;
+    DEC  r6;
+    TEST r6, r6;
+    JNZ  loop;
+
+    END;
+    }
+    return 0;
+}
+""";
+
+    const string text6 =
+    """
+int main() {
+    asm{
+    LDI r0, 1;
+    LDI r1, 1;
+    LDI r6, 10000000;
+
+loop:
+    SHR r0, r1;
+    AND r2, r0;
+    OR  r3, r0;
+    XOR r4, r0;
+    DEC r6;
+    TEST r6, r6;
+    JNZ loop;
+
+    END;
+    }
+    return 0;
+}
+""";
 
 
-    private static readonly int _runs = 15;
-    private static readonly int _runsWarmup = 3;
+    const string text7 =
+    """
+int main() {
+    asm{
+    LDI r0, 1;
+    LDI r1, 3;
+    LDI r6, 10000000;
+
+loop:
+    MULT_INT r0, r1;
+    DEC r6;
+    TEST r6, r6;
+    JNZ loop;
+
+    END;
+    }
+    return 0;
+}
+""";
+
+    const string text8 =
+    """
+int main() {
+    asm{
+    LDI r5, 1000000;
+    LDI r6, 0;
+    LDI r10, 1;
+
+loop:
+    INC r6;
+    TEST r6, r10;       // Z = (r6 & 1) == 0
+    JZ  even;
+odd:
+    INC r2;
+    JMP next;
+even:
+    INC r3;
+next:
+    DEC r5;
+    TEST r5, r5;
+    JNZ loop;
+
+END;
+    }
+    return 0;
+}
+""";
+
+    const string text3m =
+"""
+int main() {
+    asm{
+    LDI r0, 0;
+    LDI r1, 0;
+    LDI r2, 0;
+    LDI r3, 0;
+    LDI r7, 1;
+    LDI r6, 2500000;
+
+loop:
+    ADD r0, r7;
+    SUB r1, r7;      // SUB с вычитанием 1 — уйдёт в минус, но нам важен тайминг
+    AND r2, r7;      // r2 = r2 & 1 (остаётся 0 или 1)
+    OR  r3, r7;      // r3 = r3 | 1 (всегда 1 после первого)
+    DEC r6;
+    TEST r6, r6;
+    JNZ loop;
+
+    END;
+    }
+    return 0;
+}
+""";
+
+    const string text3m2 =
+"""
+int main() {
+    asm{
+    LDI r0, 0;
+    LDI r1, 0;
+    LDI r2, 0;
+    LDI r3, 0;
+    LDI r7, 1;
+    LDI r6, 2500000;
+
+loop:
+    ADD r0, r7;
+    ADD r1, r7;
+    ADD r2, r7;
+    ADD r3, r7;
+    DEC r6;
+    TEST r6, r6;
+    JNZ loop;
+
+    END;
+    }
+    return 0;
+}
+""";
+
+
+    private static readonly int _runs = 30;
+    private static readonly int _runsWarmup = 10;
 
     private static void Main()
     {
+        BenchmarkOptimizer.OptimizeCurrentProcess();
         KernelWarmup.WarmupAll();
         FileService fileService = new();
         using var host = VMHostFactory.CreateDefault(fileService: fileService);
 
         int deviceId = host.Emulator.CreateDevice(
             bios: [], // биос 
-            ramSize: RamSize.Size1KB,
+            ramSize: RamSize.Size128MB,
+            biosSize: RamSize.Size128B,
             sector: 0,
             name: "ConsoleVM"
         );
 
         var cases = new[]
         {
-            new BenchCase("Math", text2, Runs: _runs, WarmupRuns: _runsWarmup),
-            new BenchCase("Call", text1, Runs: _runs, WarmupRuns: _runsWarmup),
+            new BenchCase("Memory",       text4,  Runs: _runs,     WarmupRuns: _runsWarmup),
+            new BenchCase("MemoryUnsafe", text4u, Runs: _runs,     WarmupRuns: _runsWarmup),
+            new BenchCase("Math",         text2,  Runs: _runs,     WarmupRuns: _runsWarmup),
+            new BenchCase("AluTput1",     text3,  Runs: _runs,     WarmupRuns: _runsWarmup),
+            new BenchCase("AluTput4",     text3a, Runs: _runs,     WarmupRuns: _runsWarmup),
+            new BenchCase("AluTputM1",    text3m, Runs: _runs,     WarmupRuns: _runsWarmup),
+            new BenchCase("AluTputM2",    text3m2, Runs: _runs,     WarmupRuns: _runsWarmup),
+            new BenchCase("Call",         text1,  Runs: _runs,     WarmupRuns: _runsWarmup),
+            new BenchCase("PushPop",      text5,  Runs: _runs,     WarmupRuns: _runsWarmup),
+            new BenchCase("BitOps",       text6,  Runs: _runs,     WarmupRuns: _runsWarmup),
+            new BenchCase("Mul",          text7,  Runs: _runs,     WarmupRuns: _runsWarmup),
+            new BenchCase("Branch",       text8,  Runs: _runs,     WarmupRuns: _runsWarmup),
         };
 
         var sb = new StringBuilder();
@@ -94,177 +380,137 @@ internal class Program
                 continue;
             }
 
-            int warmRuns = runner.Case.WarmupRuns;
-            for (int i = 0; i < warmRuns; i++)
+            // Warmup
+            for (int i = 0; i < runner.Case.WarmupRuns; i++)
             {
                 runner.Warmup();
-                PrintProgress(runner.Case.Name, "warm run", i + 1, warmRuns);
+                PrintProgress(runner.Case.Name, "warm run", i + 1, runner.Case.WarmupRuns);
             }
 
-            int runs = runner.Case.Runs;
-            for (int i = 0; i < runs; i++)
+            // Runs
+            for (int i = 0; i < runner.Case.Runs; i++)
             {
                 runner.RunOnce();
-                PrintProgress(runner.Case.Name, "run", i + 1, runs);
+                PrintProgress(runner.Case.Name, "run", i + 1, runner.Case.Runs);
             }
 
             sb.AppendLine($"Test '{runner.Case.Name}':");
             sb.AppendLine();
 
+            // Итерации — компактно, всё ещё полезно для диагностики
             sb.AppendLine("  Elapsed (s) per iteration:");
             AppendIterations(sb, runner.ElapsedSecondsLog, "F4");
-            
             sb.AppendLine();
-            sb.AppendLine("  MIPS per iteration:");
-            AppendIterations(sb, runner.MipsLogs, "F2");
 
+            // === Основные агрегаты ===
+            var elapsedStats = StatsResult.From(runner.ElapsedSecondsLog);
+            var mipsStats = StatsResult.From(runner.MipsLogs);
+
+            long totalInstr = runner.StepsOnce;
+
+            sb.AppendLine("  Performance summary:");
+            sb.AppendLine($"\t    Instructions / run:  {totalInstr:N0}");
+            sb.AppendLine($"\t    Peak MIPS:           {runner.PeakMips,10:F2}   (TotalInstr / MinElapsed)");
+            sb.AppendLine($"\t    Stable MIPS (trim10):{mipsStats.TrimmedMean10,10:F2}   (устойчиво к JIT/GC)");
+            sb.AppendLine($"\t    Median MIPS:         {mipsStats.Median,10:F2}");
+            sb.AppendLine($"\t    ns / instruction:    {(elapsedStats.Min * 1e9 / Math.Max(1, totalInstr)),10:F2}");
+            sb.AppendLine($"\t    CV (MIPS):           {mipsStats.CV * 100,10:F2}%   (чем меньше — тем стабильнее)");
             sb.AppendLine();
+
+            // === Расширенная статистика по времени ===
             sb.AppendLine("  Elapsed stats (s):");
-            AppendStats(sb, StatsResult.From(runner.ElapsedSecondsLog));
-
+            AppendStatsExtended(sb, elapsedStats);
             sb.AppendLine();
-            sb.AppendLine("  MIPS stats:");
-            AppendStats(sb, StatsResult.From(runner.MipsLogs));
 
+            // === Расширенная статистика по MIPS ===
+            sb.AppendLine("  MIPS stats:");
+            AppendStatsExtended(sb, mipsStats);
+            sb.AppendLine();
+
+            // === JIT impact: первая половина vs вторая ===
+            double firstHalf = elapsedStats.FirstHalfMean;
+            double secondHalf = elapsedStats.SecondHalfMean;
+            double jitImpact = firstHalf == 0 ? 0 : (firstHalf - secondHalf) / secondHalf * 100.0;
+            sb.AppendLine($"  JIT/warmup impact (elapsed): {jitImpact:+0.0;-0.0;0}%  " +
+                          $"(firstHalf={firstHalf:F4}, secondHalf={secondHalf:F4})");
+            sb.AppendLine();
+
+            // === Дизассемблер ===
+            // res.Program нужно сохранить в BenchRunner, если хочешь дампить здесь.
+            // Если res недоступен — можно дампить из файла, куда его сохранил TryPrepare.
+            sb.AppendLine("  Disassembly:");
+            sb.AppendLine(VMHostHelper.DisassemblCode(runner.Program!).TextAsm);
             sb.AppendLine();
         }
 
         Console.Clear();
-        var path = AppDomain.CurrentDomain.BaseDirectory + "result_Benchmark_Logs.txt";
+        var time = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
+        var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs", $"result_Benchmark_Logs_{time}.txt");
         var logRes = sb.ToString();
-        //File.WriteAllText(path, logRes);
+        File.WriteAllText(path, logRes);
         Console.WriteLine(logRes);
         Console.WriteLine($"Файл результатов логов сохранен по пути: \"{path}\"");
         Console.ReadLine();
 
     }
+
+    private static void AppendStatsExtended(StringBuilder sb, StatsResult s)
+    {
+        sb.AppendLine($"\t    mean:        {s.Mean,10:F4}");
+        sb.AppendLine($"\t    trim 10%:    {s.TrimmedMean10,10:F4}");
+        sb.AppendLine($"\t    trim 5%:     {s.TrimmedMean5,10:F4}");
+        sb.AppendLine($"\t    median:      {s.Median,10:F4}");
+        sb.AppendLine($"\t    gmean:       {s.GeometricMean,10:F4}");
+        sb.AppendLine($"\t    min:         {s.Min,10:F4}");
+        sb.AppendLine($"\t    p1:          {s.P1,10:F4}");
+        sb.AppendLine($"\t    p5:          {s.P5,10:F4}");
+        sb.AppendLine($"\t    p25:         {s.P25,10:F4}");
+        sb.AppendLine($"\t    p75:         {s.P75,10:F4}");
+        sb.AppendLine($"\t    p95:         {s.P95,10:F4}");
+        sb.AppendLine($"\t    p99:         {s.P99,10:F4}");
+        sb.AppendLine($"\t    max:         {s.Max,10:F4}");
+        sb.AppendLine($"\t    range:       {s.Range,10:F4}");
+        sb.AppendLine($"\t    IQR:         {s.IQR,10:F4}");
+        sb.AppendLine($"\t    stddev:      {s.StdDev,10:F4}");
+        sb.AppendLine($"\t    CV:          {s.CV * 100,10:F2}%");
+        sb.AppendLine($"\t    skew:        {s.Skewness,10:F4}");
+        sb.AppendLine($"\t    1st half:    {s.FirstHalfMean,10:F4}");
+        sb.AppendLine($"\t    2nd half:    {s.SecondHalfMean,10:F4}");
+        sb.AppendLine($"\t    N:           {s.N,10}");
+    }
+
     private static void PrintProgress(string test, string phase, int done, int total)
     {
         if (Console.IsOutputRedirected) return;
-        Console.Write($"\r[{test}] {phase} {done}/{total}               ");
+        Console.Write($"\r[{test}] {phase} {done}/{total}                                   ");
     }
 
     private static void AppendStats(StringBuilder sb, StatsResult s)
     {
-        sb.AppendLine($"    mean:   {s.Mean:F4}");
-        sb.AppendLine($"    median: {s.Median:F4}");
-        sb.AppendLine($"    min:    {s.Min:F4}");
-        sb.AppendLine($"    p95:    {s.P95:F4}");
-        sb.AppendLine($"    max:    {s.Max:F4}");
-        sb.AppendLine($"    stddev: {s.StdDev:F4}");
-        sb.AppendLine($"    N:           {s.N}");
+        sb.AppendLine($"\t\tmean:   {s.Mean:F4}");
+        sb.AppendLine($"\t\tmedian: {s.Median:F4}");
+        sb.AppendLine($"\t\tmin:    {s.Min:F4}");
+        sb.AppendLine($"\t\tp95:    {s.P95:F4}");
+        sb.AppendLine($"\t\tmax:    {s.Max:F4}");
+        sb.AppendLine($"\t\tstddev: {s.StdDev:F4}");
+        sb.AppendLine($"\t\tN:           {s.N}");
     }
 
     private static void AppendIterations(StringBuilder sb, IReadOnlyList<double> logs, string format)
     {
-        sb.AppendLine($"  Iterations:");
+        sb.AppendLine($"\tIterations:");
         if (logs.Count == 0)
         {
-            sb.AppendLine("    <нет данных>");
+            sb.AppendLine("\t\t<нет данных>");
             return;
         }
 
         for (int i = 0; i < logs.Count; i++)
         {
-            sb.Append("    [")
+            sb.Append("\t\t[")
               .Append((i + 1).ToString("D3"))
               .Append("] ")
               .AppendLine(logs[i].ToString(format, CultureInfo.InvariantCulture));
         }
     }
 }
-
-
-public class FileService : IFileService
-{
-    private readonly Dictionary<string, string> _files = [];
-    public string ProjectPath => "this";
-
-    public string CombinePath(string path1, string path2) => Path.Combine(path1, path2);
-
-    public bool Exist(string fileName) => _files.ContainsKey(fileName);
-
-    public IEnumerable<string> GetSourceFiles() => _files.Keys;
-
-    public string ReadFile(string fileName) => _files[fileName];
-
-    public void SaveFile(string fileName, string content) => _files[fileName] = content;
-}
-
-
-public class BenchRunner(VMHost host, int deviceId, BenchCase benchCase, IFileService fileService)
-{
-    private readonly VMHost _host = host;
-    private readonly int _deviceId = deviceId;
-    private readonly BenchCase _case = benchCase;
-    private readonly List<double> _mipsLogs = []; 
-    private readonly List<double> _elapsedSecondsLogs = [];
-    private readonly IFileService _fileService = fileService;
-    public LaunchModeDevice? LaunchMode { get; private set; } = null; 
-    public BenchCase Case => _case;
-    public IReadOnlyList<double> MipsLogs => _mipsLogs;
-    public IReadOnlyList<double> ElapsedSecondsLog => _elapsedSecondsLogs;
-    public bool IsPrepared { get; private set; } = false;
-
-    public bool TryPrepare()
-    {
-        IsPrepared = false;
-        _fileService.SaveFile($"test.mic", _case.ProgramText);
-
-        var il = _host.Project.CompileToIL(ProjectBuilder.BaseAdressProgram, true);
-        var res = _host.Project.Compile(il);
-        if (!res.Success)
-        {
-            Console.WriteLine(res.Errors);
-            Console.ReadLine();
-            return false;
-        }
-        var ctx = _host.Emulator.CreateDeviceContext(_deviceId)!;
-
-        var launchModeMath = ctx.TryFastLoadProgram(res.Program, 0, out string? errorMath);
-        LaunchMode = launchModeMath;
-
-        if (launchModeMath == null)
-        {
-            Console.WriteLine($"Ошибка при загрузке программы для метрики блока {_case.Name}");
-            Console.WriteLine(errorMath);
-            Console.ReadLine();
-            ctx?.Dispose();
-            return false;
-        }
-        GC.Collect(2, GCCollectionMode.Forced, true);
-        GC.WaitForPendingFinalizers();
-        IsPrepared = true;
-        return true;
-    }
-
-    private static void Metric(ISimulationResult res, List<double> elapsetSecondsLong, List<double> mipsLogs)
-    {
-        mipsLogs.Add(res.Steps / res.Elapsed.TotalSeconds / 1_000_000.0);
-        elapsetSecondsLong.Add(res.Elapsed.TotalSeconds);
-    }
-
-
-    public void RunOnce()
-    {
-        Launch(_elapsedSecondsLogs, _mipsLogs, LaunchMode);
-    }
-
-    public void Warmup()
-    {
-        Launch([],[], LaunchMode); // warmup не пишем в лог
-    }
-
-    public static void Launch(List<double> log, List<double> logTime, LaunchModeDevice? launchMode) => launchMode?.Launch(
-                    showTimer: true,
-                    onEnd: (ctx, res) =>
-                    {
-                        if (res != null) Metric(res, logTime, log);
-                    });
-}
-
-public record BenchCase(
-    string Name,
-    string ProgramText,
-    int Runs,
-    int WarmupRuns);
