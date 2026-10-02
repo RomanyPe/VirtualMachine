@@ -1,4 +1,5 @@
 ﻿using Kernel.Common;
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using VMApplication;
@@ -341,42 +342,60 @@ loop:
     private static void Main()
     {
         BenchmarkOptimizer.OptimizeCurrentProcess();
-        KernelWarmup.WarmupAll();
         FileService fileService = new();
-        using var host = VMHostFactory.CreateDefault(fileService: fileService);
+        ConsoleOutputView console = new();
 
+        using var host = VMHostFactory.CreateDefault(fileService: fileService, outputView: console);
         int deviceId = host.Emulator.CreateDevice(
-            bios: [], // биос 
+            bios: [],
             ramSize: RamSize.Size128MB,
-            biosSize: RamSize.Size128B,
+            biosSize: RamSize.Size128B, 
+            personalLogger: console,
             sector: 0,
             name: "ConsoleVM"
         );
 
         var cases = new[]
         {
-            new BenchCase("Memory",       text4,  Runs: _runs,     WarmupRuns: _runsWarmup),
-            new BenchCase("MemoryUnsafe", text4u, Runs: _runs,     WarmupRuns: _runsWarmup),
-            new BenchCase("Math",         text2,  Runs: _runs,     WarmupRuns: _runsWarmup),
-            new BenchCase("AluTput1",     text3,  Runs: _runs,     WarmupRuns: _runsWarmup),
-            new BenchCase("AluTput4",     text3a, Runs: _runs,     WarmupRuns: _runsWarmup),
-            new BenchCase("AluTputM1",    text3m, Runs: _runs,     WarmupRuns: _runsWarmup),
-            new BenchCase("AluTputM2",    text3m2, Runs: _runs,     WarmupRuns: _runsWarmup),
-            new BenchCase("Call",         text1,  Runs: _runs,     WarmupRuns: _runsWarmup),
-            new BenchCase("PushPop",      text5,  Runs: _runs,     WarmupRuns: _runsWarmup),
-            new BenchCase("BitOps",       text6,  Runs: _runs,     WarmupRuns: _runsWarmup),
-            new BenchCase("Mul",          text7,  Runs: _runs,     WarmupRuns: _runsWarmup),
-            new BenchCase("Branch",       text8,  Runs: _runs,     WarmupRuns: _runsWarmup),
-        };
+        new BenchCase("Memory",       text4,  Runs: _runs, WarmupRuns: _runsWarmup),
+        new BenchCase("MemoryUnsafe", text4u, Runs: _runs, WarmupRuns: _runsWarmup),
+        new BenchCase("Math",         text2,  Runs: _runs, WarmupRuns: _runsWarmup),
+        new BenchCase("AluTput1",     text3,  Runs: _runs, WarmupRuns: _runsWarmup),
+        new BenchCase("AluTput4",     text3a, Runs: _runs, WarmupRuns: _runsWarmup),
+        new BenchCase("AluTputM1",    text3m, Runs: _runs, WarmupRuns: _runsWarmup),
+        new BenchCase("AluTputM2",    text3m2,Runs: _runs, WarmupRuns: _runsWarmup),
+        new BenchCase("Call",         text1,  Runs: _runs, WarmupRuns: _runsWarmup),
+        new BenchCase("PushPop",      text5,  Runs: _runs, WarmupRuns: _runsWarmup),
+        new BenchCase("BitOps",       text6,  Runs: _runs, WarmupRuns: _runsWarmup),
+        new BenchCase("Mul",          text7,  Runs: _runs, WarmupRuns: _runsWarmup),
+        new BenchCase("Branch",       text8,  Runs: _runs, WarmupRuns: _runsWarmup),
+    };
 
         var sb = new StringBuilder();
-
         var runners = cases.Select(c => new BenchRunner(host, deviceId, c, fileService)).ToArray();
-        foreach (var runner in runners)
+
+        // Общий план: сколько всего шагов (warm + run) по всем тестам
+        int totalSteps = runners.Sum(r => r.Case.WarmupRuns + r.Case.Runs);
+        int globalStep = 0;
+        var totalSw = Stopwatch.StartNew();
+
+        for (int ti = 0; ti < runners.Length; ti++)
         {
+            var runner = runners[ti];
+            string name = runner.Case.Name;
+            int testIndex = ti + 1;
+            int testTotal = runners.Length;
+            int phaseTotal = runner.Case.WarmupRuns + runner.Case.Runs;
+            int phaseStep = 0;
+
+            PrintTestHeader(testIndex, testTotal, name, runner.Case.WarmupRuns, runner.Case.Runs, totalSw);
+
             if (!runner.TryPrepare())
             {
-                sb.AppendLine($"Test '{runner.Case.Name}': prepare failed");
+                sb.AppendLine($"Test '{name}': prepare failed");
+                globalStep += phaseTotal;
+                PrintProgress(testIndex, testTotal, name, "fail", 0, 0,
+                              phaseTotal, phaseTotal, globalStep, totalSteps, forceNewLine: true, failed: true);
                 continue;
             }
 
@@ -384,28 +403,33 @@ loop:
             for (int i = 0; i < runner.Case.WarmupRuns; i++)
             {
                 runner.Warmup();
-                PrintProgress(runner.Case.Name, "warm run", i + 1, runner.Case.WarmupRuns);
+                phaseStep++; globalStep++;
+                PrintProgress(testIndex, testTotal, name, "warm", i + 1, runner.Case.WarmupRuns,
+                              phaseStep, phaseTotal, globalStep, totalSteps, totalSw);
             }
 
             // Runs
             for (int i = 0; i < runner.Case.Runs; i++)
             {
                 runner.RunOnce();
-                PrintProgress(runner.Case.Name, "run", i + 1, runner.Case.Runs);
+                phaseStep++; globalStep++;
+                PrintProgress(testIndex, testTotal, name, "run", i + 1, runner.Case.Runs,
+                              phaseStep, phaseTotal, globalStep, totalSteps, totalSw);
             }
 
-            sb.AppendLine($"Test '{runner.Case.Name}':");
+            // Отмечаем тест как завершённый
+            PrintProgress(testIndex, testTotal, name, "done", phaseTotal, phaseTotal,
+                          phaseStep, phaseTotal, globalStep, totalSteps, totalSw, forceNewLine: true);
+
+            sb.AppendLine($"Test '{name}':");
             sb.AppendLine();
 
-            // Итерации — компактно, всё ещё полезно для диагностики
             sb.AppendLine("  Elapsed (s) per iteration:");
             AppendIterations(sb, runner.ElapsedSecondsLog, "F4");
             sb.AppendLine();
 
-            // === Основные агрегаты ===
             var elapsedStats = StatsResult.From(runner.ElapsedSecondsLog);
             var mipsStats = StatsResult.From(runner.MipsLogs);
-
             long totalInstr = runner.StepsOnce;
 
             sb.AppendLine("  Performance summary:");
@@ -417,17 +441,14 @@ loop:
             sb.AppendLine($"\t    CV (MIPS):           {mipsStats.CV * 100,10:F2}%   (чем меньше — тем стабильнее)");
             sb.AppendLine();
 
-            // === Расширенная статистика по времени ===
             sb.AppendLine("  Elapsed stats (s):");
             AppendStatsExtended(sb, elapsedStats);
             sb.AppendLine();
 
-            // === Расширенная статистика по MIPS ===
             sb.AppendLine("  MIPS stats:");
             AppendStatsExtended(sb, mipsStats);
             sb.AppendLine();
 
-            // === JIT impact: первая половина vs вторая ===
             double firstHalf = elapsedStats.FirstHalfMean;
             double secondHalf = elapsedStats.SecondHalfMean;
             double jitImpact = firstHalf == 0 ? 0 : (firstHalf - secondHalf) / secondHalf * 100.0;
@@ -435,25 +456,97 @@ loop:
                           $"(firstHalf={firstHalf:F4}, secondHalf={secondHalf:F4})");
             sb.AppendLine();
 
-            // === Дизассемблер ===
-            // res.Program нужно сохранить в BenchRunner, если хочешь дампить здесь.
-            // Если res недоступен — можно дампить из файла, куда его сохранил TryPrepare.
             sb.AppendLine("  Disassembly:");
             sb.AppendLine(VMHostHelper.DisassemblCode(runner.Program!).TextAsm);
             sb.AppendLine();
         }
 
+        totalSw.Stop();
+
         Console.Clear();
         var time = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
-        var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs", $"result_Benchmark_Logs_{time}.txt");
+        var pathToDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs");
+        Directory.CreateDirectory(pathToDir);
+        var path = Path.Combine(pathToDir, $"result_Benchmark_Logs_{time}.txt");
         var logRes = sb.ToString();
         File.WriteAllText(path, logRes);
         Console.WriteLine(logRes);
         Console.WriteLine($"Файл результатов логов сохранен по пути: \"{path}\"");
         Console.ReadLine();
-
     }
 
+    // ───────── Прогресс ─────────
+
+    private const int ProgressBarWidth = 24;
+
+    private static void PrintTestHeader(int index, int total, string name, int warm, int runs,
+                                        Stopwatch? totalSw = null)
+    {
+        if (Console.IsOutputRedirected) return;
+        //try { Console.Title = $"[{index}/{total}] {name}"; } catch { /* ignore */ }
+
+        string elapsed = totalSw is null ? "" : $" elapsed {FormatTime(totalSw.Elapsed)}";
+        Console.WriteLine();
+        Console.WriteLine($"=== [{index}/{total}] {name}  (warmup={warm}, runs={runs}){elapsed} ===");
+    }
+
+    private static void PrintProgress(
+        int testIndex, int testTotal, string test,
+        string phase, int done, int phaseTotal,
+        int phaseStep, int phaseStepsTotal,
+        int globalStep, int globalTotal,
+        Stopwatch? totalSw = null,
+        bool forceNewLine = false,
+        bool failed = false)
+    {
+        if (Console.IsOutputRedirected) return;
+
+        double globalPct = globalTotal <= 0 ? 1.0 : (double)globalStep / globalTotal;
+        double testPct = phaseStepsTotal <= 0 ? 1.0 : (double)phaseStep / phaseStepsTotal;
+
+        int filled = Math.Clamp((int)Math.Round(globalPct * ProgressBarWidth), 0, ProgressBarWidth);
+        string bar = new string('▓', filled) + new string('░', ProgressBarWidth - filled);
+
+        string marker = failed ? "✗" : (phase == "done" ? "✓" : "•");
+        string phaseStr = phase == "done" || phase == "fail"
+            ? $"{phase,-4}"
+            : $"{phase,-4} {done,3}/{phaseTotal,-3}";
+
+        string eta = "";
+        if (totalSw is not null && globalStep > 0 && globalStep < globalTotal)
+        {
+            double avgPerStep = totalSw.Elapsed.TotalSeconds / globalStep;
+            var remain = TimeSpan.FromSeconds(avgPerStep * (globalTotal - globalStep));
+            eta = $" | ETA {FormatTime(remain)}";
+        }
+
+        string line =
+            $"{marker} [{testIndex,2}/{testTotal,-2}] {test,-13} | {phaseStr} " +
+            $"| test {testPct,6:P1} | total {globalStep,4}/{globalTotal,-4} {globalPct,6:P1} " +
+            $"{bar}{eta}";
+
+        int width = SafeWindowWidth();
+        if (line.Length < width) line = line.PadRight(width);
+        else if (line.Length > width) line = line[..width];
+
+        Console.Write('\r');
+        Console.Write(line);
+
+        if (forceNewLine) Console.WriteLine();
+    }
+
+    private static string FormatTime(TimeSpan t)
+    {
+        if (t.TotalHours >= 1) return $"{(int)t.TotalHours}h{t.Minutes:D2}m{t.Seconds:D2}s";
+        if (t.TotalMinutes >= 1) return $"{t.Minutes}m{t.Seconds:D2}s";
+        return $"{t.TotalSeconds:F1}s";
+    }
+
+    private static int SafeWindowWidth()
+    {
+        try { return Math.Max(60, Console.WindowWidth); }
+        catch { return 140; }
+    }
     private static void AppendStatsExtended(StringBuilder sb, StatsResult s)
     {
         sb.AppendLine($"\t    mean:        {s.Mean,10:F4}");
@@ -483,17 +576,6 @@ loop:
     {
         if (Console.IsOutputRedirected) return;
         Console.Write($"\r[{test}] {phase} {done}/{total}                                   ");
-    }
-
-    private static void AppendStats(StringBuilder sb, StatsResult s)
-    {
-        sb.AppendLine($"\t\tmean:   {s.Mean:F4}");
-        sb.AppendLine($"\t\tmedian: {s.Median:F4}");
-        sb.AppendLine($"\t\tmin:    {s.Min:F4}");
-        sb.AppendLine($"\t\tp95:    {s.P95:F4}");
-        sb.AppendLine($"\t\tmax:    {s.Max:F4}");
-        sb.AppendLine($"\t\tstddev: {s.StdDev:F4}");
-        sb.AppendLine($"\t\tN:           {s.N}");
     }
 
     private static void AppendIterations(StringBuilder sb, IReadOnlyList<double> logs, string format)
