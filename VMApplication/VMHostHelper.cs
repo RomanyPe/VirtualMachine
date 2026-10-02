@@ -1,12 +1,7 @@
 ﻿using Compiller.ASM;
 using Compiller.C;
-using Kernel.BiosSystem;
 using Kernel.Common;
 using Kernel.ControllersData;
-using Kernel.ProcessorSystem;
-using Kernel.RamSystem;
-using System.Reflection;
-using System.Runtime.CompilerServices;
 using VMApplication.Emulator;
 using VMApplication.Logger;
 using VMApplication.Project;
@@ -21,29 +16,19 @@ public static class VMHostHelper
     /// ENG: Executes the code parser and lexer. This method throws exceptions on parsing failures and must be wrapped in a try-catch block.
     /// </summary>
     /// <param name="text"> исходный текст </param>
-    public static IReadOnlyProgramNode LaunchUnsafeParse(string text)
+    public static void LaunchUnsafeParse(string text)
     {
         var lexer = new Lexer(text);
         var tokens = lexer.Tokenize();
         var parser = new Parser(tokens);
-        return parser.Parse();
+        parser.Parse();
     }
 
     extension(DeviceInfo d)
     {
         public DeviceView ConvertDeviceInfo() => new(d.Id,
-                                                     (uint)d.RamSize,
-                                                     (uint)d.PortSize,
                                                      d.Sector,
-                                                     d.Device.RamArray,
-                                                     d.CreatedAt,
                                                      d.Name);
-    }
-
-    public static ResultDeCompilation DisassemblCode(ReadOnlyMemory<byte> prog, ulong baseAddress = 0UL)
-    {
-        var text = Disassembler.Disassemble(prog, out int lenght, out int size, baseAddress);
-        return new(text, lenght, size);
     }
 
     public static ResultDeCompilation DisassemblCode(ReadOnlySpan<byte> prog, ulong baseAddress = 0UL)
@@ -51,14 +36,6 @@ public static class VMHostHelper
         var text = Disassembler.Disassemble(prog, out int lenght, out int size, baseAddress);
         return new(text, lenght, size);
     }
-
-    public static ResultDeCompilation DisassemblCode(byte[] prog, ulong baseAddress = 0UL)
-    {
-        var text = Disassembler.Disassemble(prog, out int lenght, out int size, baseAddress);
-        return new(text, lenght, size);
-    }
-
-
 }
 
 public sealed class ConsoleOutputView : IOutputView
@@ -72,18 +49,16 @@ public sealed class ConsoleOutputView : IOutputView
             LogLevel.Error => ConsoleColor.Red,
             _ => originalColor
         };
-        Console.WriteLine($"{message}");
+        Console.WriteLine(message);
         Console.ForegroundColor = originalColor;
     }
-
-    public void Append(char message) => Console.Write(message.AsText);
 
     public void Clear() => Console.Clear();
 }
 
 public sealed class DefaultProjectFilesConfig : IProjectFilesConfig
 {
-    public string ProjectPath { get; init; } = Directory.GetCurrentDirectory();
+    public string ProjectPath { get; init; } = AppDomain.CurrentDomain.BaseDirectory;
     public string IncludePath { get; init; } = "include";
     public string[] ExtensionsAsm { get; init; } = [".asm", ".vma"];
     public string[] ExtensionsMiniC { get; init; } = [".c", ".mic"];
@@ -111,12 +86,6 @@ public sealed class DefaultFileService(string projectPath) : IFileService
         File.WriteAllText(fullPath, content);
     }
 
-    public void SaveBinaryFile(string fileName, byte[] content)
-    {
-        var fullPath = Path.Combine(ProjectPath, fileName);
-        File.WriteAllBytes(fullPath, content);
-    }
-
     public bool Exist(string fileName)
     {
         var fullPath = Path.Combine(ProjectPath, fileName);
@@ -133,13 +102,11 @@ public static class VMHostFactory
         IProjectFilesConfig? projectConfig = null,
         IFileService? fileService = null,
         SizePort portBusSize = SizePort.Size16KB,
-        SizePortOnDevice portsPerDevice = SizePortOnDevice.Size16B,
-        string loggerName = "default")
+        SizePortOnDevice portsPerDevice = SizePortOnDevice.Size16B)
     {
         // Создаём логгер
         var loggerBuilder = new LoggerBuilder()
-            .WithOutPut(outputView ?? new ConsoleOutputView())
-            .WithNameLogger(loggerName);
+            .WithOutPut(outputView ?? new ConsoleOutputView());
         var logger = loggerBuilder.Build();
 
         // Создаём проект
@@ -165,65 +132,4 @@ public static class VMHostFactory
 public sealed record VMHost(VMHostProject Project, VMEmulator Emulator, VMHostLogger Logger) : IDisposable
 {
     public void Dispose() => Emulator.Dispose();
-}
-
-public static class KernelWarmup
-{
-    private static int _warmed;
-
-    public static void WarmupAll()
-    {
-        if (Interlocked.CompareExchange(ref _warmed, 1, 0) != 0) return;
-
-        var stepMethod = typeof(Processor).GetMethod(
-            "Step",
-            BindingFlags.Public | BindingFlags.Instance);
-        if (stepMethod is not null)
-            RuntimeHelpers.PrepareMethod(stepMethod.MethodHandle);
-
-
-        WarmupType(typeof(Processor));
-        WarmupType(typeof(MemoryBus));
-        WarmupType(typeof(PortBus));
-        WarmupType(typeof(Device));
-
-    }
-
-    private static void WarmupType(Type type)
-    {
-        const BindingFlags flags =
-           BindingFlags.Public | BindingFlags.NonPublic |
-           BindingFlags.Instance | BindingFlags.Static |
-           BindingFlags.DeclaredOnly;
-
-        foreach (var method in type.GetMethods(flags))
-        {
-            if (method.IsAbstract) continue;
-            if (method.ContainsGenericParameters) continue;
-
-            MethodBody? body;
-            try
-            {
-                body = method.GetMethodBody();
-            }
-            catch (Exception ex)
-            {
-                LoggerKernel.LogFromSystem("Warmup processor system", ex.Message);
-                continue;
-            }
-
-            if (body is null) continue;
-
-            if (method.IsSpecialName) continue;
-
-            try
-            {
-                RuntimeHelpers.PrepareMethod(method.MethodHandle);
-            }
-            catch (Exception ex)
-            {
-                LoggerKernel.LogFromSystem("Warmup processor system", ex.Message);
-            }
-        }
-    }
 }

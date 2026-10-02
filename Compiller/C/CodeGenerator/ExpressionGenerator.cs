@@ -1,7 +1,7 @@
 ﻿using Compiller.ASM;
 using Compiller.ASM.Optimizators;
 using Kernel.Common;
-using System.Drawing;
+using Kernel.Diagnostics;
 
 namespace Compiller.C.CodeGenerator;
 
@@ -783,7 +783,6 @@ public class ExpressionGenerator(AssemblerBase asm,
             "/" => ComputeDiv(value1, value2),
             _ => ThrowHelper.ThrowMiniC<long>(ErrorCode.NotSupported, $"Unsupported operator: {op}"),
         };
-        LoggerKernel.LogFromSystem("Compiler", $"ComputeConstant: {value1} {op} {value2} = {result}");
         return result;
     }
 

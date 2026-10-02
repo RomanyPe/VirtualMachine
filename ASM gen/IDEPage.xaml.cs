@@ -265,7 +265,7 @@ public partial class IDEPage : Page
     {
         _outputView.Clear();
         _projectManager.SaveAllFiles();
-        _device = _hostEmulator.CreateDeviceContext();
+        _device = _hostEmulator.GetDeviceContext();
         bool optimize = OptimizationCode;
 
         if (_device == null)

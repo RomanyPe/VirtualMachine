@@ -101,9 +101,11 @@ public class ProjectBuilder(IFileService fileService, IProjectFilesConfig path)
 
         foreach (string fileName in fileService.GetSourceFiles())
         {
+            SourceLanguage lang = FindLang(path, fileName);
+            if (lang == SourceLanguage.None) continue;
+
             string source = fileService.ReadFile(fileName);
 
-            SourceLanguage lang = FindLang(path, fileName);
             files.Add(new SourceFile(fileName, source, lang));
         }
 

@@ -50,7 +50,7 @@ public class BenchRunner(VMHost host, int deviceId, BenchCase benchCase, IFileSe
             Console.ReadLine();
             return false;
         }
-        var ctx = _host.Emulator.CreateDeviceContext(_deviceId)!;
+        var ctx = _host.Emulator.GetDeviceContext(_deviceId)!;
         Program = res.Program;
         var launchModeMath = ctx.TryFastLoadProgram(res.Program, 0, out string? errorMath);
         LaunchMode = launchModeMath;

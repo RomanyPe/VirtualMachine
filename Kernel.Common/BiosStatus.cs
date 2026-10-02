@@ -26,4 +26,5 @@ public enum BiosStatus : byte
     InfinityLoopWarning,
 
     DivOnZero,
+    NotSupportedOpCode,
 }

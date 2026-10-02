@@ -20,18 +20,36 @@ public unsafe sealed class NativeMemoryBuffer : IDisposable
 
     public NativeMemoryBuffer(RamSize sizeRam, RamSize sizeBios = RamSize.Size128KB)
     {
-        var locker = new Lock();
-        lock (locker)
+        nuint ram = (nuint)sizeRam;
+        nuint bios = (nuint)sizeBios;
+
+        if (bios > int.MaxValue)
+            throw new InvalidOperationException(
+                $"The maximum BIOS size [{bios}] exceeds the maximum 32-bit number.");
+
+        byte* ptr = (byte*)NativeMemory.AllocZeroed(ram + bios);
+        if (ptr == null)
+            throw new OutOfMemoryException(
+                $"Failed to allocate {ram + bios} bytes for RAM+BIOS.");
+
+        try
         {
-            _sizeRam = (nuint)sizeRam;
-            _maxSizeBios = (nuint)sizeBios;
+            _sizeRam = ram;
+            _maxSizeBios = bios;
+            _ptrRam = ptr;
 
-            _ptrRam = (byte*)NativeMemory.Alloc(_sizeRam + _sizeBios);
-            NativeMemory.Clear(_ptrRam, _sizeRam + _sizeBios);
-
-            _manager = new(this);
+            // _manager создаём здесь, чтобы при его падении освободить ptr
+            _manager = new NativeMemoryManager(this);
+        }
+        catch
+        {
+            NativeMemory.Free(ptr);
+            _ptrRam = null;
+            throw;
         }
     }
+
+
     public bool HaveBios => _sizeBios > 0;
     public nuint LengthRam => _sizeRam;
     public nuint LengthBios => _sizeBios;
@@ -49,14 +67,16 @@ public unsafe sealed class NativeMemoryBuffer : IDisposable
             _sizeBios = 0;
             return;
         }
-
-        if (bios.Length >= (int)_maxSizeBios) throw new InvalidOperationException(
+        nuint currentBiosSize = (nuint)bios.Length;
+        if (currentBiosSize > _maxSizeBios) throw new InvalidOperationException(
             $"BIOS size {bios.Length} exceeds reserved {_maxSizeBios}.");
+
+        
 
         Span<byte> span = new(_ptrRam + _sizeRam, (int)_maxSizeBios);
         span.Clear();
         bios.CopyTo(span);
-        _sizeBios = (nuint)bios.Length;
+        _sizeBios = currentBiosSize;
     }
 
 
@@ -101,10 +121,6 @@ public unsafe sealed class NativeMemoryBuffer : IDisposable
     }
 
     public Span<byte> AsSpan() => new(_ptrRam, (int)_sizeRam);
-    public ReadOnlySpan<byte> AsReadOnlySpan() => new(_ptrRam, (int)_sizeRam);
-
-    public Span<byte> AsSpan(int start, int length) => new(_ptrRam + start, length);
-    public ReadOnlySpan<byte> AsReadOnlySpan(int start, int length) => new(_ptrRam + start, length);
 
     public byte this[ulong index]
     {
@@ -131,11 +147,6 @@ public unsafe sealed class NativeMemoryBuffer : IDisposable
     public Memory<byte> AsMemory(int start, int length)
     {
         return _manager.Memory.Slice(start, length);
-    }
-
-    public ReadOnlyMemory<byte> AsReadOnlyMemory()
-    {
-        return _manager.Memory;
     }
 }
 

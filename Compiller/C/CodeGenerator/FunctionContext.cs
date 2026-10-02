@@ -1,6 +1,8 @@
 ﻿using Compiller.ASM;
 using Compiller.ASM.Optimizators;
 using Kernel.Common;
+using Kernel.Diagnostics;
+
 
 namespace Compiller.C.CodeGenerator;
 

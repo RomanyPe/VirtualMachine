@@ -8,8 +8,14 @@ public class DeviceContext : IDisposable
     private readonly Device _device;
     private bool? _isBiosMode = null;
     
-    internal DeviceContext(Device device) => _device = device;
+    internal Device Device => _device;
+    internal DeviceContext(Device device, string? name = null)
+    {
+        _device = device;
+        Name = name;
+    }
 
+    public string? Name { get; private set; } 
     public bool IsRunning => _device.IsRunning;
     public long? StepCount => _device.StepCount;
     public ulong MaxRamSize => _device.MaxRamSize;

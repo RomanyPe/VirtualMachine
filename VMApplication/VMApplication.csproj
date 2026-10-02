@@ -11,6 +11,7 @@
     <ProjectReference Include="..\Compiller\Compiller.csproj" />
     <ProjectReference Include="..\Controllers\Kernel.csproj" />
     <ProjectReference Include="..\Kernel.Common\Kernel.Common.csproj" />
+    <ProjectReference Include="..\Kernel\Kernel.csproj" />
   </ItemGroup>
 
   <ItemGroup>

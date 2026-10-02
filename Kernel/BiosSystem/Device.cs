@@ -7,15 +7,8 @@ using System.Runtime.CompilerServices;
 
 namespace Kernel.BiosSystem;
 
-public sealed class Device : IDisposable, IPortUse
+public sealed class Device : IPortController
 {
-    private sealed class DeviceExecutionContext(NameDeviceToken name) : IDeviceLoggerContext
-    {
-        public void Log(string msg, LogLevel lvl = LogLevel.Log)
-        {
-            LoggerKernel.LogFromDevice(name, msg, lvl);
-        }
-    }
     
     private sealed class SimulationResult(TimeSpan elapsed, long steps) : ISimulationResult
     {
@@ -23,14 +16,12 @@ public sealed class Device : IDisposable, IPortUse
         public long Steps => steps;
     }
 
-    private readonly DeviceExecutionContext _deviceCtx;
+    private readonly IDeviceLoggerContext _deviceCtx;
     private readonly byte[] _ioMemory;
     private readonly ManualResetEventSlim _wakeSignal = new(false);
-    private readonly NameDeviceToken _nameDevice;
     private readonly MemoryBus _ram;
     private readonly Processor _processor;
     private readonly PortBus _portBus;
-    private readonly Lock _ctx = new();
     private long stepCounter = 0;
     private int _disposed;
     public Action<IDeviceLoggerContext>? ActionOnWake { get; set; } = null;
@@ -45,16 +36,14 @@ public sealed class Device : IDisposable, IPortUse
     public bool HaveBios => _ram.HaveBios;
     public ulong MaxRamSize => _ram.RamSize;
     public long? StepCount => _processor.IsRunning ? null : stepCounter;
-    public ulong CurrentIP => _processor.GetRegValue(RegType.rIP);
 
-    public Device(byte[] biosFirmware, PortBus portBus, RamSize size, RamSize sizeBios, string? name = null!, string? nameProc = null!)
+    public Device(byte[] biosFirmware, PortBus portBus, RamSize size, RamSize sizeBios, IDeviceLoggerContext deviceCtx, IProcessorFaultPolicy? processorFaultPolicy = null)
     {
-        _nameDevice = new(name);
         _portBus = portBus;
         _ram = new MemoryBus(size, biosFirmware, sizeBios);
-        _processor = new Processor(_ram, _nameDevice, _portBus, _ctx, nameProc);
+        _processor = new Processor(_ram, _portBus, processorFaultPolicy);
         _ioMemory = new byte[_portBus.PortsOnDevice];
-        _deviceCtx = new DeviceExecutionContext(_nameDevice);
+        _deviceCtx = deviceCtx;
     }
 
     public void CopyRegisters(Span<ulong> destination)
@@ -76,7 +65,7 @@ public sealed class Device : IDisposable, IPortUse
             RAMResultInt8 result = _ram.WriteInt8LE(loadAddress + i, program[i]);
             if (!result.IsSuccess)
                 throw new InvalidOperationException(
-                    $"Не удалось записать программу по адресу 0x{loadAddress + i:X}");
+                    $"Failed to write the program to the address 0x{loadAddress + i:X}");
         }
         InitHeap(loadAddress, program.AsSpan());
     }
@@ -143,23 +132,58 @@ public sealed class Device : IDisposable, IPortUse
     }
 
     private void RunSimulationLoop(ulong start,
-                                  bool isDebug,
-                                  int delay,
-                                  bool launchTimer,
-                                  Action<IDeviceLoggerContext>? startAct,
-                                  Action<IDeviceLoggerContext, ISimulationResult?>? endAct)
+                               bool isDebug,
+                               int delay,
+                               bool launchTimer,
+                               Action<IDeviceLoggerContext>? startAct,
+                               Action<IDeviceLoggerContext, ISimulationResult?>? endAct)
     {
         bool useSleepMode = delay != 0;
 
         startAct?.Invoke(_deviceCtx);
-        Stopwatch? sw = null;
-        if (launchTimer)
-        {
-            sw = Stopwatch.StartNew();
-        }
+        Stopwatch? sw = launchTimer ? Stopwatch.StartNew() : null;
 
         _processor.LaunchProgramm(start);
         Volatile.Write(ref _running, _processor.IsRunning);
+
+        // Выбор пути один раз
+        if (isDebug || useSleepMode)
+            RunSimulationLoopSlow(isDebug, delay, useSleepMode);
+        else
+            RunSimulationLoopFast();
+
+        Volatile.Write(ref _running, _processor.IsRunning);
+
+        SimulationResult? timeSpan = null;
+        if (sw != null)
+        {
+            sw.Stop();
+            timeSpan = new(sw.Elapsed, stepCounter);
+        }
+
+        endAct?.Invoke(_deviceCtx, timeSpan);
+    }
+
+    private void RunSimulationLoopFast()
+    {
+        while (_processor.IsRunning)
+        {
+            _processor.Step();
+
+            if (_processor.IsSleeping)
+            {
+                _wakeSignal.Wait(15);
+                _wakeSignal.Reset();
+            }
+            else
+            {
+                stepCounter++;
+            }
+        }
+    }
+
+    private void RunSimulationLoopSlow(bool isDebug, int delay, bool useSleepMode)
+    {
         while (_processor.IsRunning)
         {
             _processor.Step();
@@ -174,20 +198,11 @@ public sealed class Device : IDisposable, IPortUse
                 stepCounter++;
             }
 
-            //if (isDebug) DebugOutput();
-            //if (useSleepMode) Thread.Sleep(delay);
+            if (isDebug) DebugOutput();
+            if (useSleepMode) Thread.Sleep(delay);
         }
-        Volatile.Write(ref _running, _processor.IsRunning);
-
-        SimulationResult? timeSpan = null;
-        if (sw != null)
-        {
-            sw.Stop();
-            timeSpan = new(sw.Elapsed, stepCounter);
-        }
-
-        endAct?.Invoke(_deviceCtx, timeSpan);
     }
+
 
 
     public byte ReadPort(ulong offset)
@@ -258,7 +273,6 @@ public sealed class Device : IDisposable, IPortUse
 
         Stop();
         _ram?.Dispose();
-        ProcessorPoolEmulator.Return(_processor);
         GC.SuppressFinalize(this);
     }
 

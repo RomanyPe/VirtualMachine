@@ -64,7 +64,7 @@ public static partial class IDEConsoleManager
 public class ConsoleOutPut : IOutputView
 {
     public void AppendLine(string message, LogLevel level = LogLevel.Log) => Console.WriteLine($"[{level}] {message}");
-    public void Append(char message) => Console.Write(message);
+    public void AppendChar(char message) => Console.Write(message);
 
     public void Clear() => Console.Clear();
 }

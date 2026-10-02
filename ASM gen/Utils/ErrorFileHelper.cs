@@ -1,4 +1,4 @@
-﻿using VMApplication.Project;
+﻿using ASM_gen.ProjectManage.Managers.Static;
 
 namespace ASM_gen.Utils;
 

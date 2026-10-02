@@ -4,12 +4,11 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Controllers\Kernel.csproj" />
     <ProjectReference Include="..\Kernel.Common\Kernel.Common.csproj" />
-    <ProjectReference Include="..\Kernel.Diagnostics\Kernel.Diagnostics.csproj" />
   </ItemGroup>
 
 </Project>

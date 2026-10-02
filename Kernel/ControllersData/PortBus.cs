@@ -11,7 +11,9 @@ public interface IPortUse
     public void WakeProcessor();
 }
 
-public sealed class PortBus(SizePort ports, SizePortOnDevice portsOnDev, NameDeviceToken nameDevice, ReadOnlySpan<char> name)
+public interface IPortController : IPortUse, IDisposable;
+
+public sealed class PortBus(SizePort ports, SizePortOnDevice portsOnDev)
 {
     private readonly ulong _totalPorts = 1UL << (byte)ports;
     private readonly uint _portsOnDevice = 1U << (byte)portsOnDev;
@@ -19,12 +21,9 @@ public sealed class PortBus(SizePort ports, SizePortOnDevice portsOnDev, NameDev
     private readonly uint _sectorCount = 1U << ((byte)ports - (byte)portsOnDev);
     private readonly IPortUse[] _devices = new IPortUse[1U << ((byte)ports - (byte)portsOnDev)];
 
-    private readonly NameDeviceToken _nameDevice = nameDevice.CreateChild(name);
-
     private readonly byte _deviceShift = (byte)portsOnDev;
     private readonly ulong _offsetMask = (1U << (byte)portsOnDev) - 1U;
 
-    public NameDeviceToken NameDevice => _nameDevice;
     public uint SectorCount => _sectorCount;
     public uint PortsOnDevice => _portsOnDevice;
     public ulong TotalPorts => _totalPorts;
@@ -72,7 +71,7 @@ public sealed class PortBus(SizePort ports, SizePortOnDevice portsOnDev, NameDev
         var (device, offset) = ResolveAddress(address);
         return device != null
             ? new(device.ReadPort(offset))
-            : new(BiosStatus.NullDeviceOutput, address);
+            : new(BiosStatus.NullDeviceInput, address);
     }
 
     public RAMResultInt8 WritePort(ulong address, byte value)
@@ -83,7 +82,7 @@ public sealed class PortBus(SizePort ports, SizePortOnDevice portsOnDev, NameDev
             device.WritePort(offset, value);
             return new(value);
         }
-        return new(BiosStatus.NullDeviceInput, address);
+        return new(BiosStatus.NullDeviceOutput, address);
     }
 
     public bool WakeProcessor(ulong address)

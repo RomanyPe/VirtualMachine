@@ -46,7 +46,7 @@ public enum OpCode : byte
     // === 7. Ввод-вывод ===
     IN,  // Чтение из порта: IN Rdest, Rport  (Rdest ← порт[Rport])
     OUT,  // Запись в порт:  OUT Rsrc, Rport  (порт[Rport] ← Rsrc)
-    PRINT_INT,
+    PRINT_INT, 
     INT,   // программное прерывание
     IRET,   // возврат из прерывания
 

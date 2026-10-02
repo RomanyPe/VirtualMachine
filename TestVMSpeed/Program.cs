@@ -346,11 +346,10 @@ loop:
         ConsoleOutputView console = new();
 
         using var host = VMHostFactory.CreateDefault(fileService: fileService, outputView: console);
-        int deviceId = host.Emulator.CreateDevice(
+        int deviceId = host.Emulator.CreateAndAddDevice(
             bios: [],
             ramSize: RamSize.Size128MB,
             biosSize: RamSize.Size128B, 
-            personalLogger: console,
             sector: 0,
             name: "ConsoleVM"
         );
@@ -572,11 +571,6 @@ loop:
         sb.AppendLine($"\t    N:           {s.N,10}");
     }
 
-    private static void PrintProgress(string test, string phase, int done, int total)
-    {
-        if (Console.IsOutputRedirected) return;
-        Console.Write($"\r[{test}] {phase} {done}/{total}                                   ");
-    }
 
     private static void AppendIterations(StringBuilder sb, IReadOnlyList<double> logs, string format)
     {

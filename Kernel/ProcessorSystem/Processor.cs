@@ -8,7 +8,9 @@ using static Kernel.Common.InstructionDecoder;
 
 namespace Kernel.ProcessorSystem;
 
-public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus portBus, Lock regLock, ReadOnlySpan<char> name)
+public sealed class Processor(MemoryBus ram,
+                              PortBus portBus,
+                              IProcessorFaultPolicy? processorFaultPolicy)
 {
 
     [InlineArray(CountReg)]
@@ -23,37 +25,23 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
 
     private readonly ConcurrentQueue<uint> _externalCommands = new();
     private readonly ConcurrentQueue<BiosStatus> _statusFromSimulation = [];
+    private readonly IProcessorFaultPolicy _processorFaultPolicy = processorFaultPolicy ?? IProcessorFaultPolicy.Default;
+    private readonly MemoryBus _ram = ram;
+    private readonly PortBus _portBus = portBus;
 
-    private NameDeviceToken _nameDevice = nameDeviceToken.CreateChild(name);
-    private MemoryBus _ram = ram;
-    private PortBus _portBus = portBus;
-    private Lock _regLock = regLock;
-
-    private int _isRunning = 0;
-    private int _hasSimulationStatus = 0;
-    private int _hasExternalCommand = 0;
-    private int _sleeping = 0;
-    public bool IsSleeping => _sleeping == 1;
-    public bool IsRunning => _isRunning == 1;
+    private bool _isRunning = false;
+    private bool _hasSimulationStatus = false;
+    private bool _hasExternalCommand = false;
+    private bool _sleeping = false;
+    public bool IsSleeping => _sleeping;
+    public bool IsRunning => _isRunning;
     private bool _hasCommand = false;
-    private const bool NeedLogEnd = false;
-    private ulong _lastFaultAddress = 0;
+    private ulong _lastFaultData = 0;
+
+
     private bool ZeroFlagSet => (_registers[RegType.rFL.Int] & 1UL) != 0UL;
     private bool NegativeFlagSet => (_registers[RegType.rFL.Int] & 2UL) != 0UL;
 
-    public bool TryInitInPool(MemoryBus ram, NameDeviceToken nameDeviceToken, PortBus portBus, Lock regLock, ReadOnlySpan<char> name)
-    {
-        if (IsRunning) return false;
-
-        Reset();
-
-        _nameDevice = nameDeviceToken.CreateChild(name);
-        _ram = ram;
-        _portBus = portBus;
-        _regLock = regLock;
-
-        return true;
-    }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ulong GetRegValue(RegType reg) => _registers[reg.Int];
@@ -61,30 +49,14 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
     public void EnqueueBiosStatus(BiosStatus status)
     {
         Volatile.Write(ref _hasCommand, true);
-        Volatile.Write(ref _hasSimulationStatus, 1);
+        Volatile.Write(ref _hasSimulationStatus, true);
         _statusFromSimulation.Enqueue(status);
     }
 
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private void ConsoleLock(string text, LogLevel level = LogLevel.Log)
-    {
-        LoggerKernel.LogFromDevice(in _nameDevice, text, level);
-    }
-
-    public string DumbRegs()
-    {
-        StringBuilder stringBuilder = new(128);
-        for (int i = 0; i < CountReg; i++)
-        {
-            stringBuilder.AppendLine($"[{(RegType)i}]= {_registers[i]}");
-        }
-        stringBuilder.AppendLine($"IP {_registers[RegType.rIP.Int]}");
-        return stringBuilder.ToString();
-    }
     public void CopyRegisters(Span<ulong> destination)
     {
         if (destination.Length < CountReg)
-            throw new ArgumentException($"Нужно минимум {CountReg} элементов", nameof(destination));
+            throw new ArgumentException($"At least {CountReg} elements are required", nameof(destination));
         for (int i = 0; i < CountReg; i++)
             destination[i] = _registers[i];
     }
@@ -109,9 +81,9 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
 
     public void LaunchProgramm(ulong startAddress)
     {
-        _sleeping = 0;
+        _sleeping = false;
         _registers[RegType.rIP.Int] = startAddress;
-        _isRunning = 1;
+        _isRunning = true;
 
         _registers[RegType.rCL.Int] = 0;
         _registers[RegType.rCD.Int] = 0;
@@ -133,7 +105,7 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
             ExecuteExternalCommand(cmd);
             if (!IsRunning) return;
         }
-        Volatile.Write(ref _hasExternalCommand, 0);
+        Volatile.Write(ref _hasExternalCommand, false);
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
@@ -143,11 +115,12 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         {
             if (result != BiosStatus.Success)
             {
-                Volatile.Write(ref _isRunning, ProcessorHelpers.TryContinueAfterStatus(result, 1UL, ulong.MaxValue, _regLock, NeedLogEnd));
+                ProcessorFault fault = new(result, _lastFaultData, _registers[RegType.rIP.Int], 0);
+                Volatile.Write(ref _isRunning, _processorFaultPolicy.ShouldContinue(fault));
                 return;
             }
         }
-        Volatile.Write(ref _hasSimulationStatus, 0);
+        Volatile.Write(ref _hasSimulationStatus, false);
     }
 
     [MethodImpl(MethodImplOptions.AggressiveOptimization)]
@@ -156,14 +129,15 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
 
         if (_hasCommand)
         {
-            if (_hasExternalCommand == 1)
+            if (_hasExternalCommand)
                 ProcessExternalCommandsSlow();
 
-            if (_hasSimulationStatus == 1)
+            if (_hasSimulationStatus)
                 ProcessSimulationStatusSlow();
-            Volatile.Write(ref _hasCommand, false);
 
-            if (!IsRunning | IsSleeping) return;
+            _hasCommand = false;
+
+            if (!_isRunning | _sleeping) return;
         }
 
         ulong ip = _registers[RegType.rIP.Int];        
@@ -180,7 +154,7 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
             // === 1. Системные команды ===
             OpCode.NOP => BiosStatus.Success,
             OpCode.END => EndProgramm(),
-            OpCode.PRINT => InstructionPRINT(GetReg1(rawInst)),
+            OpCode.PRINT => SetStatusNotSupportedOpCode(opCode),
             // === 2. Работа с памятью (Указатели и регистры) ===
             OpCode.MOV => InstructionMOV(GetReg1(rawInst), GetReg2(rawInst)),
 
@@ -230,7 +204,7 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
             OpCode.INT => InstructionINT(GetReg1(rawInst)),   // GetReg1(rawInst) содержит номер вектора
             OpCode.IRET => InstructionIRET(),
 
-            OpCode.PRINT_INT => InstructionPRINT_INT(GetReg1(rawInst)),
+            OpCode.PRINT_INT => SetStatusNotSupportedOpCode(opCode),
             OpCode.ALLOC => InstructionALLOC(GetReg1(rawInst)),
             OpCode.WAKE_INT => InstructionWAKE_INT(GetReg1(rawInst)),
             OpCode.HALT => InstructionHALT(),
@@ -242,7 +216,8 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
 
         if (dat != BiosStatus.Success)
         {
-            Volatile.Write(ref _isRunning, ProcessorHelpers.TryContinueAfterStatus(dat, _lastFaultAddress, ip, _regLock, NeedLogEnd));
+            ProcessorFault fault = new(dat, _lastFaultData, ip, opCode);
+            Volatile.Write(ref _isRunning, _processorFaultPolicy.ShouldContinue(fault));
         }
     }
     private BiosStatus InstructionCMP(RegType r1, RegType r2)
@@ -269,13 +244,20 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
 
     private BiosStatus SetStatusNotImplementedOpCode(OpCode code)
     {
-        _lastFaultAddress = (ulong)code;
+        _lastFaultData = (ulong)code;
         return BiosStatus.NotImplementedOpCode;
     }
 
+    private BiosStatus SetStatusNotSupportedOpCode(OpCode code)
+    {
+        _lastFaultData = (ulong)code;
+        return BiosStatus.NotSupportedOpCode;
+    }
+
+
     private BiosStatus InstructionHALT()
     {
-        Volatile.Write(ref _sleeping, 1);
+        Volatile.Write(ref _sleeping, true);
         Volatile.Write(ref _hasCommand, true);
         return BiosStatus.Success;
     }
@@ -286,7 +268,7 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         if (!_portBus.WakeProcessor(regV))
         {
             ulong ip = _registers[RegType.rIP.Int];
-            _lastFaultAddress = ip;
+            _lastFaultData = ip;
             return BiosStatus.NullDeviceOutput;
         }
 
@@ -299,7 +281,7 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         if (divisor == 0)
         {
             ulong ip = _registers[RegType.rIP.Int];
-            _lastFaultAddress = ip;
+            _lastFaultData = ip;
             return BiosStatus.DivOnZero;
         }
         ulong dividend = _registers[reg1.Int];
@@ -336,16 +318,13 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         ulong newHp = hp + size;
         if (newHp >= _registers[(int)RegType.rSP])   // коллизия с стеком
         {
-            _lastFaultAddress = result;
+            _lastFaultData = result;
             return BiosStatus.SegmentationFault;
         }
+
         _registers[RegType.rHP.Int] = newHp;
-
-        if (reg1 != RegType.r0)
-            _registers[reg1.Int] = result;
-        else
-            _registers[RegType.r0.Int] = result;
-
+        _registers[reg1.Int] = result;
+        
         return BiosStatus.Success;
     }
 
@@ -357,7 +336,7 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         RAMResultInt64 readResult = _ram.ReadInt64LE(tableBase + (ulong)vector * 8);
         if (!readResult.IsSuccess)
         {
-            _lastFaultAddress = readResult.FaultAddress;
+            _lastFaultData = readResult.FaultAddress;
             return readResult.Status;
         }
 
@@ -371,14 +350,13 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
 
         if (!writeResult.IsSuccess)
         {
-            _lastFaultAddress = sp;
+            _lastFaultData = sp;
             return writeResult.Status;
         }
 
         _registers[RegType.rSP.Int] = sp;
         if (handlerAddr == 0)
         {
-            ConsoleLock("handlerAddr == 0");
             return EndProgramm();
         }
         // Переходим на обработчик
@@ -393,7 +371,7 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         RAMResultInt64 readResult = _ram.ReadInt64LE(sp);
         if (!readResult.IsSuccess)
         {
-            _lastFaultAddress = sp;
+            _lastFaultData = sp;
             return readResult.Status;
         }
 
@@ -403,23 +381,12 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         return BiosStatus.Success;
     }
 
-    public BiosStatus EndProgramm()
+    private BiosStatus EndProgramm()
     {
-        Volatile.Write(ref _isRunning, 0);
+        Volatile.Write(ref _isRunning, false);
         return BiosStatus.EndProgramm;
     }
 
-    public BiosStatus InstructionPRINT_INT(RegType reg)
-    {
-        ConsoleLock(_registers[reg.Int].ToString());
-        return BiosStatus.Success;
-    }
-
-    private BiosStatus InstructionPRINT(RegType reg)
-    {
-        LoggerProvider.CharOutPut((char)_registers[reg.Int]);
-        return BiosStatus.Success;
-    }
 
     private BiosStatus InstructionMOV(RegType reg1, RegType reg2)
     {
@@ -438,7 +405,7 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
                     _registers[reg.Int] = data8.Data;
                     return BiosStatus.Success;
                 }
-                _lastFaultAddress = data8.FaultAddress;
+                _lastFaultData = data8.FaultAddress;
                 return data8.Status;
 
 
@@ -450,7 +417,7 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
 
                     return BiosStatus.Success;
                 }
-                _lastFaultAddress = data16.FaultAddress;
+                _lastFaultData = data16.FaultAddress;
                 return data16.Status;
 
             case OpCodeSize.S32:
@@ -460,7 +427,7 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
                     _registers[reg.Int] = data32.Data;
                     return BiosStatus.Success;
                 }
-                _lastFaultAddress = data32.FaultAddress;
+                _lastFaultData = data32.FaultAddress;
                 return data32.Status;
 
             case OpCodeSize.S64:
@@ -470,12 +437,12 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
                     _registers[reg.Int] = data64.Data;
                     return BiosStatus.Success;
                 }
-                _lastFaultAddress = data64.FaultAddress;
+                _lastFaultData = data64.FaultAddress;
                 return data64.Status;
 
             default:
                 // Защита на случай передачи некорректного или нереализованного OpCodeSize
-                _lastFaultAddress = adress;
+                _lastFaultData = adress;
                 return BiosStatus.SegmentationFault;
         }
 
@@ -493,7 +460,7 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
                 {
                     return BiosStatus.Success;
                 }
-                _lastFaultAddress = data8.FaultAddress;
+                _lastFaultData = data8.FaultAddress;
                 return data8.Status;
 
             case OpCodeSize.S16:
@@ -502,7 +469,7 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
                 {
                     return BiosStatus.Success;
                 }
-                _lastFaultAddress = data16.FaultAddress;
+                _lastFaultData = data16.FaultAddress;
                 return data16.Status;
 
 
@@ -512,7 +479,7 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
                 {
                     return BiosStatus.Success;
                 }
-                _lastFaultAddress = data32.FaultAddress;
+                _lastFaultData = data32.FaultAddress;
                 return data32.Status;
 
 
@@ -522,12 +489,12 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
                 {
                     return BiosStatus.Success;
                 }
-                _lastFaultAddress = data64.FaultAddress;
+                _lastFaultData = data64.FaultAddress;
                 return data64.Status;
 
 
             default:
-                _lastFaultAddress = adress;
+                _lastFaultData = adress;
                 return BiosStatus.AlignmentFault;
         }
     }
@@ -572,7 +539,7 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
 
                 return BiosStatus.Success;
         }
-        _lastFaultAddress = adress;
+        _lastFaultData = adress;
         return BiosStatus.SegmentationFault;
     }
 
@@ -603,7 +570,7 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
                 _ram.WriteInt64LEUnSafe(adress, data64);
                 return BiosStatus.Success;
         }
-        _lastFaultAddress = adress;
+        _lastFaultData = adress;
         return BiosStatus.AlignmentFault;
     }
 
@@ -737,13 +704,13 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
 
         if (!writeResult.IsSuccess)
         {
-            _lastFaultAddress = sp;
+            _lastFaultData = sp;
             return writeResult.Status;
         }
 
         if (_registers[RegType.rHP.Int] >= sp)   // коллизия с стеком
         {
-            _lastFaultAddress = writeResult.Data;
+            _lastFaultData = sp;
             return BiosStatus.SegmentationFault;
         }
 
@@ -759,7 +726,7 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
 
         if (!readResult.IsSuccess)
         {
-            _lastFaultAddress = sp;
+            _lastFaultData = sp;
             return readResult.Status;
         }
 
@@ -812,9 +779,8 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
 
         if (callDepth == 0)
         {
-            ConsoleLock("Ошибка: RET вызван без предшествующего CALL. Программа остановлена.");
-            _lastFaultAddress = ip;
-            return (BiosStatus)9;
+            _lastFaultData = ip;
+            return (BiosStatus)12;
         }
 
         ulong returnAddress = _registers[RegType.rCL.Int];
@@ -866,18 +832,15 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
 
     public void Reset()
     {
-        lock (_regLock)
-        {
-            _lastFaultAddress = 0;
-            _isRunning = 0;
-            _sleeping = 0;
-            ClearRegs();
-            while (_externalCommands.TryDequeue(out _));
-            while (_statusFromSimulation.TryDequeue(out _));
-            _hasCommand = false;
-            _hasExternalCommand = 0;
-            _hasSimulationStatus = 0;
-        }
+        _lastFaultData = 0;
+        _isRunning = false;
+        _sleeping = false;
+        ClearRegs();
+        while (_externalCommands.TryDequeue(out _));
+        while (_statusFromSimulation.TryDequeue(out _));
+        _hasCommand = false;
+        _hasExternalCommand = false;
+        _hasSimulationStatus = false;
     }
 
     private void ClearRegs()
@@ -889,9 +852,9 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
 
     public void EnqueueExternalCommand(uint instruction)
     {
-        Volatile.Write(ref _hasExternalCommand, 1);
-        Volatile.Write(ref _hasCommand, true);
         _externalCommands.Enqueue(instruction);
+        Volatile.Write(ref _hasExternalCommand, true);
+        Volatile.Write(ref _hasCommand, true);
     }
 
     private void ExecuteExternalCommand(uint rawInst)
@@ -900,9 +863,9 @@ public sealed class Processor(MemoryBus ram, NameDeviceToken nameDeviceToken, Po
         OpCode opCode = GetOpCode(rawInst);
         switch (opCode)
         {
-            case OpCode.END: _isRunning = 0; return;
-            case OpCode.HALT: _sleeping = 1; return;
-            case OpCode.WAKE: _sleeping = 0; return;
+            case OpCode.END: _isRunning = false; return;
+            case OpCode.HALT: _sleeping = true; return;
+            case OpCode.WAKE: _sleeping = false; return;
 
             default: return;
         }

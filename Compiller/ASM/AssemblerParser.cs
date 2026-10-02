@@ -1,5 +1,6 @@
 ﻿using Compiller.ASM.Optimizators;
 using Kernel.Common;
+using Kernel.Diagnostics;
 using System.Collections.Frozen;
 using System.Text.RegularExpressions;
 

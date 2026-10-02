@@ -172,10 +172,6 @@ public static class InstructionEncoder
         }
     }
 
-    public static uint EncodeIN(uint regDst, uint regPort) => EncodeR((uint)OpCode.IN, regDst, regPort);
-
-    public static uint EncodeOUT(uint regSrc, uint regPort) => EncodeR((uint)OpCode.OUT, regSrc, regPort);
-
     public static uint EncodeLOAD_IND(uint regDst, uint regAddr, uint sizeCode)
     {
         return EncodeRS(OpCode.LOAD_IND.Uint, regDst, regAddr, sizeCode);

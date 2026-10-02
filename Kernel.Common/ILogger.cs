@@ -1,13 +1,10 @@
-﻿using System.Threading.Tasks.Sources;
-
-namespace Kernel.Common;
+﻿namespace Kernel.Common;
 
 /// <summary>
 /// Абстракция для вывода сообщений (без привязки к конкретному UI).
 /// </summary>
 public interface ILogger
 {
-    void CharOutPut(char c);
     void Info(string message);
     void Warning(string message);
     void Error(string message);
@@ -28,4 +25,27 @@ public enum TypeOptimization
     ASTNodeConstPropagate,
     ASTNodeConstFold,
     ASTNodeRemovedAfterInline
+}
+
+
+public readonly record struct ProcessorFault(
+    BiosStatus Status,
+    ulong FaultAddress,
+    ulong InstructionPointer,
+    OpCode OpCode);
+
+public interface IProcessorFaultPolicy
+{
+    public static IProcessorFaultPolicy Default { get; } = new DefaultProcessorFaultPolicy();
+    private class DefaultProcessorFaultPolicy : IProcessorFaultPolicy
+    {
+        public bool ShouldContinue(in ProcessorFault fault) => fault.Status switch
+        {
+            BiosStatus.Success => true,
+            BiosStatus.NullDeviceOutput => true,
+            _ => false
+        };
+    }
+
+    bool ShouldContinue(in ProcessorFault fault);
 }

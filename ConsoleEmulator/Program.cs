@@ -74,7 +74,7 @@ public class Program
         );
 
         // 4. Загружаем программу в память устройства
-        deviceContext = host.Emulator.CreateDeviceContext(deviceId);
+        deviceContext = host.Emulator.GetDeviceContext(deviceId);
 
         LaunchModeDevice? launchMode = deviceContext!.TryFastLoadProgram(program, 0, out string? error);
 

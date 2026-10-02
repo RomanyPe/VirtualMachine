@@ -2,7 +2,8 @@
 
 public interface IDeviceLoggerContext
 {
-    void Log(string message, LogLevel logLevel);
+    void Log(string message, LogLevel logLevel = LogLevel.Log);
+
 }
 
 public interface ISimulationResult

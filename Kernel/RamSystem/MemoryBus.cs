@@ -43,7 +43,7 @@ public class MemoryBus : IDisposable
     {
         if ((address & 0x01) != 0) return new RAMResultInt16(BiosStatus.AlignmentFault, (uint)address);
 
-        return address + 2 <= _memory.Length
+        return address <= _memory.Length - 2
             ? new RAMResultInt16(_memory.ReadUInt16(address))
             : new RAMResultInt16(BiosStatus.SegmentationFault, address);
     }
@@ -57,7 +57,7 @@ public class MemoryBus : IDisposable
     {
         if ((address & 0x03) != 0) return new RAMResultInt32(BiosStatus.AlignmentFault, address);
 
-        return address + 4 <= _memory.Length
+        return address <= _memory.Length - 4
             ? new RAMResultInt32(_memory.ReadUInt32(address))
             : new RAMResultInt32(BiosStatus.SegmentationFault, address);
     }
@@ -72,7 +72,7 @@ public class MemoryBus : IDisposable
     {
         if ((address & 0x07) != 0) return new RAMResultInt64(BiosStatus.AlignmentFault, address);
 
-        return address + 8 <= _memory.Length
+        return address <= _memory.Length - 8
             ? new RAMResultInt64(_memory.ReadUInt64(address))
             : new RAMResultInt64(BiosStatus.SegmentationFault, address);
     }
@@ -100,7 +100,7 @@ public class MemoryBus : IDisposable
     public RAMResultInt16 WriteInt16LE(ulong address, ushort value)
     {
         if ((address & 0x01) != 0) return new RAMResultInt16(BiosStatus.AlignmentFault, address);
-        if (address + 2 > _memory.Length) return new RAMResultInt16(BiosStatus.SegmentationFault, address);
+        if (address > _memory.Length - 2) return new RAMResultInt16(BiosStatus.SegmentationFault, address);
         
         _memory.WriteUInt16(address, value);
 
@@ -117,7 +117,7 @@ public class MemoryBus : IDisposable
     public RAMResultInt32 WriteInt32LE(ulong address, uint value)
     {
         if ((address & 0x03) != 0) return new RAMResultInt32(BiosStatus.AlignmentFault, address);
-        if (address + 4 > _memory.Length) return new RAMResultInt32(BiosStatus.SegmentationFault, address);
+        if (address > _memory.Length - 4) return new RAMResultInt32(BiosStatus.SegmentationFault, address);
 
         _memory.WriteUInt32(address, value);
         return new RAMResultInt32(value);
@@ -132,7 +132,7 @@ public class MemoryBus : IDisposable
     public RAMResultInt64 WriteInt64LE(ulong address, ulong value)
     {
         if ((address & 0x07) != 0) return new RAMResultInt64(BiosStatus.AlignmentFault, address);
-        if (address + 8 > _memory.Length) return new RAMResultInt64(BiosStatus.SegmentationFault, address);
+        if (address > _memory.Length - 8) return new RAMResultInt64(BiosStatus.SegmentationFault, address);
 
         _memory.WriteUInt64(address, value);
         return new RAMResultInt64(value);

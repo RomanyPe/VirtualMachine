@@ -34,7 +34,7 @@ public class TestStandartVMWorking(ITestOutputHelper output)
     {
         private readonly ITestOutputHelper _outPut = output;
 
-        public void Append(char message)
+        public void AppendChar(char message)
         {
             _outPut.WriteLine(message.AsText);
         }
@@ -81,7 +81,7 @@ public class TestStandartVMWorking(ITestOutputHelper output)
             );
 
             Assert.InRange(deviceId, 0, int.MaxValue);
-            deviceContext = host.Emulator.CreateDeviceContext(deviceId);
+            deviceContext = host.Emulator.GetDeviceContext(deviceId);
 
             Assert.NotNull(deviceContext);
             LaunchModeDevice launchMode = deviceContext!.LoadProgram(program, 0);

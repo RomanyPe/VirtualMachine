@@ -37,7 +37,7 @@ public class WpfOutputView : IOutputView   // ILogger оставлен для с
         AppendMessage(message, color, true);
     }
 
-    public void Append(char message)
+    public void AppendChar(char message)
     {
         AppendMessage(message, Colors.Gray, false);
     }
