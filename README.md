@@ -473,3 +473,148 @@ Test 'Math':
 ```
 
 ---
+
+## Расширенные сценарии
+
+### Точка входа и `main`
+
+`ProjectBuilder.Build` **автоматически** находит функцию `main` и эмитит `JMP func_main` в самое начало программы. Функции со всех C-файлов сливаются в один `ProgramNode` (порядок: сначала `main`, потом остальные). Если `main` не найдена — программа стартует с начала, что обычно приводит к `NotImplementedOpCode`.
+
+### Жизненный цикл `DeviceContext`
+
+`DeviceContext` — обёртка над `Device` с фиксацией режима загрузки:
+
+```csharp
+var ctx = host.Emulator.CreateDevice(ramSize: RamSize.Size16MB);
+
+// Либо программа, либо BIOS. Смешивать нельзя — будет InvalidOperationException.
+var lm1 = ctx.LoadProgram(program, loadAddress: 0);       // обычная загрузка
+var lm2 = ctx.LoadBios(biosBytes);                       // BIOS-режим
+
+// Быстрая загрузка без проверки каждой ячейки (для больших программ):
+var lm3 = ctx.TryFastLoadProgram(program, 0, out var error);
+if (lm3 is null) Console.WriteLine(error);
+```
+
+**Важно:** `ReadMemory` бросает исключение, если `IsRunning == true`. Останавливайте или используйте `LaunchModeDevice.StopAndReset()` перед чтением.
+
+### Чтение регистров после запуска
+
+```csharp
+var lm = ctx.TryFastLoadProgram(program, 0, out _)!;
+lm.Launch(showTimer: true);
+
+Span<ulong> regs = stackalloc ulong[32];
+ctx.Device.CopyRegisters(regs);     // r0 = результат возврата функции
+Console.WriteLine($"r0 = {regs[(int)RegType.r0]}");
+```
+
+Или через `GetRegistersSnapshot()` — вернёт `null`, если CPU ещё работает.
+
+### Пошаговый режим (отладка)
+
+```csharp
+var step = lm.StepMode(startAddress: 0);
+for (int i = 0; i < 50; i++)
+{
+    step.Step(debug: true);          // один такт
+    // или step.MultyStep(debug: true, count: 5);
+}
+```
+
+`debug: true` печатает `IP`, `r0`, `r1`, `rFL` через `IDeviceLoggerContext`.
+
+### `Assembler` vs `IRAssembler` — почему два?
+
+| | `Assembler` | `IRAssembler` |
+|---|---|---|
+| Запись | сразу байты в `MemoryStream` | список `AsmItem` |
+| Peephole | ❌ | ✅ |
+| Патч меток | после `Build()` | после `Build()` |
+| Когда использовать | бенчмарки без оптимизации, отладка | основной путь через `CompileToIL` |
+
+**Правило:** если хотите применить peephole — только `IRAssembler` + `PeepholeOptimizer.Optimize(items, log)`.
+
+### Чтение логов оптимизации
+
+```csharp
+var il = host.Project.Compiler.CompileToIL(src, 0, optimize: true, SourceLanguage.C);
+var compiled = host.Project.Compiler.Compile(il, peepholeOptimizationCount: 5);
+
+if (compiled.OptimizationResultLog is { } logs)
+{
+    foreach (var (type, log) in logs.Logs)
+    {
+        Console.WriteLine($"=== {type} ===");
+        Console.WriteLine(log.GetLogs());
+    }
+}
+```
+
+⚠️ **Ключи `TypeOptimization` должны быть уникальными.** В текущей версии `RemoveUnusedVariablesRule` и `RemoveUnreachableCodeRuleBeforeInline` делят `ASTNodeRemovedBeforeInline`, поэтому один из логов будет потерян в `Dictionary.TryAdd`. Если правите правила — заводите новые значения `TypeOptimization`.
+Пока идет процесс рефакторинга ключи будут фиксированы на перечисление, когда дойдет дело до компилятора изменения будут на более универсальные
+
+### Политика обработки сбоев CPU
+
+```csharp
+public sealed class MyPolicy : IProcessorFaultPolicy
+{
+    public bool ShouldContinue(in ProcessorFault fault) => fault.Status switch
+    {
+        BiosStatus.Success        => true,
+        BiosStatus.NullDeviceOutput => true,   // не падать на незанятых портах
+        BiosStatus.DivOnZero      => true,     // продолжить, лог
+        _                         => false     // всё остальное — стоп
+    };
+}
+
+var dev = host.Emulator.CreateDevice(
+    ramSize: RamSize.Size16MB,
+    processorFaultPolicy: new MyPolicy());
+```
+
+Дефолт останавливает на всём, кроме `Success` и `NullDeviceOutput`.
+
+### Отключение / подмена вывода логов
+
+```csharp
+using var host = VMHostFactory.CreateDefault(
+    outputView: NullOutputView.Instance);    // полностью молча
+
+// или свой:
+public sealed class FileView : IOutputView
+{
+    private readonly StreamWriter _w;
+    public void AppendLine(string m, LogLevel l) => _w.WriteLine($"[{l}] {m}");
+    public void Clear() { }
+}
+```
+
+### Низкоуровневый путь — без `VMApplication`
+
+Если нужен только эмулятор (например, для unit-тестов), можно не поднимать `VMHost`:
+
+```csharp
+using Device device = new([], null!, RamSize.Size16MB, RamSize.Size128B,
+                         new NullLogger(), null);
+if (device.TryLoadProgramFast(bytes, 0))
+{
+    device.RunSimulation(0, isDebug: false, delay: 0, snowTimer: false,
+                         onLaunch: null, onStart: null, onEnd: null);
+    var steps = device.StepCount;
+}
+```
+
+См. `VMHostHelper.RunIsolated` в `VMApplication` — рабочий пример.
+
+### Кодировки вывода
+
+| `PortCharEncoding` | Что шлёт CPU | Когда использовать |
+|---|---|---|
+| `BytePerChar` | 1 байт = 1 символ (Latin-1) | ассемблерные демки, ASCII |
+| `Utf8` | 1–4 байта = 1 символ | кириллица, эмодзи, реальный вывод |
+| `Utf16` | 2 байта = 1 символ (LE) | работа с wide-char из языка |
+
+`SynchronousIOStream` — блокирует CPU на `WritePort`. `QueuedIOStream` — `Channel<byte>`, не блокирует, но `Flush` ждёт опустошения очереди **синхронно** (до 2 с) — это стоит помнить в горячих циклах.
+
+---
