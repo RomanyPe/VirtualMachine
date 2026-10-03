@@ -34,4 +34,16 @@ public sealed class VMHostProject(IProjectFilesConfig paths, VMHostLogger logger
         => _compiler.Compile(res);
     public CompilationResult Compile(CompilationToILResult res, int peepholeOptimizationCount)
         => _compiler.Compile(res, peepholeOptimizationCount);
+    public CompilationToILResult CompileToIL(IEnumerable<SourceFile> files, ulong baseAddress, bool optimize)
+    => _compiler.CompileToIL(files, baseAddress, optimize);
+    public CompilationToILResult CompileToIL(string source, ulong baseAddress, bool optimize, SourceLanguage language = SourceLanguage.C)
+        => _compiler.CompileToIL(source, baseAddress, optimize, language);
+    public CompilationToILResult CompileToIL(IEnumerable<string> sources, ulong baseAddress, bool optimize, SourceLanguage language = SourceLanguage.C)
+        => _compiler.CompileToIL(sources, baseAddress, optimize, language);
+    public CompilationResult Compile(IEnumerable<SourceFile> files, ulong baseAddress, bool optimize)
+        => _compiler.Compile(files, baseAddress, optimize);
+    public CompilationResult Compile(string source, ulong baseAddress, bool optimize, SourceLanguage language = SourceLanguage.C)
+        => _compiler.Compile(source, baseAddress, optimize, language);
+    public CompilationResult Compile(IEnumerable<string> sources, ulong baseAddress, bool optimize, SourceLanguage language = SourceLanguage.C)
+        => _compiler.Compile(sources, baseAddress, optimize, language);
 }

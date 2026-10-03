@@ -57,7 +57,7 @@ public unsafe sealed class NativeMemoryBuffer : IDisposable
     public nuint MaxLenghtBios => _maxSizeBios;
 
     public byte* PointerRAM => _ptrRam;
-    public byte* PointerBios => _ptrRam;
+    public byte* PointerBios => _ptrRam + _sizeRam;
 
 
     public void SetBios(ReadOnlySpan<byte> bios)

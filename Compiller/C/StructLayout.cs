@@ -1,5 +1,6 @@
 ﻿using Compiller.C.CodeGenerator;
 using Kernel.Common;
+using Kernel.Diagnostics;
 
 namespace Compiller.C;
 

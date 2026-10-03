@@ -14,7 +14,6 @@ public sealed class VMEmulator(Kernel.Utilites.Emulator emulator, VMHostLogger o
 
     public uint PortsPerDevice => _portsOnDevice;
 
-    public event Action<IEnumerable<DeviceInfo>>? DeviceListChanged;
 
     public DeviceContext? GetDeviceContext(int? id = null)
     {
@@ -35,8 +34,6 @@ public sealed class VMEmulator(Kernel.Utilites.Emulator emulator, VMHostLogger o
         uint sector)
     {
         int id = _emulator.AddDevice(device, name, sector);
-        if (id >= 0)
-            DeviceListChanged?.Invoke(_emulator.AllDeviceInfo);
         return id;
     }
     
@@ -54,16 +51,16 @@ public sealed class VMEmulator(Kernel.Utilites.Emulator emulator, VMHostLogger o
 
     public int AddDevice(DeviceContext ctx, uint sector) => AddDevice(ctx.Device, ctx.Name, sector);
 
-    public DeviceContext CreateDevice(byte[] bios,
-                                      RamSize ramSize,
-                                      RamSize biosSize,
+    public DeviceContext CreateDevice(byte[]? bios = null!,
+                                      RamSize ramSize = RamSize.Size16KB,
+                                      RamSize biosSize = RamSize.Size8KB,
                                       IDeviceLoggerContext? deviceCtx = null,
                                       string? name = null,
                                       IProcessorFaultPolicy? processorFaultPolicy = null)
     {
         deviceCtx ??= _outputView.CreateDefaultLoggerContext(new NameDeviceToken(name));
         processorFaultPolicy ??= IProcessorFaultPolicy.Default;
-
+        bios ??= [];
         var device = _emulator.CreateDevice(bios, ramSize, biosSize, deviceCtx, processorFaultPolicy);
         return new DeviceContext(device, name);
     }
@@ -76,8 +73,6 @@ public sealed class VMEmulator(Kernel.Utilites.Emulator emulator, VMHostLogger o
     public bool RemoveDevice(int id)
     {
         bool removed = _emulator.RemoveDevice(id);
-        if (removed)
-            DeviceListChanged?.Invoke(_emulator.AllDeviceInfo);
         return removed;
     }
 
@@ -86,7 +81,6 @@ public sealed class VMEmulator(Kernel.Utilites.Emulator emulator, VMHostLogger o
         if (_emulator.TryGetDevice<Device>(id, out var device))
         {
             device.UpdateBios(bios);
-            DeviceListChanged?.Invoke(_emulator.AllDeviceInfo);
             return true;
         }
         return false;

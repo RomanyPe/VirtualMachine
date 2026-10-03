@@ -1,16 +1,5 @@
 ﻿namespace Kernel.Common;
 
-/// <summary>
-/// Абстракция для вывода сообщений (без привязки к конкретному UI).
-/// </summary>
-public interface ILogger
-{
-    void Info(string message);
-    void Warning(string message);
-    void Error(string message);
-    void Clear();
-}
-
 public interface IReadOnlyLogOptimization
 {
     TypeOptimization Id { get; }
@@ -36,7 +25,7 @@ public readonly record struct ProcessorFault(
 
 public interface IProcessorFaultPolicy
 {
-    public static IProcessorFaultPolicy Default { get; } = new DefaultProcessorFaultPolicy();
+    public static IProcessorFaultPolicy Default => new DefaultProcessorFaultPolicy();
     private class DefaultProcessorFaultPolicy : IProcessorFaultPolicy
     {
         public bool ShouldContinue(in ProcessorFault fault) => fault.Status switch

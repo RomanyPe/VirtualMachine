@@ -125,4 +125,61 @@ public sealed class VMHostProjectCompiler(
             return new CompilationResult(null, 0, [ex.Message], null);
         }
     }
+
+    public CompilationToILResult CompileToIL(IEnumerable<SourceFile> files, ulong baseAddress, bool optimize)
+    {
+        try
+        {
+            IRAssembler assembler = new(baseAddress);
+            var resLog = _projectBuilder.Build(files, optimize, assembler);
+
+            OptimizationResultLog? res = optimize ? new() : null;
+            res?.AddLog(resLog);
+
+            return new CompilationToILResult(assembler, res);
+        }
+        catch (Exception ex)
+        {
+            _logger.AppendLine(ex.Message, LogLevel.Error);
+            return new CompilationToILResult(null, null);
+        }
+    }
+
+    public CompilationResult Compile(IEnumerable<SourceFile> files, ulong baseAddress, bool optimize)
+    {
+        try
+        {
+            AssemblerBase assembler = new Assembler(baseAddress);
+            var resLog = _projectBuilder.Build(files, optimize, assembler);
+
+            OptimizationResultLog? res = optimize ? new() : null;
+            res?.AddLog(resLog);
+
+            return new CompilationResult(assembler.Build(), baseAddress, null, res);
+        }
+        catch (Exception ex)
+        {
+            _logger.AppendLine(ex.Message, LogLevel.Error);
+            return new CompilationResult(null, 0, [ex.Message], null);
+        }
+    }
+
+    public CompilationToILResult CompileToIL(string source, ulong baseAddress, bool optimize, SourceLanguage language = SourceLanguage.C)
+        => CompileToIL([new SourceFile("source", source, language)], baseAddress, optimize);
+
+    public CompilationToILResult CompileToIL(IEnumerable<string> sources, ulong baseAddress, bool optimize, SourceLanguage language = SourceLanguage.C)
+        => CompileToIL(
+            sources.Select((s, i) => new SourceFile($"source{i}", s, language)),
+            baseAddress,
+            optimize);
+
+
+    public CompilationResult Compile(string source, ulong baseAddress, bool optimize, SourceLanguage language = SourceLanguage.C)
+        => Compile([new SourceFile("source", source, language)], baseAddress, optimize);
+
+    public CompilationResult Compile(IEnumerable<string> sources, ulong baseAddress, bool optimize, SourceLanguage language = SourceLanguage.C)
+        => Compile(
+            sources.Select((s, i) => new SourceFile($"source{i}", s, language)),
+            baseAddress,
+            optimize);
 }

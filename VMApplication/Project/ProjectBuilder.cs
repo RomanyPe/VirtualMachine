@@ -7,15 +7,15 @@ using Kernel.Common;
 
 namespace VMApplication.Project;
 
-public class ProjectBuilder(IFileService fileService, IProjectFilesConfig path)
+public class ProjectBuilder(IFileService? fileService, IProjectFilesConfig? path)
 {
     public const int BaseAdressProgram = 0x0;
 
     private static readonly string[] _defaultAsmExtensions = [".soe", ".asm"];
     private static readonly string[] _defaultMiniCExtensions = [".mic", ".c"];
 
-    private readonly IFileService fileService = fileService;
-    private readonly IProjectFilesConfig path = path;
+    private readonly IFileService? fileService = fileService;
+    private readonly IProjectFilesConfig? path = path;
 
     internal IEnumerable<IReadOnlyLogOptimization> Build(IEnumerable<SourceFile> files, bool optimize, AssemblerBase assembler)
     {
@@ -64,6 +64,24 @@ public class ProjectBuilder(IFileService fileService, IProjectFilesConfig path)
             assembler.EmitJump(InstructionEncoder.EncodeJ(OpCode.JMP.Uint), "func_main");
         }
 
+        AddInclude(includes, asmParser, assembler);
+
+        foreach (var file in files.Where(file => file.Language == SourceLanguage.Asm))
+        {
+            asmParser.Assemble(file.Content, assembler);
+        }
+
+        var funcGen = new FunctionGenerator(assembler, structLayouts);
+        funcGen.Generate(combinedAst);
+
+        assembler.EmitInstruction(InstructionEncoder.EncodeEND());
+
+        return resLog;
+    }
+
+    private void AddInclude(IEnumerable<string> includes, AssemblerParser asmParser, AssemblerBase assembler)
+    {
+        if (fileService == null || path == null) return;
         foreach (string inc in includes)
         {
             string localPath = fileService.CombinePath(path.ProjectPath, inc);
@@ -81,22 +99,12 @@ public class ProjectBuilder(IFileService fileService, IProjectFilesConfig path)
             string asmCode = fileService.ReadFile(chosenPath);
             asmParser.Assemble(asmCode, assembler);
         }
-
-        foreach (var file in files.Where(file => file.Language == SourceLanguage.Asm))
-        {
-            asmParser.Assemble(file.Content, assembler);
-        }
-
-        var funcGen = new FunctionGenerator(assembler, structLayouts);
-        funcGen.Generate(combinedAst);
-
-        assembler.EmitInstruction(InstructionEncoder.EncodeEND());
-
-        return resLog;
     }
 
     public IEnumerable<IReadOnlyLogOptimization> BuildProject(bool optimize, AssemblerBase assembler)
     {
+        if (fileService == null || path == null) return [];
+
         var files = new List<SourceFile>();
 
         foreach (string fileName in fileService.GetSourceFiles())

@@ -1,4 +1,5 @@
 ﻿using Kernel.Common;
+using Kernel.Diagnostics;
 
 namespace Compiller.ASM.Optimizators;
 

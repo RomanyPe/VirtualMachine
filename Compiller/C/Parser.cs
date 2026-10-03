@@ -1,4 +1,5 @@
 ﻿using Kernel.Common;
+using Kernel.Diagnostics;
 using System.Text;
 
 namespace Compiller.C;
