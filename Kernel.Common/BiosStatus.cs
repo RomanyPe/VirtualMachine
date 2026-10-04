@@ -27,11 +27,12 @@ public enum BiosStatus : byte
 
     DivOnZero,
     NotSupportedOpCode,
+    StackUnderflow
 }
 
 public readonly record struct ProcessorFault(
     BiosStatus Status,
-    ulong FaultAddress,
+    ulong FaultData,
     ulong InstructionPointer,
     OpCode OpCode);
 

@@ -4,6 +4,7 @@ using Compiller.C;
 using Compiller.C.CodeGenerator;
 using Compiller.C.Optimizators;
 using Kernel.Common;
+using Kernel.Contracts;
 
 namespace VMApplication.Project;
 

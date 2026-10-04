@@ -1,4 +1,5 @@
 ﻿using Kernel.Common;
+using Kernel.Contracts;
 using VMApplication;
 using VMApplication.Emulator;
 using VMApplication.Project;
@@ -90,59 +91,71 @@ const string sourceText4 =
         END
     """;
 
+const string sourceText5 =
+    """
+        LDI  r2, 0x10;
+        LDI  r3, 0x12;
+
+        LDI  r1, 0x41;
+        OUT  r1, r2;
+
+        LDI  r4, after_jmp;
+        JMP_IND r4;
+
+        LDI  r1, 0x58;
+        OUT  r1, r2;
+        LDI  r1, 0x58;
+        OUT  r1, r2;
+
+    after_jmp:
+        LDI  r1, 0x42;
+        OUT  r1, r2;
+
+        LDI  r5, print_C;
+        CALL_IND r5;
+
+        LDI  r1, 0x44;
+        OUT  r1, r2;
+
+        LDI  r1, 1;
+        OUT  r1, r3;
+        END
+
+    print_C:
+        LDI  r1, 0x43;
+        OUT  r1, r2;
+
+        RET;
+    """;
+
+const string bug =
+    """
+    LDI r0, 18446744073709551;
+    JMP_IND r0;
+    END;
+    """;
+
 using var host = VMHostFactory.CreateDefault();
+var lfPolicy = new LoggingFaultPolicy(Console.Out);
+
 var device = host.Emulator.CreateDevice(
     ramSize: RamSize.Size128MB,
-    biosSize: RamSize.Size128B,
+    biosSize: RamSize.Size128B, 
+    processorFaultPolicy: lfPolicy,
     name: "ConsoleVM"
 );
 
 var iostream = new QueuedIOStream(Console.Out, PortCharEncoding.Utf8);
-
 host.Emulator.AddDevice(device, 0);
 host.Emulator.AddDevice(iostream, "console", 1);
 
+Span<string> sourseCodes = [bug];
 
-CompilationResult resCompile;
-if (Compile(sourceText1,out resCompile))
+for (int i = 0; i < sourseCodes.Length; i++)
 {
-    Load(device, resCompile)?.Launch();
-}
-else Console.WriteLine("Тест 1 не пройден");
-
-if (Compile(sourceText2, out resCompile))
-{
-    Load(device, resCompile)?.Launch();
-}
-else Console.WriteLine("Тест 2 не пройден");
-
-if (Compile(sourceText3, out resCompile))
-{
-    Load(device, resCompile)?.Launch();
-}
-else Console.WriteLine("Тест 3 не пройден");
-
-if (Compile(sourceText4, out resCompile))
-{
-    Load(device, resCompile)?.Launch();
-}
-else Console.WriteLine("Тест 4 не пройден");
-
-static LaunchModeDevice? Load(DeviceContext device, CompilationResult resCompile)
-{
-    LaunchModeDevice? load = device.TryFastLoadProgram(resCompile.Program, 0, out var error);
-    if (load == null)
-    {
-        Console.WriteLine(error!);
-        return null;
-    }
-    return load;
-}
-
-bool Compile(string text,out CompilationResult resCompile)
-{
-    var resIl = host.Project.Compiler.CompileToIL(text, 0, true, SourceLanguage.Asm);
-    resCompile = host.Project.Compiler.Compile(resIl);
+    var source = sourseCodes[i];
+    var resIl = host.Project.Compiler.CompileToIL(source, 0, true, SourceLanguage.Asm);
+    var resCompile = host.Project.Compiler.Compile(resIl);
 
     if (!resCompile.Success)
     {
@@ -150,7 +163,32 @@ bool Compile(string text,out CompilationResult resCompile)
         {
             Console.WriteLine(err);
         }
-        return false;
+        return;
     }
-    return true;
+
+
+    LaunchModeDevice? load = device.TryFastLoadProgram(resCompile.Program, 0, out var error);
+    if (load == null)
+    {
+        Console.WriteLine(error!);
+        return;
+    }
+    load.Launch();
+}
+
+class LoggingFaultPolicy(TextWriter output) : IProcessorFaultPolicy
+{
+    private readonly TextWriter _out = output;
+
+    public bool ShouldContinue(in ProcessorFault fault)
+    {
+        _out.WriteLine(
+            $"[FAULT] status={fault.Status}, " +
+            $"data=0x{fault.FaultData:X}, " +
+            $"ip=0x{fault.InstructionPointer:X}, " +
+            $"op={fault.OpCode}");
+        _out.Flush();
+
+        return false; // останавливаем симуляцию
+    }
 }

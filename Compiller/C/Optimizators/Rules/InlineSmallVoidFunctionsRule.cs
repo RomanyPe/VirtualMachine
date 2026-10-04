@@ -1,4 +1,5 @@
 ﻿using Kernel.Common;
+using Kernel.Contracts;
 using System.Text;
 
 namespace Compiller.C.Optimizators.Rules;
@@ -206,9 +207,6 @@ public class InlineSmallVoidFunctionsRule : IAstOptimizationRule
 
             case DereferenceNode deref:
                 return new DereferenceNode(CloneExpression(deref.Operand, renameMap)!);
-
-            case NewArrayNode newArr:
-                return new NewArrayNode(newArr.Type, CloneExpression(newArr.Size, renameMap)!);
 
             default:
                 return node;

@@ -133,12 +133,6 @@ public class DereferenceNode(ASTNode operand) : ASTNode
     public ASTNode Operand { get; set; } = operand;
 }
 
-public class NewArrayNode(string type, ASTNode size) : ASTNode
-{
-    public string Type { get; set; } = type;
-    public ASTNode Size { get; set; } = size;
-}
-
 public class InlineAsmNode(string asmCode) : ASTNode
 {
     public string AsmCode { get; set; } = asmCode;

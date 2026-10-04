@@ -11,7 +11,7 @@ namespace Compiller.C.CodeGenerator;
 
 public static class CodeGenUtils
 {
-    public const uint TMP_REG = (uint)RegType.r2;
+    public const uint TMP_REG = (uint)RegType.r3;
 
     public static OpCodeSize GetSizeForType(string? type) => type switch
     {

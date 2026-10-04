@@ -573,34 +573,7 @@ public class Parser(List<Token> tokens)
         ASTNode expr;
 
         // --- Базовые первичные выражения ---
-        if (Current.Type == TokenType.Keyword && Current.Value == "new")
-        {
-            Advance(); // съедаем "new"
-            string type = ParseType();
-
-            if (Current.Type == TokenType.Punctuation && Current.Value == "[")
-            {
-                // массив: new Type[размер]
-                Expect(TokenType.Punctuation, "[");
-                ASTNode sizeExpr = ParseExpression();
-                Expect(TokenType.Punctuation, "]");
-                expr = new NewArrayNode(type, sizeExpr);
-            }
-            else if (Current.Type == TokenType.Punctuation && Current.Value == "(")
-            {
-                // вызов конструктора: new Type()
-                Expect(TokenType.Punctuation, "(");
-                // Аргументы конструктора пока не поддерживаются – просто ждём закрывающую скобку
-                Expect(TokenType.Punctuation, ")");
-                expr = new NewArrayNode(type, new NumberNode(1));
-            }
-            else
-            {
-                // на случай `new Type` без скобок (нежелательно, но оставлено для совместимости)
-                expr = new NewArrayNode(type, new NumberNode(1));
-            }
-        }
-        else if (Current.Type == TokenType.Number)
+        if (Current.Type == TokenType.Number)
         {
             string numStr = Current.Value;
             long value = numStr.StartsWith("0x", StringComparison.OrdinalIgnoreCase)

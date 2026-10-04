@@ -95,7 +95,7 @@ public class FunctionGenerator(AssemblerBase asm, Dictionary<string, StructLayou
                 exprGen.GenerateExpression(global.Initializer);
                 OpCodeSize opSize = global.IsPointer ? OpCodeSize.S64 : CodeGenUtils.GetSizeForType(global.Type);
                 string label = GlobalMemoryManager.GetLabel(global.Name);
-                _asm.EmitInstruction64WithLabel(InstructionEncoder.EncodeSTORE(RegType.r0.Uint, opSize.Uint), label);
+                _asm.EmitInstruction64WithLabel(InstructionEncoder.EncodeSTORE(RegType.r1.Uint, opSize.Uint), label);
             }
         }
     }

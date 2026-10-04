@@ -1,5 +1,6 @@
 ﻿using Kernel.BiosSystem;
 using Kernel.Common;
+using Kernel.Contracts;
 using Kernel.ControllersData;
 using VMApplication.Logger;
 using static Kernel.Utilites.ManagerDevices;

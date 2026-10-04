@@ -1,5 +1,6 @@
 ﻿using Kernel.BiosSystem;
 using Kernel.Common;
+using Kernel.Contracts;
 using Kernel.ControllersData;
 using System.Diagnostics.CodeAnalysis;
 using System.Drawing;

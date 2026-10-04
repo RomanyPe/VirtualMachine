@@ -1,4 +1,5 @@
 ﻿using Kernel.Common;
+using Kernel.Contracts;
 using System.Text;
 
 namespace Compiller.C.Optimizators.Rules;

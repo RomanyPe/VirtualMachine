@@ -47,18 +47,14 @@ public class PeepholeLog
                 case OpCode.RET:
                 case OpCode.HALT:
                 case OpCode.WAKE:
-                case OpCode.ALLOC:
                 case OpCode.JMP_IND:
                     return sb.ToString().TrimEnd();
 
-                // Один регистр
-                case OpCode.PRINT:
                 case OpCode.INC:
                 case OpCode.DEC:
                 case OpCode.NOT:
                 case OpCode.PUSH:
                 case OpCode.POP:
-                case OpCode.PRINT_INT:
                 case OpCode.WAKE_INT:
                 case OpCode.CALL_IND:
                     return sb.Append(inst.FirstReg).ToString();

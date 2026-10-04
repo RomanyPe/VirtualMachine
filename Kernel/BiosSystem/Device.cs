@@ -261,7 +261,7 @@ public sealed class Device : IPortController
     {
         ulong currentIp = _processor.GetRegValue(RegType.rIP);
         _deviceCtx.Log($"[Такт {stepCounter}] Выполнен IP: {currentIp} -> Следующий IP: {_processor.GetRegValue(RegType.rIP)}");
-        _deviceCtx.Log($"r0: {_processor.GetRegValue(RegType.r0)} | r1: {_processor.GetRegValue(RegType.r1)} | rFL: {_processor.GetRegValue(RegType.rFL)}");
+        _deviceCtx.Log($"r0: {_processor.GetRegValue(RegType.r1)} | r1: {_processor.GetRegValue(RegType.r2)} | rFL: {_processor.GetRegValue(RegType.rFL)}");
     }
 
     public void UpdateBios(byte[] newBios)

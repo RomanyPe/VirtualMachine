@@ -1,4 +1,5 @@
 ﻿using Kernel.Common;
+using Kernel.Contracts;
 
 namespace VMApplication.Logger;
 
@@ -91,26 +92,26 @@ public class ProcessorFaultPolicyBase : IProcessorFaultPolicy
             BiosStatus.SegmentationFault or
             BiosStatus.AlignmentFault or
             BiosStatus.ReadViolation =>
-                $"address=0x{fault.FaultAddress:X}, IP=0x{fault.InstructionPointer:X}",
+                $"address=0x{fault.FaultData:X}, IP=0x{fault.InstructionPointer:X}",
 
             BiosStatus.NotImplementedOpCode =>
-                $"OpCode=0x{fault.OpCode:X}, data=0x{fault.FaultAddress:X}, IP=0x{fault.InstructionPointer:X}",
+                $"OpCode=0x{fault.OpCode:X}, data=0x{fault.FaultData:X}, IP=0x{fault.InstructionPointer:X}",
 
             BiosStatus.NotSupportedOpCode =>
                 $"OpCode=0x{fault.OpCode:X}, IP=0x{fault.InstructionPointer:X}",
 
             BiosStatus.NullDeviceInput =>
-                $"port=0x{fault.FaultAddress:X}, IP=0x{fault.InstructionPointer:X}",
+                $"port=0x{fault.FaultData:X}, IP=0x{fault.InstructionPointer:X}",
 
             BiosStatus.NullDeviceOutput =>
-                $"port=0x{fault.FaultAddress:X}, IP=0x{fault.InstructionPointer:X}",
+                $"port=0x{fault.FaultData:X}, IP=0x{fault.InstructionPointer:X}",
 
             BiosStatus.InfinityLoopWarning or
             BiosStatus.EndProgramm =>
                 $"IP=0x{fault.InstructionPointer:X}",
 
             _ =>
-                $"data=0x{fault.FaultAddress:X}, OpCode=0x{fault.OpCode:X}, IP=0x{fault.InstructionPointer:X}",
+                $"data=0x{fault.FaultData:X}, OpCode=0x{fault.OpCode:X}, IP=0x{fault.InstructionPointer:X}",
         };
 
         return $"CPU fault [{fault.Status}]: {reason}. {hint}. Details: {details}";

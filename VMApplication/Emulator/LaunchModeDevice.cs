@@ -1,5 +1,6 @@
 ﻿using Kernel.BiosSystem;
 using Kernel.Common;
+using Kernel.Contracts;
 using VMApplication.Project;
 
 namespace VMApplication.Emulator;

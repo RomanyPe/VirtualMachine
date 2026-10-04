@@ -35,7 +35,7 @@ public class StatementGenerator(AssemblerBase asm, ExpressionGenerator exprGen, 
                         else
                         {
                             _exprGen.GenerateExpression(var.Initializer);
-                            _varAccessor.StoreFromRegister(var.Name, RegType.r0);
+                            _varAccessor.StoreFromRegister(var.Name, RegType.r1);
                         }
                     }
                     break;
@@ -92,10 +92,10 @@ public class StatementGenerator(AssemblerBase asm, ExpressionGenerator exprGen, 
             if (assign.LValue is DereferenceNode deref)
             {
                 _exprGen.GenerateExpression(assign.Value);
-                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)RegType.r1, (uint)RegType.r0));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)RegType.r2, (uint)RegType.r1));
                 _exprGen.GenerateExpression(deref.Operand);
                 OpCodeSize size = GetPointedSize(deref.Operand);
-                _asm.EmitInstruction(InstructionEncoder.EncodeSTORE_IND((uint)RegType.r1, (uint)RegType.r0, (uint)size));
+                _asm.EmitInstruction(InstructionEncoder.EncodeSTORE_IND((uint)RegType.r2, (uint)RegType.r1, (uint)size));
                 return;
             }
         }
@@ -105,13 +105,13 @@ public class StatementGenerator(AssemblerBase asm, ExpressionGenerator exprGen, 
             // Генерируем значение правой части в r0, затем сохраняем в поле
             _exprGen.GenerateExpression(assign.Value);   // r0 = значение
                                                          // Сохраняем значение во временный регистр r1
-            _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)RegType.r1, (uint)RegType.r0));
+            _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, (uint)RegType.r2, (uint)RegType.r1));
 
             // Вычисляем адрес поля
             _exprGen.GenerateMemberAddress(memberAccess); // нужно написать метод, возвращающий адрес в r0
                                                           // Сохраняем
             OpCodeSize size = GetFieldSize(memberAccess);
-            _asm.EmitInstruction(InstructionEncoder.EncodeSTORE_IND((uint)RegType.r1, (uint)RegType.r0, size.Uint));
+            _asm.EmitInstruction(InstructionEncoder.EncodeSTORE_IND((uint)RegType.r2, (uint)RegType.r1, size.Uint));
             return;
         }
 
@@ -131,7 +131,7 @@ public class StatementGenerator(AssemblerBase asm, ExpressionGenerator exprGen, 
             {
                 // x = x op expr
                 RegType xReg = loc.Register;
-                RegType tempReg = (xReg != RegType.r0) ? RegType.r0 : RegType.r1;
+                RegType tempReg = (xReg != RegType.r1) ? RegType.r1 : RegType.r2;
                 _exprGen.GenerateExpression(binop.Right, tempReg);
                 switch (binop.Operator)
                 {
@@ -149,7 +149,7 @@ public class StatementGenerator(AssemblerBase asm, ExpressionGenerator exprGen, 
         }
 
         _exprGen.GenerateExpression(assign.Value);
-        _varAccessor.StoreFromRegister(assign.Name, RegType.r0);
+        _varAccessor.StoreFromRegister(assign.Name, RegType.r1);
     }
 
 
@@ -288,7 +288,7 @@ public class StatementGenerator(AssemblerBase asm, ExpressionGenerator exprGen, 
                     else
                     {
                         _exprGen.GenerateExpression(varInit.Initializer);
-                        _varAccessor.StoreFromRegister(varInit.Name, RegType.r0);
+                        _varAccessor.StoreFromRegister(varInit.Name, RegType.r1);
                     }
                 }
             }

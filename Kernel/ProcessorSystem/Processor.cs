@@ -31,6 +31,7 @@ public sealed class Processor(MemoryBus ram,
     private readonly MemoryBus _ram = ram;
     private readonly PortBus _portBus = portBus;
 
+    private ulong _stackBase;
     private bool _isRunning = false;
     private bool _hasSimulationStatus = false;
     private bool _hasExternalCommand = false;
@@ -87,13 +88,12 @@ public sealed class Processor(MemoryBus ram,
         _registers[RegType.rIP.Int] = startAddress;
         _isRunning = true;
 
-        _registers[RegType.rCL.Int] = 0;
-        _registers[RegType.rCD.Int] = 0;
         _registers[RegType.rFL.Int] = 0;
 
         ulong stackTop = _ram.RamSize;
         stackTop &= ~0x7UL;
 
+        _stackBase = stackTop;
         _registers[RegType.rSP.Int] = stackTop;
     }
 
@@ -149,13 +149,12 @@ public sealed class Processor(MemoryBus ram,
         ip += 4;
 
         _registers[RegType.rIP.Int] = ip;
-        
+
         BiosStatus dat = opCode switch
         {
             // === 1. Системные команды ===
             OpCode.NOP => BiosStatus.Success,
             OpCode.END => EndProgramm(),
-            OpCode.PRINT => SetStatusNotSupportedOpCode(opCode),
             // === 2. Работа с памятью (Указатели и регистры) ===
             OpCode.MOV => InstructionMOV(GetReg1(rawInst), GetReg2(rawInst)),
 
@@ -202,16 +201,14 @@ public sealed class Processor(MemoryBus ram,
             // === 7. Ввод-вывод ===
             OpCode.IN => InstructionIN(GetReg1(rawInst), GetReg2(rawInst)),
             OpCode.OUT => InstructionOUT(GetReg1(rawInst), GetReg2(rawInst)),
-            OpCode.CALL_IND => SetStatusNotImplementedOpCode(opCode),
-            OpCode.JMP_IND => SetStatusNotImplementedOpCode(opCode),
+            OpCode.CALL_IND => InstructionCALL_IND(GetReg1(rawInst)),
+            OpCode.JMP_IND => InstructionJMP_IND(GetReg1(rawInst)),
 
-            OpCode.PRINT_INT => SetStatusNotSupportedOpCode(opCode),
-            OpCode.ALLOC => InstructionALLOC(GetReg1(rawInst)),
             OpCode.WAKE_INT => InstructionWAKE_INT(GetReg1(rawInst)),
             OpCode.HALT => InstructionHALT(),
             OpCode.CMP => InstructionCMP(GetReg1(rawInst), GetReg2(rawInst)),
             OpCode.TEST => InstructionTEST(GetReg1(rawInst), GetReg2(rawInst)),
-
+            OpCode.WAKE => BiosStatus.Success,
             _ => SetStatusNotImplementedOpCode(opCode),
         };
 
@@ -221,6 +218,18 @@ public sealed class Processor(MemoryBus ram,
             Volatile.Write(ref _isRunning, _processorFaultPolicy.ShouldContinue(fault));
         }
     }
+
+    private BiosStatus InstructionJMP_IND(RegType r)
+    {
+        _registers[RegType.rIP.Int] = _registers[r.Int];
+        return BiosStatus.Success;
+    }
+
+    private BiosStatus InstructionCALL_IND(RegType r)
+    {
+        return InstructionCALL(_registers[r.Int]);
+    }
+
     private BiosStatus InstructionCMP(RegType r1, RegType r2)
     {
         ulong res = _registers[r1.Int] - _registers[r2.Int];
@@ -306,26 +315,6 @@ public sealed class Processor(MemoryBus ram,
         ulong regv2 = _registers[reg2.Int];
         ulong res = regv1 * regv2;
         _registers[reg1.Int] = res;
-        return BiosStatus.Success;
-    }
-
-    private BiosStatus InstructionALLOC(RegType reg1)
-    {
-        ulong size = _registers[RegType.r0.Int];
-        ulong hp = _registers[RegType.rHP.Int];
-        // выравниваем размер вверх до кратности 8
-        if (size % 8 != 0) size = (size + 7) & ~7UL;
-        ulong result = hp;
-        ulong newHp = hp + size;
-        if (newHp >= _registers[(int)RegType.rSP])   // коллизия с стеком
-        {
-            _lastFaultData = result;
-            return BiosStatus.SegmentationFault;
-        }
-
-        _registers[RegType.rHP.Int] = newHp;
-        _registers[reg1.Int] = result;
-        
         return BiosStatus.Success;
     }
 
@@ -694,75 +683,47 @@ public sealed class Processor(MemoryBus ram,
 
         return BiosStatus.Success;
     }
-    
+
 
     private BiosStatus InstructionCALL(ulong targetAddress)
     {
-        ulong currentLink = _registers[RegType.rCL.Int];
-        ulong callDepth = _registers[RegType.rCD.Int];
-        ulong ip = _registers[RegType.rIP.Int];
-        // Если глубина вложенности > 0, значит rCL уже занят предыдущим методом.
-        // Спасаем его значение в стек.
-        if (callDepth > 0)
-        {
-            ulong sp = _registers[RegType.rSP.Int];
-            sp -= 8;
-            if (_registers[RegType.rHP.Int] >= sp)   // коллизия с стеком
-            {
-                return BiosStatus.SegmentationFault;
-            }
-            _ram.WriteInt64LEUnSafe(sp, currentLink);
+        ulong oldSp = _registers[RegType.rSP.Int];
 
-            _registers[RegType.rSP.Int] = sp;
-        }
+        if (oldSp < 8)
+            return BiosStatus.SegmentationFault;
 
-        _registers[RegType.rCL.Int] = ip;
+        ulong sp = oldSp - 8;
 
-        callDepth++;
+        if (_registers[RegType.rHP.Int] >= sp) // коллизия с heap
+            return BiosStatus.SegmentationFault;
 
-        ip = targetAddress;
+        _ram.WriteInt64LEUnSafe(sp, _registers[RegType.rIP.Int]);
 
-        _registers[RegType.rCD.Int] = callDepth;
-        _registers[RegType.rIP.Int] = ip;
+        _registers[RegType.rSP.Int] = sp;
+        _registers[RegType.rIP.Int] = targetAddress;
 
         return BiosStatus.Success;
     }
+    
 
-    // Возврат из подпрограммы (RET)
     private BiosStatus InstructionRET()
     {
-        ulong callDepth = _registers[RegType.rCD.Int];
-        ulong ip = _registers[RegType.rIP.Int];
+        ulong sp = _registers[RegType.rSP.Int];
 
-        if (callDepth == 0)
+        if (sp >= _stackBase)
         {
-            _lastFaultData = ip;
-            return (BiosStatus)12;
+            _lastFaultData = _registers[RegType.rIP.Int];
+            return BiosStatus.StackUnderflow;
         }
 
-        ulong returnAddress = _registers[RegType.rCL.Int];
-        ip = returnAddress;
+        ulong returnAddress = _ram.ReadInt64LEUnSafe(sp);
 
+        _registers[RegType.rSP.Int] = sp + 8;
+        _registers[RegType.rIP.Int] = returnAddress;
 
-        callDepth--;
-
-        if (callDepth > 0)
-        {
-            ulong sp = _registers[RegType.rSP.Int];
-
-            _registers[RegType.rCL.Int] = _ram.ReadInt64LEUnSafe(sp);
-            sp += 8;
-            _registers[RegType.rSP.Int] = sp;
-        }
-        else
-        {
-            _registers[RegType.rCL.Int] = 0;
-        }
-
-        _registers[RegType.rCD.Int] = callDepth;
-        _registers[RegType.rIP.Int] = ip;
         return BiosStatus.Success;
     }
+
 
     private BiosStatus InstructionIN(RegType regDest, RegType regPort)
     {

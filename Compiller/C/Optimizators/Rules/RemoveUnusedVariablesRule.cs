@@ -1,4 +1,5 @@
 ﻿using Kernel.Common;
+using Kernel.Contracts;
 using System.Text;
 
 namespace Compiller.C.Optimizators.Rules;
@@ -102,9 +103,6 @@ public class RemoveUnusedVariablesRule : IAstOptimizationRule
                 break;
             case FunctionCallNode call:
                 foreach (var arg in call.Arguments) CollectUsedInExpression(arg, used);
-                break;
-            case NewArrayNode newArr:
-                CollectUsedInExpression(newArr.Size, used);
                 break;
         }
     }

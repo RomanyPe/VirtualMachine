@@ -210,15 +210,12 @@ public static class InstructionEncoder
             OpCode.JMP_IND
                 => op,
 
-            OpCode.PRINT or 
             OpCode.WAKE_INT or
             OpCode.INC or 
             OpCode.DEC or 
             OpCode.NOT or 
             OpCode.PUSH or 
             OpCode.POP or 
-            OpCode.PRINT_INT or 
-            OpCode.ALLOC or 
             OpCode.CALL_IND
                 => $"{op} {R1(instruction)}",
 
@@ -274,35 +271,35 @@ public static class InstructionEncoder
     {
         public string Name => r switch
         {
-            RegType.rZ => "rZ",
-            RegType.r0 => "r0",
-            RegType.r1 => "r1",
-            RegType.r2 => "r2",
-            RegType.r3 => "r3",
-            RegType.r4 => "r4",
-            RegType.r5 => "r5",
-            RegType.r6 => "r6",
-            RegType.r7 => "r7",
-            RegType.r8 => "r8",
-            RegType.r9 => "r9",
-            RegType.r10 => "r10",
-            RegType.r11 => "r11",
-            RegType.r12 => "r12",
-            RegType.r13 => "r13",
-            RegType.r14 => "r14",
-            RegType.r15 => "r15",
-            RegType.r16 => "r16",
-            RegType.r17 => "r17",
-            RegType.r18 => "r18",
-            RegType.r19 => "r19",
-            RegType.r20 => "r20",
-            RegType.r21 => "r21",
-            RegType.r22 => "r22",
-            RegType.r23 => "r23",
-            RegType.r24 => "r24",
-            RegType.rCD => "rCD",
+            RegType.r0 => "rZ",
+            RegType.r1 => "r0",
+            RegType.r2 => "r1",
+            RegType.r3 => "r2",
+            RegType.r4 => "r3",
+            RegType.r5 => "r4",
+            RegType.r6 => "r5",
+            RegType.r7 => "r6",
+            RegType.r8 => "r7",
+            RegType.r9 => "r8",
+            RegType.r10 => "r9",
+            RegType.r11 => "r10",
+            RegType.r12 => "r11",
+            RegType.r13 => "r12",
+            RegType.r14 => "r13",
+            RegType.r15 => "r14",
+            RegType.r16 => "r15",
+            RegType.r17 => "r16",
+            RegType.r18 => "r17",
+            RegType.r19 => "r18",
+            RegType.r20 => "r19",
+            RegType.r21 => "r20",
+            RegType.r22 => "r21",
+            RegType.r23 => "r22",
+            RegType.r24 => "r23",
+            RegType.r25 => "r24",
+            RegType.r26 => "r26",
             RegType.rFL => "rFL",
-            RegType.rCL => "rCL",
+            RegType.r27 => "r27",
             RegType.rSP => "rSP",
             RegType.rHP => "rHP",
             RegType.rIP => "rIP",
@@ -315,7 +312,6 @@ public static class InstructionEncoder
         {
             OpCode.NOP => "NOP",
             OpCode.END => "END",
-            OpCode.PRINT => "PRINT",
             OpCode.MOV => "MOV",
             OpCode.LOAD => "LOAD",
             OpCode.STORE => "STORE",
@@ -344,10 +340,8 @@ public static class InstructionEncoder
             OpCode.RET => "RET",
             OpCode.IN => "IN",
             OpCode.OUT => "OUT",
-            OpCode.PRINT_INT => "PRINT_INT",
             OpCode.CALL_IND => "CALL_IND",
             OpCode.JMP_IND => "JMP_INT",
-            OpCode.ALLOC => "ALLOC",
             OpCode.HALT => "HALT",
             OpCode.WAKE => "WAKE",
             OpCode.WAKE_INT => "WAKE_INT",

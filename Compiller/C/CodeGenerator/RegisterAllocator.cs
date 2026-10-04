@@ -7,15 +7,27 @@ namespace Compiller.C.CodeGenerator;
 /// </summary>
 public static class RegisterAllocator
 {
-    private const int CountMainRegs = 32;
+    private const int TotalRegisters = 32; // r0..rIP
 
-    // Зарезервированные регистры (нельзя использовать для переменных)
+    // Резервируем: r0..r4 — возврат/временные в кодогенерации,
+    // rFL/rSP/rHP/rIP — системные.
     private static readonly HashSet<RegType> ReservedRegs =
     [
-        RegType.r0, RegType.r1, RegType.r2, RegType.r3,  // временные
-        RegType.rSP, RegType.rFL, RegType.rCD, 
-        RegType.rIP, RegType.rCL, RegType.rHP, RegType.rZ
+        RegType.r0, RegType.r1, RegType.r2, RegType.r3, RegType.r4,
+        RegType.rFL, RegType.rSP, RegType.rHP, RegType.rIP,
     ];
+
+    private static List<RegType> GetAvailableRegisters()
+    {
+        var regs = new List<RegType>();
+        for (int i = 0; i < TotalRegisters; i++)
+        {
+            var reg = (RegType)i;
+            if (!ReservedRegs.Contains(reg))
+                regs.Add(reg);
+        }
+        return regs;   // r5..r27 — 23 регистра под переменные
+    }
 
     /// <summary>
     /// Выполняет распределение регистров для заданной функции.
@@ -71,19 +83,6 @@ public static class RegisterAllocator
     // ------------------------------------------------------------
     // Вспомогательные методы
     // ------------------------------------------------------------
-
-    private static List<RegType> GetAvailableRegisters()
-    {
-        // Регистры r4..r23, исключая зарезервированные.
-        var regs = new List<RegType>();
-        for (int i = 0; i <= CountMainRegs; i++)
-        {
-            var reg = (RegType)i;
-            if (!ReservedRegs.Contains(reg))
-                regs.Add(reg);
-        }
-        return regs;
-    }
 
     /// <summary>
     /// Строит граф интерференции на основе линейного сканирования AST.
@@ -238,10 +237,6 @@ CollectVarEvents(BlockNode body)
 
                 case DereferenceNode deref:
                     Walk(deref.Operand);
-                    break;
-
-                case NewArrayNode newArr:
-                    Walk(newArr.Size);
                     break;
 
                 // Для блоков – рекурсивно обходим все инструкции

@@ -1,15 +1,8 @@
 ﻿using Kernel.Common;
+using Kernel.Contracts;
 
 namespace Kernel.ControllersData;
 
-public interface IPortUse
-{
-    public byte ReadPort(ulong offset);
-    public void WritePort(ulong offset, byte value);
-    public void WakeProcessor();
-}
-
-public interface IPortController : IPortUse, IDisposable;
 
 public sealed class PortBus(SizePort ports, SizePortOnDevice portsOnDev)
 {

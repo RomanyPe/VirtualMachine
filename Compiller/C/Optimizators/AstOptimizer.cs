@@ -1,5 +1,5 @@
 ﻿using Compiller.C.Optimizators.Rules;
-using Kernel.Common;
+using Kernel.Contracts;
 using System.Text;
 
 namespace Compiller.C.Optimizators;

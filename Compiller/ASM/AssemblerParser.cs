@@ -21,7 +21,6 @@ public partial class AssemblerParser
 {
     private static readonly Dictionary<string, RegType> _regMapLex = new(StringComparer.OrdinalIgnoreCase)
     {
-        { "rZ", RegType.rZ },
         { "r0", RegType.r0 },
         { "r1", RegType.r1 },
         { "r2", RegType.r2 },
@@ -47,9 +46,10 @@ public partial class AssemblerParser
         { "r22", RegType.r22 },
         { "r23", RegType.r23 },
         { "r24", RegType.r24 },
-        { "rCD", RegType.rCD },
+        { "r25", RegType.r25 },
+        { "r26", RegType.r26 },
+        { "r27", RegType.r27 },
         { "rFL", RegType.rFL },
-        { "rCL", RegType.rCL },
         { "rSP", RegType.rSP },
         { "rHP", RegType.rHP },
         { "rIP", RegType.rIP }
@@ -61,7 +61,6 @@ public partial class AssemblerParser
         { "NOP", OpCode.NOP },
         { "END", OpCode.END },
         { "RET", OpCode.RET },
-        { "PRINT", OpCode.PRINT },
         { "MOV", OpCode.MOV },
         { "ADD", OpCode.ADD },
         { "SUB", OpCode.SUB },
@@ -84,8 +83,6 @@ public partial class AssemblerParser
         { "CALL", OpCode.CALL },
         { "LOAD_IND", OpCode.LOAD_IND },
         { "STORE_IND", OpCode.STORE_IND },
-        { "PRINT_INT", OpCode.PRINT_INT },
-        { "ALLOC", OpCode.ALLOC },
         { "IN", OpCode.IN },
         { "OUT", OpCode.OUT },
         { "CALL_IND", OpCode.CALL_IND },
@@ -163,7 +160,7 @@ public partial class AssemblerParser
             ParseInstruction(line);
         }
     }
-    private string _currentLine = "";
+    private string _currentLine = string.Empty;
     private void ParseInstruction(string instruction)
     {
         _currentLine = instruction;
@@ -223,14 +220,11 @@ public partial class AssemblerParser
             case "JMP_IND":
             case "CALL_IND":
             case "WAKE_INT":
-            case "PRINT":
             case "INC":
             case "DEC":
             case "NOT":
             case "PUSH":
             case "POP":
-            case "PRINT_INT":
-            case "ALLOC":
                 FormatU(tokens, baseMnemonic, opCode);
                 break;
 
@@ -395,11 +389,12 @@ public static class AsmLanguageDefinition
         [
             "NOP", "END", "RET", "PRINT", "MOV", "ADD", "SUB", "AND", "OR", "XOR",
             "INC", "DEC", "NOT", "PUSH", "POP",
-            "LDI", "LOAD", "STORE", 
+            "LDI", "LOAD", "STORE",
             "LOAD_UNSAFE", "STORE_UNSAFE", "JMP", "JZ",
-            "JNZ", "JG", "JL", "CALL", "LOAD_IND", "STORE_IND","LOAD_IND_UNSAFE", "STORE_IND_UNSAFE", "PRINT_INT", "ALLOC",
-            "IN", "OUT", "CALL_IND", "JMP_IND", "SHR", "MULT_INT", "DIV", "HALT", "WAKE", "WAKE_INT"
-
+            "JNZ", "JG", "JL", "CALL", "LOAD_IND", "STORE_IND","LOAD_IND_UNSAFE", "STORE_IND_UNSAFE",
+            "PRINT_INT", "ALLOC",
+            "IN", "OUT", "INT", "IRET", "SHR", "MULT_INT", "DIV", "HALT", "WAKE", "WAKE_INT",
+            "JMP_IND", "CALL_IND"
         ];
         Registers =
         [
