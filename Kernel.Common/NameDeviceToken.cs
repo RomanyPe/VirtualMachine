@@ -1,38 +1,35 @@
 ﻿namespace Kernel.Common;
 
-public readonly struct NameDeviceToken
+public readonly struct NameDeviceToken : IEquatable<NameDeviceToken>
 {
-    public const string UnknownName = "Unknown Name Device";
+    public const string UnknownName = "Unknown Device";
 
-    private readonly string _cachedName;
+    private readonly string? _cachedName;
 
     public NameDeviceToken(ReadOnlySpan<char> name)
     {
-        // Если имя пустое — записываем ссылку на константу, иначе — очищенную строку
-        _cachedName = name.IsEmpty ? UnknownName : name.ToString();
+        _cachedName = name.IsEmpty ? null : name.ToString();
     }
 
-    public NameDeviceToken()
-    {
-        _cachedName = UnknownName;
-    }
+    public bool IsUnknown => _cachedName is null;
 
-    // Свойство вычисляется на лету, не занимая места в памяти структуры!
-    // Благодаря интернированию, проверка (ReferenceEquals) работает мгновенно.
-    public bool IsUnkown => ReferenceEquals(_cachedName, UnknownName) || _cachedName == null;
-
-    // Если объект создали через default(NameDeviceToken), _name будет null. 
-    // Защитим свойство Name от возврата null:
     public string Name => _cachedName ?? UnknownName;
 
-    public override string ToString()
-    {
-        if (!IsUnkown) return Name;
-        return "[Warning] " + Name;
-    }
 
-    public NameDeviceToken CreateChild(ReadOnlySpan<char> childName)
-    {
-        return new NameDeviceToken($"{Name}/{childName}");
-    }
+    public override string ToString() => Name;
+
+    public bool Equals(NameDeviceToken other) =>
+        string.Equals(Name, other.Name, StringComparison.Ordinal);
+
+    public override bool Equals(object? obj) =>
+        obj is NameDeviceToken other && Equals(other);
+
+    public override int GetHashCode() =>
+        StringComparer.Ordinal.GetHashCode(Name);
+
+    public static bool operator ==(NameDeviceToken left, NameDeviceToken right) =>
+        left.Equals(right);
+
+    public static bool operator !=(NameDeviceToken left, NameDeviceToken right) =>
+        !left.Equals(right);
 }

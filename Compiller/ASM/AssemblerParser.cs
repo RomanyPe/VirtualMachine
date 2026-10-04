@@ -46,7 +46,7 @@ public partial class AssemblerParser
         { "r21", RegType.r21 },
         { "r22", RegType.r22 },
         { "r23", RegType.r23 },
-        { "rTB", RegType.rTB },
+        { "r24", RegType.r24 },
         { "rCD", RegType.rCD },
         { "rFL", RegType.rFL },
         { "rCL", RegType.rCL },
@@ -88,8 +88,8 @@ public partial class AssemblerParser
         { "ALLOC", OpCode.ALLOC },
         { "IN", OpCode.IN },
         { "OUT", OpCode.OUT },
-        { "INT", OpCode.INT },
-        { "IRET", OpCode.IRET },
+        { "CALL_IND", OpCode.CALL_IND },
+        { "JMP_IND", OpCode.JMP_IND },
         { "SHR", OpCode.SHR },
         { "MULT_INT", OpCode.MULT_INT },
         { "DIV", OpCode.DIV },
@@ -220,6 +220,8 @@ public partial class AssemblerParser
                 break;
 
             // Формат U (один регистр)
+            case "JMP_IND":
+            case "CALL_IND":
             case "WAKE_INT":
             case "PRINT":
             case "INC":
@@ -260,17 +262,6 @@ public partial class AssemblerParser
             case "JL":
             case "CALL":
                 FormatJumpType(tokens, baseMnemonic, opCode);
-                break;
-
-            case "INT":
-                if (tokens.Length < 2)
-                    ThrowHelper.ThrowMiniC(ErrorCode.Asm_InvalidInstruction,baseMnemonic);
-                RegType rInt = ParseReg(tokens[1]);
-                _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.INT.Uint, rInt.Uint));
-                break;
-
-            case "IRET":
-                _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.IRET.Uint, 0));
                 break;
 
             default:
@@ -385,14 +376,7 @@ public partial class AssemblerParser
         return ulong.TryParse(s, out _);
     }
 
-    private static OpCodeSize ParseSize(string s) => s.ToUpperInvariant() switch
-    {
-        "S8" or "8" => OpCodeSize.S8,
-        "S16" or "16" => OpCodeSize.S16,
-        "S32" or "32" => OpCodeSize.S32,
-        "S64" or "64" => OpCodeSize.S64,
-        _ => ThrowHelper.ThrowMiniC<OpCodeSize>(ErrorCode.CodeGen_UnknownOpCodeSize,s)
-    };
+    
     [GeneratedRegex(@"(\w)\s*\.\s*(\w)")]
     private static partial Regex GetRexExtensionAsm();
 }
@@ -414,14 +398,14 @@ public static class AsmLanguageDefinition
             "LDI", "LOAD", "STORE", 
             "LOAD_UNSAFE", "STORE_UNSAFE", "JMP", "JZ",
             "JNZ", "JG", "JL", "CALL", "LOAD_IND", "STORE_IND","LOAD_IND_UNSAFE", "STORE_IND_UNSAFE", "PRINT_INT", "ALLOC",
-            "IN", "OUT", "INT", "IRET", "SHR", "MULT_INT", "DIV", "HALT", "WAKE", "WAKE_INT"
+            "IN", "OUT", "CALL_IND", "JMP_IND", "SHR", "MULT_INT", "DIV", "HALT", "WAKE", "WAKE_INT"
 
         ];
         Registers =
         [
             "rZ", "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9",
             "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19",
-            "r20", "r21", "rTB", "rCD", "rFL", "r22", "rCL", "r23", "rSP", "rHP", "rIP"
+            "r20", "r21","r22", "r23", "r24", "rCD", "rFL",  "rCL",  "rSP", "rHP", "rIP"
         ];
 
         _mnemonicsRegex = new(GetMnemonicsPattern(), RegexOptions.IgnoreCase);

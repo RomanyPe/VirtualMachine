@@ -47,8 +47,8 @@ public enum OpCode : byte
     IN,  // Чтение из порта: IN Rdest, Rport  (Rdest ← порт[Rport])
     OUT,  // Запись в порт:  OUT Rsrc, Rport  (порт[Rport] ← Rsrc)
     PRINT_INT, 
-    INT,   // программное прерывание
-    IRET,   // возврат из прерывания
+    CALL_IND,   // программное прерывание
+    JMP_IND,   // возврат из прерывания
 
     ALLOC,
     HALT,

@@ -1,6 +1,4 @@
-﻿using Kernel.BiosSystem;
-using Kernel.Common;
-using Kernel.ControllersData;
+﻿using Kernel.ControllersData;
 using System.Diagnostics.CodeAnalysis;
 
 namespace Kernel.Utilites;
@@ -63,9 +61,7 @@ public class ManagerDevices(PortBus portBus) : IDisposable
         var e = FindValid(id);
         if (e == null) return null;
 
-        return new(
-            e.Id,
-            e.Sector, e.Name);
+        return new(e.Id, e.Sector, e.Name);
     }
 
     public readonly record struct DeviceInfo(int Id, uint Sector, string? Name);

@@ -48,7 +48,7 @@ public class PeepholeLog
                 case OpCode.HALT:
                 case OpCode.WAKE:
                 case OpCode.ALLOC:
-                case OpCode.IRET:
+                case OpCode.JMP_IND:
                     return sb.ToString().TrimEnd();
 
                 // Один регистр
@@ -60,7 +60,7 @@ public class PeepholeLog
                 case OpCode.POP:
                 case OpCode.PRINT_INT:
                 case OpCode.WAKE_INT:
-                case OpCode.INT:
+                case OpCode.CALL_IND:
                     return sb.Append(inst.FirstReg).ToString();
 
                 // Два регистра (обычные)

@@ -1,6 +1,4 @@
-﻿using Kernel.BiosSystem;
-using Kernel.Common;
-using Kernel.RamSystem;
+﻿using Kernel.Common;
 
 namespace Kernel.ControllersData;
 
@@ -20,6 +18,7 @@ public sealed class PortBus(SizePort ports, SizePortOnDevice portsOnDev)
 
     private readonly uint _sectorCount = 1U << ((byte)ports - (byte)portsOnDev);
     private readonly IPortUse[] _devices = new IPortUse[1U << ((byte)ports - (byte)portsOnDev)];
+    //private readonly ulong[] _faultsData = new ulong[1U << ((byte)ports - (byte)portsOnDev)];
 
     private readonly byte _deviceShift = (byte)portsOnDev;
     private readonly ulong _offsetMask = (1U << (byte)portsOnDev) - 1U;
@@ -66,23 +65,24 @@ public sealed class PortBus(SizePort ports, SizePortOnDevice portsOnDev)
     }
 
 
-    public RAMResultInt8 ReadPort(ulong address)
+    public ReadPortResult ReadPort(ulong address)
     {
         var (device, offset) = ResolveAddress(address);
         return device != null
             ? new(device.ReadPort(offset))
-            : new(BiosStatus.NullDeviceInput, address);
+            : new((byte)address, BiosStatus.NullDeviceInput);
     }
 
-    public RAMResultInt8 WritePort(ulong address, byte value)
+    public BiosStatus WritePort(ulong address, byte value)
     {
         var (device, offset) = ResolveAddress(address);
-        if (device != null)
+        if (device == null)
         {
-            device.WritePort(offset, value);
-            return new(value);
+            return BiosStatus.NullDeviceOutput;
         }
-        return new(BiosStatus.NullDeviceOutput, address);
+
+        device.WritePort(offset, value);   
+        return BiosStatus.Success;
     }
 
     public bool WakeProcessor(ulong address)
@@ -98,3 +98,5 @@ public sealed class PortBus(SizePort ports, SizePortOnDevice portsOnDev)
 
     public IPortUse? GetDevice(uint sector) => _devices[sector];
 }
+
+public record struct ReadPortResult(byte Data, BiosStatus Status = BiosStatus.Success);

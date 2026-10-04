@@ -13,7 +13,7 @@ public static class RegisterAllocator
     private static readonly HashSet<RegType> ReservedRegs =
     [
         RegType.r0, RegType.r1, RegType.r2, RegType.r3,  // временные
-        RegType.rSP, RegType.rFL, RegType.rTB, RegType.rCD, 
+        RegType.rSP, RegType.rFL, RegType.rCD, 
         RegType.rIP, RegType.rCL, RegType.rHP, RegType.rZ
     ];
 

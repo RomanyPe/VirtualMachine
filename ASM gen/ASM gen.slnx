@@ -1,7 +1,6 @@
 <Solution>
   <Folder Name="/Элементы решения/">
     <File Path="../README.md" />
-    <File Path="../Tests.md" />
   </Folder>
   <Folder Name="/Элементы решения/includes/">
     <File Path="../include/lib.vma" />
@@ -17,4 +16,5 @@
   <Project Path="../Kernel/Kernel.csproj" Id="9d1173c7-0c5f-402c-a10c-a5f7752b4b31" />
   <Project Path="../TestVMSpeed/TestVMSpeed.csproj" Id="ca2eb761-5c06-4622-8663-b639d3da1812" />
   <Project Path="../VMApplication/VMApplication.csproj" />
+  <Project Path="Kernel.Contracts/Kernel.Contracts.csproj" Id="3b7898ca-010b-4d99-9da1-81a6b1740138" />
 </Solution>

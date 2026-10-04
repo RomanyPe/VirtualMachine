@@ -207,7 +207,7 @@ public static class InstructionEncoder
             OpCode.HALT or 
             OpCode.WAKE or 
             OpCode.RET or 
-            OpCode.IRET
+            OpCode.JMP_IND
                 => op,
 
             OpCode.PRINT or 
@@ -219,7 +219,7 @@ public static class InstructionEncoder
             OpCode.POP or 
             OpCode.PRINT_INT or 
             OpCode.ALLOC or 
-            OpCode.INT
+            OpCode.CALL_IND
                 => $"{op} {R1(instruction)}",
 
             OpCode.MOV or 
@@ -299,7 +299,7 @@ public static class InstructionEncoder
             RegType.r21 => "r21",
             RegType.r22 => "r22",
             RegType.r23 => "r23",
-            RegType.rTB => "rTB",
+            RegType.r24 => "r24",
             RegType.rCD => "rCD",
             RegType.rFL => "rFL",
             RegType.rCL => "rCL",
@@ -345,8 +345,8 @@ public static class InstructionEncoder
             OpCode.IN => "IN",
             OpCode.OUT => "OUT",
             OpCode.PRINT_INT => "PRINT_INT",
-            OpCode.INT => "INT",
-            OpCode.IRET => "IRET",
+            OpCode.CALL_IND => "CALL_IND",
+            OpCode.JMP_IND => "JMP_INT",
             OpCode.ALLOC => "ALLOC",
             OpCode.HALT => "HALT",
             OpCode.WAKE => "WAKE",

@@ -1,4 +1,5 @@
 ﻿using Kernel.Common;
+using Kernel.Contracts;
 using Kernel.ControllersData;
 using Kernel.ProcessorSystem;
 using Kernel.RamSystem;
@@ -62,10 +63,14 @@ public sealed class Device : IPortController
     {
         for (ulong i = 0; i < (ulong)program.Length; i++)
         {
-            RAMResultInt8 result = _ram.WriteInt8LE(loadAddress + i, program[i]);
-            if (!result.IsSuccess)
+            _ram.WriteInt8LE(loadAddress + i, program[i]);
+            var status = _ram.UpdateAndReadStatus();
+            if (status != BiosStatus.Success)
+            {
                 throw new InvalidOperationException(
-                    $"Failed to write the program to the address 0x{loadAddress + i:X}");
+                    $"Failed to write the program to the address 0x{_ram.FaultData:X}");
+
+            }
         }
         InitHeap(loadAddress, program.AsSpan());
     }

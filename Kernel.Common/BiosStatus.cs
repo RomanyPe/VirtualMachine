@@ -28,3 +28,10 @@ public enum BiosStatus : byte
     DivOnZero,
     NotSupportedOpCode,
 }
+
+public readonly record struct ProcessorFault(
+    BiosStatus Status,
+    ulong FaultAddress,
+    ulong InstructionPointer,
+    OpCode OpCode);
+

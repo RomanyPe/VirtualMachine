@@ -1,7 +1,9 @@
 ﻿using Kernel.Common;
+using Kernel.Contracts;
 using Kernel.ControllersData;
 using Kernel.RamSystem;
 using System.Collections.Concurrent;
+using System.Net.NetworkInformation;
 using System.Runtime.CompilerServices;
 using System.Text;
 using static Kernel.Common.InstructionDecoder;
@@ -88,7 +90,6 @@ public sealed class Processor(MemoryBus ram,
         _registers[RegType.rCL.Int] = 0;
         _registers[RegType.rCD.Int] = 0;
         _registers[RegType.rFL.Int] = 0;
-        _registers[RegType.rTB.Int] = 0;
 
         ulong stackTop = _ram.RamSize;
         stackTop &= ~0x7UL;
@@ -201,8 +202,8 @@ public sealed class Processor(MemoryBus ram,
             // === 7. Ввод-вывод ===
             OpCode.IN => InstructionIN(GetReg1(rawInst), GetReg2(rawInst)),
             OpCode.OUT => InstructionOUT(GetReg1(rawInst), GetReg2(rawInst)),
-            OpCode.INT => InstructionINT(GetReg1(rawInst)),   // GetReg1(rawInst) содержит номер вектора
-            OpCode.IRET => InstructionIRET(),
+            OpCode.CALL_IND => SetStatusNotImplementedOpCode(opCode),
+            OpCode.JMP_IND => SetStatusNotImplementedOpCode(opCode),
 
             OpCode.PRINT_INT => SetStatusNotSupportedOpCode(opCode),
             OpCode.ALLOC => InstructionALLOC(GetReg1(rawInst)),
@@ -328,59 +329,6 @@ public sealed class Processor(MemoryBus ram,
         return BiosStatus.Success;
     }
 
-    private BiosStatus InstructionINT(RegType reg)
-    {
-        uint vector = (uint)_registers[reg.Int] & 0x1F; // 32 вектора
-        ulong tableBase = _registers[RegType.rTB.Int];
-        ulong handlerAddr;
-        RAMResultInt64 readResult = _ram.ReadInt64LE(tableBase + (ulong)vector * 8);
-        if (!readResult.IsSuccess)
-        {
-            _lastFaultData = readResult.FaultAddress;
-            return readResult.Status;
-        }
-
-        handlerAddr = readResult.Data;
-
-        // Сохраняем текущий IP в стек
-        ulong ip = _registers[RegType.rIP.Int];
-        ulong sp = _registers[RegType.rSP.Int];
-        sp -= 8;
-        RAMResultInt64 writeResult = _ram.WriteInt64LE(sp, ip);
-
-        if (!writeResult.IsSuccess)
-        {
-            _lastFaultData = sp;
-            return writeResult.Status;
-        }
-
-        _registers[RegType.rSP.Int] = sp;
-        if (handlerAddr == 0)
-        {
-            return EndProgramm();
-        }
-        // Переходим на обработчик
-        _registers[RegType.rIP.Int] = handlerAddr;
-        return BiosStatus.Success;
-    }
-
-    private BiosStatus InstructionIRET()
-    {
-        // Восстанавливаем IP из стека
-        ulong sp = _registers[RegType.rSP.Int];
-        RAMResultInt64 readResult = _ram.ReadInt64LE(sp);
-        if (!readResult.IsSuccess)
-        {
-            _lastFaultData = sp;
-            return readResult.Status;
-        }
-
-        sp += 8;
-        _registers[RegType.rIP.Int] = readResult.Data;
-        _registers[RegType.rSP.Int] = sp;
-        return BiosStatus.Success;
-    }
-
     private BiosStatus EndProgramm()
     {
         Volatile.Write(ref _isRunning, false);
@@ -395,50 +343,54 @@ public sealed class Processor(MemoryBus ram,
     }
     private BiosStatus InstructionLOAD(OpCodeSize sizeT, RegType reg, ulong adress)
     {
-
+        BiosStatus status;
         switch (sizeT)
         {
             case OpCodeSize.S8:
-                RAMResultInt8 data8 = _ram.ReadInt8LE(adress);
-                if (data8.IsSuccess)
+                var data8 = _ram.ReadInt8LE(adress);
+                status = _ram.UpdateAndReadStatus();
+                if (status != BiosStatus.Success)
                 {
-                    _registers[reg.Int] = data8.Data;
-                    return BiosStatus.Success;
+                    _lastFaultData = _ram.FaultData;
+                    return status;
                 }
-                _lastFaultData = data8.FaultAddress;
-                return data8.Status;
+                _registers[reg.Int] = data8;
+                return status;
 
 
             case OpCodeSize.S16:
-                RAMResultInt16 data16 = _ram.ReadInt16LE(adress);
-                if (data16.IsSuccess)
+                var data16 = _ram.ReadInt16LE(adress);
+                status = _ram.UpdateAndReadStatus();
+                if (status != BiosStatus.Success)
                 {
-                    _registers[reg.Int] = data16.Data;
-
-                    return BiosStatus.Success;
+                    _lastFaultData = _ram.FaultData;
+                    return status;
                 }
-                _lastFaultData = data16.FaultAddress;
-                return data16.Status;
+                _registers[reg.Int] = data16;
+
+                return BiosStatus.Success;
 
             case OpCodeSize.S32:
-                RAMResultInt32 data32 = _ram.ReadInt32LE(adress);
-                if (data32.IsSuccess)
+                var data32 = _ram.ReadInt32LE(adress);
+                status = _ram.UpdateAndReadStatus();
+                if (status != BiosStatus.Success)
                 {
-                    _registers[reg.Int] = data32.Data;
-                    return BiosStatus.Success;
+                    _lastFaultData = _ram.FaultData;
+                    return status;
                 }
-                _lastFaultData = data32.FaultAddress;
-                return data32.Status;
+                _registers[reg.Int] = data32;
+                return BiosStatus.Success;
 
             case OpCodeSize.S64:
-                RAMResultInt64 data64 = _ram.ReadInt64LE(adress);
-                if (data64.IsSuccess)
+                var data64 = _ram.ReadInt64LE(adress);
+                status = _ram.UpdateAndReadStatus();
+                if (status != BiosStatus.Success)
                 {
-                    _registers[reg.Int] = data64.Data;
-                    return BiosStatus.Success;
+                    _lastFaultData = _ram.FaultData;
+                    return status;
                 }
-                _lastFaultData = data64.FaultAddress;
-                return data64.Status;
+                _registers[reg.Int] = data64;
+                return BiosStatus.Success;
 
             default:
                 // Защита на случай передачи некорректного или нереализованного OpCodeSize
@@ -451,46 +403,50 @@ public sealed class Processor(MemoryBus ram,
 
     private BiosStatus InstructionSTORE(OpCodeSize sizeT, RegType reg, ulong adress)
     {
-
+        BiosStatus status;
         switch (sizeT)
         {
             case OpCodeSize.S8:
-                RAMResultInt8 data8 = _ram.WriteInt8LE(adress, (byte)_registers[reg.Int]);
-                if (data8.IsSuccess)
+                _ram.WriteInt8LE(adress, (byte)_registers[reg.Int]);
+                status = _ram.UpdateAndReadStatus();
+                if (status != BiosStatus.Success)
                 {
-                    return BiosStatus.Success;
+                    _lastFaultData = _ram.FaultData;
+                    return status;
                 }
-                _lastFaultData = data8.FaultAddress;
-                return data8.Status;
+                return status;
 
             case OpCodeSize.S16:
-                RAMResultInt16 data16 = _ram.WriteInt16LE(adress, (ushort)_registers[reg.Int]);
-                if (data16.IsSuccess)
+                _ram.WriteInt16LE(adress, (ushort)_registers[reg.Int]);
+                status = _ram.UpdateAndReadStatus();
+                if (status != BiosStatus.Success)
                 {
-                    return BiosStatus.Success;
+                    _lastFaultData = _ram.FaultData;
+                    return status;
                 }
-                _lastFaultData = data16.FaultAddress;
-                return data16.Status;
+                return status;
 
 
             case OpCodeSize.S32:
-                RAMResultInt32 data32 = _ram.WriteInt32LE(adress, (uint)_registers[reg.Int]);
-                if (data32.IsSuccess)
+                _ram.WriteInt32LE(adress, (uint)_registers[reg.Int]);
+                status = _ram.UpdateAndReadStatus();
+                if (status != BiosStatus.Success)
                 {
-                    return BiosStatus.Success;
+                    _lastFaultData = _ram.FaultData;
+                    return status;
                 }
-                _lastFaultData = data32.FaultAddress;
-                return data32.Status;
+                return status;
 
 
             case OpCodeSize.S64:
-                RAMResultInt64 data64 = _ram.WriteInt64LE(adress, _registers[reg.Int]);
-                if (data64.IsSuccess)
+                _ram.WriteInt64LE(adress, _registers[reg.Int]);
+                status = _ram.UpdateAndReadStatus();
+                if (status != BiosStatus.Success)
                 {
-                    return BiosStatus.Success;
+                    _lastFaultData = _ram.FaultData;
+                    return status;
                 }
-                _lastFaultData = data64.FaultAddress;
-                return data64.Status;
+                return status;
 
 
             default:
@@ -700,12 +656,12 @@ public sealed class Processor(MemoryBus ram,
 
         sp -= 8;
 
-        RAMResultInt64 writeResult = _ram.WriteInt64LE(sp, value);
-
-        if (!writeResult.IsSuccess)
+        _ram.WriteInt64LE(sp, value);
+        var status = _ram.UpdateAndReadStatus();
+        if (status != BiosStatus.Success)
         {
-            _lastFaultData = sp;
-            return writeResult.Status;
+            _lastFaultData = _ram.FaultData;
+            return status;
         }
 
         if (_registers[RegType.rHP.Int] >= sp)   // коллизия с стеком
@@ -722,17 +678,18 @@ public sealed class Processor(MemoryBus ram,
     {
         ulong sp = _registers[RegType.rSP.Int];
 
-        RAMResultInt64 readResult = _ram.ReadInt64LE(sp);
+        var readResult = _ram.ReadInt64LE(sp);
 
-        if (!readResult.IsSuccess)
+        var status = _ram.UpdateAndReadStatus();
+        if (status != BiosStatus.Success)
         {
-            _lastFaultData = sp;
-            return readResult.Status;
+            _lastFaultData = _ram.FaultData;
+            return status;
         }
 
         sp += 8;
 
-        _registers[reg.Int] = readResult.Data;
+        _registers[reg.Int] = readResult;
         _registers[RegType.rSP.Int] = sp;
 
         return BiosStatus.Success;
@@ -810,9 +767,12 @@ public sealed class Processor(MemoryBus ram,
     private BiosStatus InstructionIN(RegType regDest, RegType regPort)
     {
         ulong portAddress = _registers[regPort.Int];
-        RAMResultInt8 result = _portBus.ReadPort(portAddress);
-        if (!result.IsSuccess)
+        var result = _portBus.ReadPort(portAddress);
+        if (result.Status != BiosStatus.Success)
+        {
+            _lastFaultData = _ram.FaultData;
             return result.Status;
+        }
 
         _registers[regDest.Int] = result.Data;
         return BiosStatus.Success;
@@ -822,10 +782,12 @@ public sealed class Processor(MemoryBus ram,
     {
         ulong portAddress = _registers[regPort.Int];
         byte value = (byte)(_registers[regSrc.Int] & 0xFF);
-        RAMResultInt8 result = _portBus.WritePort(portAddress, value);
-        if (!result.IsSuccess)
-            return result.Status;
-
+        var status = _portBus.WritePort(portAddress, value);
+        if (status != BiosStatus.Success)
+        {
+            _lastFaultData = _ram.FaultData;
+            return status;
+        }
         // Флаги обычно не меняются при выводе, но можно обновить по желанию
         return BiosStatus.Success;
     }

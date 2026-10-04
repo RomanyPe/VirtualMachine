@@ -3,6 +3,7 @@ using Compiller.ASM.Optimizators;
 using Compiller.C;
 using Kernel.BiosSystem;
 using Kernel.Common;
+using Kernel.Contracts;
 using VMApplication.Emulator;
 using VMApplication.Logger;
 using VMApplication.Project;
@@ -37,6 +38,23 @@ public static class VMHostHelper
         var text = Disassembler.Disassemble(prog, out int lenght, out int size, baseAddress);
         return new(text, lenght, size);
     }
+
+    private class DeviceLoggerSingleObj : IDeviceLoggerContext
+    {
+        public void Log(string message, LogLevel level = LogLevel.Log)
+        {
+            var originalColor = Console.ForegroundColor;
+            Console.ForegroundColor = level switch
+            {
+                LogLevel.Warning => ConsoleColor.Yellow,
+                LogLevel.Error => ConsoleColor.Red,
+                _ => originalColor
+            };
+            Console.WriteLine(message);
+            Console.ForegroundColor = originalColor;
+        }
+    }
+
     public static ResultSimulation RunIsolated(
         string source, 
         RamSize ram = RamSize.Size16MB,
@@ -54,30 +72,13 @@ public static class VMHostHelper
             Span<ulong> sp = stackalloc ulong[32];
             device.CopyRegisters(sp);
             long steps = device.StepCount ?? 0;
-            return new(sp.ToArray(), steps);
+            return new(sp.ToArray(), resCompile, steps, true);
         }
         return new();
     }
-
-
-    private class DeviceLoggerSingleObj : IDeviceLoggerContext
-    {
-        public void Log(string message, LogLevel level = LogLevel.Log)
-        {
-            var originalColor = Console.ForegroundColor;
-            Console.ForegroundColor = level switch
-            {
-                LogLevel.Warning => ConsoleColor.Yellow,
-                LogLevel.Error => ConsoleColor.Red,
-                _ => originalColor
-            };
-            Console.WriteLine(message);
-            Console.ForegroundColor = originalColor;
-        }
-    }
 }
 
-public record struct ResultSimulation(ulong[] Registers, long StepCount);
+public record struct ResultSimulation(ulong[]? Registers = null, byte[]? ByteCode = null, long StepCount = 0, bool Succes = false);
 
 public sealed class ConsoleOutputView : IOutputView
 {

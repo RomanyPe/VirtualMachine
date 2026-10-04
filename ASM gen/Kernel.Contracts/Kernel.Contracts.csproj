@@ -4,12 +4,10 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ASM gen\Kernel.Contracts\Kernel.Contracts.csproj" />
-    <ProjectReference Include="..\Kernel.Common\Kernel.Common.csproj" />
+    <ProjectReference Include="..\..\Kernel.Common\Kernel.Common.csproj" />
   </ItemGroup>
 
 </Project>

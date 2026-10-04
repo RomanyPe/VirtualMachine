@@ -1,5 +1,6 @@
 ﻿using Kernel.Common;
 using System.Buffers.Binary;
+using System.Net;
 
 namespace Kernel.RamSystem;
 
@@ -21,16 +22,33 @@ public class MemoryBus : IDisposable
 
     public ReadOnlyMemory<byte> ReadOnlyMemory => _memory.AsMemory();
 
+    private ulong _faultData = 0;
+    private BiosStatus _lastStatus = BiosStatus.Success;
+    public ulong FaultData => _faultData;
+
+    public BiosStatus UpdateAndReadStatus()
+    {
+        var lastStatus = _lastStatus;
+        _lastStatus = BiosStatus.Success; 
+        return lastStatus;
+    }
+
+    private byte SetErrorStatus(BiosStatus status, ulong data)
+    {
+        _lastStatus = status;
+        _faultData = data;
+        return 0;
+    }
     /// <summary>
     /// Метод для чтения 8 битового целого числа (Int8)
     /// </summary>
     /// <param name="address"> Адресс в виртуальной памяти </param>
     /// <returns> Успешность операции, при возврате не BiosStatus.Success происходит исключение и остановка работы биоса </returns>
-    public RAMResultInt8 ReadInt8LE(ulong address)
+    public byte ReadInt8LE(ulong address)
     {
-        return address < _memory.Length 
-            ? new RAMResultInt8(_memory[address]) 
-            : new RAMResultInt8(BiosStatus.SegmentationFault, address);
+        return address < _memory.Length
+            ? _memory[address]
+            : SetErrorStatus(BiosStatus.SegmentationFault, address);
     }
 
     /// <summary>
@@ -39,13 +57,13 @@ public class MemoryBus : IDisposable
     /// <param name="address"> Адресс в виртуальной памяти </param>
     /// <returns> Успешность операции, при возврате не BiosStatus.Success происходит исключение и остановка работы биоса </returns>
 
-    public RAMResultInt16 ReadInt16LE(ulong address)
+    public ushort ReadInt16LE(ulong address)
     {
-        if ((address & 0x01) != 0) return new RAMResultInt16(BiosStatus.AlignmentFault, (uint)address);
+        if ((address & 0x01) != 0) return SetErrorStatus(BiosStatus.AlignmentFault, address);
 
         return address <= _memory.Length - 2
-            ? new RAMResultInt16(_memory.ReadUInt16(address))
-            : new RAMResultInt16(BiosStatus.SegmentationFault, address);
+            ? _memory.ReadUInt16(address)
+            : SetErrorStatus(BiosStatus.SegmentationFault, address);
     }
 
     /// <summary>
@@ -53,13 +71,13 @@ public class MemoryBus : IDisposable
     /// </summary>
     /// <param name="address"> Адресс в виртуальной памяти </param>
     /// <returns> Успешность операции, при возврате не BiosStatus.Success происходит исключение и остановка работы биоса </returns>
-    public RAMResultInt32 ReadInt32LE(ulong address)
+    public uint ReadInt32LE(ulong address)
     {
-        if ((address & 0x03) != 0) return new RAMResultInt32(BiosStatus.AlignmentFault, address);
+        if ((address & 0x03) != 0) return SetErrorStatus(BiosStatus.AlignmentFault, address);
 
         return address <= _memory.Length - 4
-            ? new RAMResultInt32(_memory.ReadUInt32(address))
-            : new RAMResultInt32(BiosStatus.SegmentationFault, address);
+            ? _memory.ReadUInt32(address)
+            : SetErrorStatus(BiosStatus.SegmentationFault, address);
     }
 
     /// <summary>
@@ -68,13 +86,13 @@ public class MemoryBus : IDisposable
     /// <param name="address"> Адресс в виртуальной памяти </param>
     /// <returns> Успешность операции, при возврате не BiosStatus.Success происходит исключение и остановка работы биоса </returns>
 
-    public RAMResultInt64 ReadInt64LE(ulong address)
+    public ulong ReadInt64LE(ulong address)
     {
-        if ((address & 0x07) != 0) return new RAMResultInt64(BiosStatus.AlignmentFault, address);
+        if ((address & 0x07) != 0) return SetErrorStatus(BiosStatus.AlignmentFault, address);
 
         return address <= _memory.Length - 8
-            ? new RAMResultInt64(_memory.ReadUInt64(address))
-            : new RAMResultInt64(BiosStatus.SegmentationFault, address);
+            ? _memory.ReadUInt64(address)
+            : SetErrorStatus(BiosStatus.SegmentationFault, address);
     }
 
     /// <summary>
@@ -83,12 +101,14 @@ public class MemoryBus : IDisposable
     /// <param name="address"> Адрес в виртуальной памяти </param>
     /// <param name="value"> 16 битовое целое число (Int8) </param>
     /// <returns> Успешность операции, при возврате False программа остановится и выведится ошибка </returns>
-    public RAMResultInt8 WriteInt8LE(ulong address, byte value)
+    public void WriteInt8LE(ulong address, byte value)
     {
-        if (address >= _memory.Length) return new RAMResultInt8(BiosStatus.SegmentationFault, address);
-
+        if (address >= _memory.Length)
+        {
+            SetErrorStatus(BiosStatus.SegmentationFault, address);
+            return;
+        }
         _memory[address] = value;
-        return new RAMResultInt8(value);
     }
 
     /// <summary>
@@ -97,14 +117,21 @@ public class MemoryBus : IDisposable
     /// <param name="address"> Адрес в виртуальной памяти </param>
     /// <param name="value"> 16 битовое целое число (Int16) </param>
     /// <returns> Успешность операции, при возврате False программа остановится и выведится ошибка </returns>
-    public RAMResultInt16 WriteInt16LE(ulong address, ushort value)
+    public void WriteInt16LE(ulong address, ushort value)
     {
-        if ((address & 0x01) != 0) return new RAMResultInt16(BiosStatus.AlignmentFault, address);
-        if (address > _memory.Length - 2) return new RAMResultInt16(BiosStatus.SegmentationFault, address);
-        
-        _memory.WriteUInt16(address, value);
+        if ((address & 0x01) != 0)
+        {
+            SetErrorStatus(BiosStatus.AlignmentFault, address);
+            return;
+        }
 
-        return new RAMResultInt16(value);
+        if (address > _memory.Length - 2)
+        {
+            SetErrorStatus(BiosStatus.SegmentationFault, address);
+            return;
+        }
+
+        _memory.WriteUInt16(address, value);
     }
 
 
@@ -114,13 +141,20 @@ public class MemoryBus : IDisposable
     /// <param name="address"> Адрес в виртуальной памяти </param>
     /// <param name="value"> 32 битовое целое число (Int32) </param>
     /// <returns> Успешность операции, при возврате False программа остановится и выведится ошибка </returns>
-    public RAMResultInt32 WriteInt32LE(ulong address, uint value)
+    public void WriteInt32LE(ulong address, uint value)
     {
-        if ((address & 0x03) != 0) return new RAMResultInt32(BiosStatus.AlignmentFault, address);
-        if (address > _memory.Length - 4) return new RAMResultInt32(BiosStatus.SegmentationFault, address);
+        if ((address & 0x03) != 0)
+        {
+            SetErrorStatus(BiosStatus.AlignmentFault, address);
+            return;
+        }
+        if (address > _memory.Length - 4)
+        {
+            SetErrorStatus(BiosStatus.SegmentationFault, address);
+            return;
+        }
 
         _memory.WriteUInt32(address, value);
-        return new RAMResultInt32(value);
     }
 
     /// <summary>
@@ -129,13 +163,20 @@ public class MemoryBus : IDisposable
     /// <param name="address"> Адрес в виртуальной памяти </param>
     /// <param name="value"> 64 битовое целое число (Int64) </param>
     /// <returns> Успешность операции, при возврате False программа остановится и выведится ошибка </returns>
-    public RAMResultInt64 WriteInt64LE(ulong address, ulong value)
+    public void WriteInt64LE(ulong address, ulong value)
     {
-        if ((address & 0x07) != 0) return new RAMResultInt64(BiosStatus.AlignmentFault, address);
-        if (address > _memory.Length - 8) return new RAMResultInt64(BiosStatus.SegmentationFault, address);
+        if ((address & 0x07) != 0)
+        {
+            SetErrorStatus(BiosStatus.AlignmentFault, address);
+            return;
+        }
+        if (address > _memory.Length - 8)
+        {
+            SetErrorStatus(BiosStatus.SegmentationFault, address);
+            return;
+        }
 
         _memory.WriteUInt64(address, value);
-        return new RAMResultInt64(value);
     }
 
     public void WriteInt8LEUnSafe(ulong address, byte value) => _memory[address] = value;
@@ -154,6 +195,7 @@ public class MemoryBus : IDisposable
 
     public ulong ReadInt64LEUnSafe(ulong address) => _memory.ReadUInt64(address);
 
+    
     // ==============================
     //              API 
     // ==============================
