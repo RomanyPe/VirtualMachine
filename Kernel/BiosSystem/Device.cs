@@ -27,21 +27,17 @@ public sealed class Device : IPortController
     private int _disposed;
     public Action<IDeviceLoggerContext>? ActionOnWake { get; set; } = null;
 
-    public DateTime CreatedAt { get; } = DateTime.Now;
-    public ReadOnlyMemory<byte> AsRamMemory(int start, int length) => _ram.AsMemory(start, length);
-    public ReadOnlyMemory<byte> RamArray => _ram.ReadOnlyMemory;
-
     private bool _running = false;
 
+    public INativeReadOnlyBuffer NativeReadOnlyBuffer => _ram.NativeReadOnlyBuffer;
     public bool IsRunning => _running;
-    public bool HaveBios => _ram.HaveBios;
-    public ulong MaxRamSize => _ram.RamSize;
-    public long? StepCount => _processor.IsRunning ? null : stepCounter;
+    public ulong MaxRamSize => _ram.Length;
+    public long StepCount => _processor.IsRunning ? -1 : stepCounter;
 
-    public Device(byte[] biosFirmware, PortBus portBus, RamSize size, RamSize sizeBios, IDeviceLoggerContext deviceCtx, IProcessorFaultPolicy? processorFaultPolicy = null)
+    public Device(PortBus portBus, RamSize size, IDeviceLoggerContext deviceCtx, IProcessorFaultPolicy? processorFaultPolicy = null)
     {
         _portBus = portBus;
-        _ram = new MemoryBus(size, biosFirmware, sizeBios);
+        _ram = new MemoryBus(size);
         _processor = new Processor(_ram, _portBus, processorFaultPolicy);
         _ioMemory = new byte[_portBus.PortsOnDevice];
         _deviceCtx = deviceCtx;
@@ -72,23 +68,20 @@ public sealed class Device : IPortController
 
             }
         }
-        InitHeap(loadAddress, program.AsSpan());
+        InitHeap(loadAddress, (ulong)program.LongLength);
     }
 
     public bool TryLoadProgramFast(ReadOnlySpan<byte> program, ulong loadAddress)
     {
-        Memory<byte> ram = _ram.Memory;
-        ulong ramLength = (ulong)ram.Length;
+        ulong ramLength = _ram.Length;
         ulong programLength = (ulong)program.Length;
 
         if (loadAddress + programLength < loadAddress || loadAddress + programLength > ramLength)
         {
             return false;
         }
-
-        Span<byte> target = ram.Span.Slice((int)loadAddress, program.Length);
-        program.CopyTo(target);
-        InitHeap(loadAddress, program);
+        _ram.LoadProgram(program, loadAddress);
+        InitHeap(loadAddress, (ulong)program.Length);
         return true;
     }
 
@@ -103,7 +96,7 @@ public sealed class Device : IPortController
 
         onLaunch?.Invoke(_deviceCtx);
 
-        ulong startIndex = start ?? _ram.RamSize;
+        ulong startIndex = start ?? _ram.Length;
         stepCounter = 0;
 
         RunSimulationLoop(startIndex, isDebug, delay, snowTimer, onStart, onEnd);
@@ -115,7 +108,7 @@ public sealed class Device : IPortController
     {
         titleAct?.Invoke(_deviceCtx);
         stepCounter = 0;
-        ulong startIndex = start ?? _ram.RamSize;
+        ulong startIndex = start ?? _ram.Length;
 
         _processor.LaunchProgramm(startIndex);
     }
@@ -129,9 +122,9 @@ public sealed class Device : IPortController
 
     public void Stop() => RequestStop();
 
-    private void InitHeap(ulong loadAddress, ReadOnlySpan<byte> program)
+    private void InitHeap(ulong loadAddress, ulong length)
     {
-        ulong programEnd = loadAddress + (ulong)program.Length;
+        ulong programEnd = loadAddress + length;
         ulong heapStart = programEnd.AlignUp(8UL);
         _processor.InitRegHP(heapStart);
     }
@@ -262,11 +255,6 @@ public sealed class Device : IPortController
         ulong currentIp = _processor.GetRegValue(RegType.rIP);
         _deviceCtx.Log($"[Такт {stepCounter}] Выполнен IP: {currentIp} -> Следующий IP: {_processor.GetRegValue(RegType.rIP)}");
         _deviceCtx.Log($"r0: {_processor.GetRegValue(RegType.r1)} | r1: {_processor.GetRegValue(RegType.r2)} | rFL: {_processor.GetRegValue(RegType.rFL)}");
-    }
-
-    public void UpdateBios(byte[] newBios)
-    {
-        _ram.SetBios(newBios);
     }
 
     public void ResetMemoryRam() => _ram.ClearMemory();

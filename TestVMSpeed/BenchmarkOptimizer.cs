@@ -30,7 +30,7 @@ public static partial class BenchmarkOptimizer
         catch (Exception ex)
         {
             Console.WriteLine($"[Предупреждение] Не удалось установить приоритет High: {ex.Message}");
-            Console.WriteLine("💡 На Linux/macOS для повышения приоритета запустите программу с 'sudo'.");
+            Console.WriteLine("На Linux/macOS для повышения приоритета запустите программу с 'sudo'.");
         }
     }
 

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using VMApplication;
+using VMApplication.Default;
 
 namespace TestVMSpeed;
 
@@ -347,9 +348,7 @@ loop:
 
         using var host = VMHostFactory.CreateDefault(fileService: fileService, outputView: console);
         int deviceId = host.Emulator.CreateAndAddDevice(
-            bios: [],
-            ramSize: RamSize.Size128MB,
-            biosSize: RamSize.Size128B, 
+            ramSize: RamSize.MB64,
             sector: 0,
             name: "ConsoleVM"
         );

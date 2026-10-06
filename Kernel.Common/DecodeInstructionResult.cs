@@ -1,4 +1,6 @@
-﻿namespace Kernel.Common;
+﻿using System.Runtime.CompilerServices;
+
+namespace Kernel.Common;
 
 public readonly struct DecodeInstructionResult(OpCode opCode,
                                                RegType reg1,

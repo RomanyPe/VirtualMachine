@@ -1,5 +1,5 @@
-﻿using Kernel.Common;
-using Kernel.Contracts;
+﻿using ConsoleEmulatorForTests;
+using Kernel.Common;
 using VMApplication;
 using VMApplication.Emulator;
 using VMApplication.Project;
@@ -128,19 +128,12 @@ const string sourceText5 =
         RET;
     """;
 
-const string bug =
-    """
-    LDI r0, 18446744073709551;
-    JMP_IND r0;
-    END;
-    """;
 
 using var host = VMHostFactory.CreateDefault();
 var lfPolicy = new LoggingFaultPolicy(Console.Out);
 
 var device = host.Emulator.CreateDevice(
-    ramSize: RamSize.Size128MB,
-    biosSize: RamSize.Size128B, 
+    ramSize: RamSize.MB128,
     processorFaultPolicy: lfPolicy,
     name: "ConsoleVM"
 );
@@ -149,7 +142,7 @@ var iostream = new QueuedIOStream(Console.Out, PortCharEncoding.Utf8);
 host.Emulator.AddDevice(device, 0);
 host.Emulator.AddDevice(iostream, "console", 1);
 
-Span<string> sourseCodes = [bug];
+Span<string> sourseCodes = [sourceText1, sourceText2, sourceText3, sourceText4, sourceText5];
 
 for (int i = 0; i < sourseCodes.Length; i++)
 {
@@ -166,29 +159,10 @@ for (int i = 0; i < sourseCodes.Length; i++)
         return;
     }
 
-
-    LaunchModeDevice? load = device.TryFastLoadProgram(resCompile.Program, 0, out var error);
-    if (load == null)
+    if (!device.TryFastLoadProgram(resCompile.Program, 0, out var error))
     {
         Console.WriteLine(error!);
         return;
     }
-    load.Launch();
-}
-
-class LoggingFaultPolicy(TextWriter output) : IProcessorFaultPolicy
-{
-    private readonly TextWriter _out = output;
-
-    public bool ShouldContinue(in ProcessorFault fault)
-    {
-        _out.WriteLine(
-            $"[FAULT] status={fault.Status}, " +
-            $"data=0x{fault.FaultData:X}, " +
-            $"ip=0x{fault.InstructionPointer:X}, " +
-            $"op={fault.OpCode}");
-        _out.Flush();
-
-        return false; // останавливаем симуляцию
-    }
+    device.Launch();
 }

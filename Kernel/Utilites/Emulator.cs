@@ -17,40 +17,30 @@ public class Emulator : IDisposable
     private readonly PortBus _portBus;
     private readonly ManagerDevices _manager;
 
-    private int _mainDeviceId = -1;
 
-    public Emulator(SizePort totalPorts = SizePort.Size16KB, SizePortOnDevice portsPerDevice = SizePortOnDevice.Size16B)
+    public Emulator(PortSize ports, DevicePortSize portsOnDev)
     {
-        _portBus = new PortBus(totalPorts, portsPerDevice);
+        _portBus = new PortBus(ports, portsOnDev);
         _manager = new ManagerDevices(_portBus);
     }
 
-    public int MainDeviceId => _mainDeviceId;
     public DeviceInfo? GetDeviceInfo(int i) => _manager.GetDeviceInfo(i);
     public IEnumerable<DeviceInfo> AllDeviceInfo => _manager.GetAllDevices();
-    public void SetMainDevice(int id) => _mainDeviceId = id;
 
     public int AddDevice(
         IPortController device,
         string? name,
         uint sector)
     {
-        int id = _manager.AddDevice(device, name, sector);
-
-        if (id != -1 && _mainDeviceId == -1)
-            _mainDeviceId = id;
-
-        return id;
+        return _manager.AddDevice(device, name, sector);
     }
 
     public Device CreateDevice(
-        byte[] bios,
         RamSize size,
-        RamSize sizeBios,
         IDeviceLoggerContext ctx,
         IProcessorFaultPolicy? processorFaultPolicy = null)
     {
-        return new Device(bios, _portBus, size, sizeBios, ctx, processorFaultPolicy);
+        return new Device(_portBus, size, ctx, processorFaultPolicy);
     }
 
 
@@ -62,35 +52,15 @@ public class Emulator : IDisposable
     public bool TryGetDevice<T>(int id, [NotNullWhen(true)] out T? device)
         where T : class, IPortController => _manager.TryGetDevice(id, out device);
 
-    //public void CopyRegisters(Span<ulong> destination) => MainDevice?.CopyRegisters(destination);
 
-    //public void CopyRegisters(Span<ulong> destination, int id) => _manager.GetDevice(id)?.CopyRegisters(destination);
-
-    //public ulong[]? GetRegistersSnapshot() => MainDevice?.GetRegistersSnapshot();
-
-    //public ulong[]? GetRegistersSnapshot(int id) => _manager.GetDevice(id)?.GetRegistersSnapshot();
-
-
-    public void Reset()
-    {
-        _manager.Dispose();
-        _mainDeviceId = -1;
-    }
-
-    public bool RemoveDevice(int id)
-    {
-        bool removed = _manager.RemoveDevice(id);
-        if (removed && _mainDeviceId == id)
-            _mainDeviceId = -1;
-        return removed;
-    }
+    public bool RemoveDevice(int id) => _manager.RemoveDevice(id);
 
     public bool ChangeDeviceSector(int id, uint newSector) => _manager.ChangeSector(id, newSector);
 
 
     public void Dispose()
     {
-        Reset();
+        _manager.Dispose();
         GC.SuppressFinalize(this);
     }
 }

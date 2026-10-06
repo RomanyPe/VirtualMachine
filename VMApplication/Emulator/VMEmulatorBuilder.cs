@@ -5,8 +5,8 @@ namespace VMApplication.Emulator;
 
 public class VMEmulatorBuilder
 {
-    private SizePort _portBusSize = SizePort.Size16KB;
-    private SizePortOnDevice _portsPerDevice = SizePortOnDevice.Size16B;
+    private PortSize _portBusSize = PortSize.KB64;
+    private DevicePortSize _portsPerDevice = DevicePortSize.B16;
 
     private VMHostLogger? _logger;
 
@@ -15,15 +15,15 @@ public class VMEmulatorBuilder
         _logger = logger;
         return this;
     }
-    public VMEmulatorBuilder WithPortBusSize(SizePort size)
+    public VMEmulatorBuilder WithPortBusSize(PortSize ports)
     {
-        _portBusSize = size;
+        _portBusSize = ports;
         return this;
     }
 
-    public VMEmulatorBuilder WithPortsPerDevice(SizePortOnDevice ports)
+    public VMEmulatorBuilder WithPortsPerDevice(DevicePortSize portsOnDev)
     {
-        _portsPerDevice = ports;
+        _portsPerDevice = portsOnDev;
         return this;
     }
 
@@ -31,6 +31,6 @@ public class VMEmulatorBuilder
     {
         return _logger == null
             ? throw new InvalidOperationException("Logger обязателен")
-            : new VMEmulator(new(_portBusSize, _portsPerDevice), _logger, _portsPerDevice);
+            : new VMEmulator(new(_portBusSize, _portsPerDevice), _logger);
     }
 }

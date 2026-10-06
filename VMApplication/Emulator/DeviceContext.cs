@@ -1,4 +1,5 @@
 ﻿using Kernel.BiosSystem;
+using Kernel.Contracts;
 using VMApplication.Project;
 
 namespace VMApplication.Emulator;
@@ -6,90 +7,90 @@ namespace VMApplication.Emulator;
 public class DeviceContext : IDisposable
 {
     private readonly Device _device;
-    private bool? _isBiosMode = null;
-    
-    internal Device Device => _device;
+    private int _disposed;
+
+
+    internal Device UnsafeGetDevice => _device;
     internal DeviceContext(Device device, string? name = null)
     {
         _device = device;
         Name = name;
     }
 
-    public string? Name { get; private set; } 
+    public string? Name { get; } 
     public bool IsRunning => _device.IsRunning;
-    public long? StepCount => _device.StepCount;
+    public long StepCount => _device.StepCount;
     public ulong MaxRamSize => _device.MaxRamSize;
-    public bool HaveBios => _device.HaveBios;
-    public DateTime CreatedAt => _device.CreatedAt;
+
+    public INativeReadOnlyBuffer NativeReadOnlyBuffer => _device.NativeReadOnlyBuffer;
 
     public void Stop() => _device.Stop();
 
-    private void SetLoadMode(bool isBios)
+    public void LoadProgram(byte[] program, ulong loadAddress = ProjectBuilder.BaseAdressProgram)
     {
-        if (_isBiosMode.HasValue)
-            throw new InvalidOperationException($"Режим загрузки уже установлен как {(_isBiosMode.Value ? "BIOS" : "прямая загрузка")}. Изменить его нельзя.");
-        _isBiosMode = isBios;
-    }
-
-    public LaunchModeDevice LoadProgram(byte[] program, ulong loadAddress = ProjectBuilder.BaseAdressProgram)
-    {
-        SetLoadMode(false);   // фиксируем прямую загрузку
+        ThrowIfRunning(IsRunning, "Cannot load program while device is running. Call Stop() first.");
         _device.LoadProgram(program, loadAddress);
-        return new LaunchModeDevice(_device);
     }
 
-    public LaunchModeDevice? TryFastLoadProgram(ReadOnlySpan<byte> program, ulong loadAddress, out string? error)
+    public bool TryFastLoadProgram(ReadOnlySpan<byte> program, ulong loadAddress, out string? error)
     {
-        if (!_isBiosMode.HasValue)
-            SetLoadMode(false);
-        if (_isBiosMode!.Value)
+        if (IsRunning)
         {
-            error = $"Режим загрузки уже установлен как {(_isBiosMode.Value ? "BIOS" : "прямая загрузка")}. Изменить его нельзя.";
-            return null;
+            error = "запрещено перезаписывать программу пока устройство работает";
+            return false;
         }
 
         if (_device.TryLoadProgramFast(program, loadAddress))
         {
             error = null;
-            return new LaunchModeDevice(_device);
+            return true;
         }
-
         error = $"Не удалось загрузить программу: выход за границы памяти (loadAddress + {program.Length} > RAM) или другая не инициализированная причина";
-        return null;
+        return false;
     }
-
-    public LaunchModeDevice LoadBios(byte[] program)
+    public void Launch(LaunchOptions? opt = null)
     {
-        SetLoadMode(true);   // фиксируем режим BIOS
-        _device.UpdateBios(program);
-        return new LaunchModeDevice(_device);
+        ThrowIfRunning(IsRunning);
+
+        opt ??= LaunchOptions.Default;
+        _device.RunSimulation(opt.StartAddress,
+            opt.Debug,
+            opt.DelayMs,
+            opt.ShowTimer,
+            opt.OnLaunch,
+            opt.OnStart,
+            opt.OnEnd);
     }
 
-    public LaunchModeDevice GetLaunchMode() => new(_device);
-
-    public ReadOnlyMemory<byte> ReadMemory(ulong address, int length)
+    public void SetStepMode(
+        ulong startAddress = ProjectBuilder.BaseAdressProgram,
+        Action<IDeviceLoggerContext>? titleAct = null)
     {
-        if (_device.IsRunning)
-            throw new InvalidOperationException("Нельзя читать память во время симуляции.");
-        return _device.AsRamMemory((int)address, length);
+        ThrowIfRunning(IsRunning);
+        _device.BreakPointerLaunchDevice(startAddress, titleAct);
     }
 
-    public ReadOnlyMemory<byte> ReadMemory()
+    private static void ThrowIfRunning(
+        bool isRunning, 
+        string msg = "Cannot launch program while device is running. Call Stop() first.")
     {
-        if (_device.IsRunning)
-            throw new InvalidOperationException("Нельзя читать память во время симуляции.");
-        return _device.RamArray;
+        if (isRunning)
+            throw new InvalidOperationException(msg);
+
     }
+    public void SingleStep(bool debug = false) => _device.NextStepProcessor(debug);
+    public void MultiStep(bool debug = false, int count = 5) => _device.NextStepProcessorCount(count, debug);
 
     public void Dispose()
     {
-        _isBiosMode = null;
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         _device.Dispose();
         GC.SuppressFinalize(this);
-    }
 
+    }
     public void ResetMemoryRam() => _device.ResetMemoryRam();
     public byte ReadPort(ulong offset) => _device.ReadPort(offset);
-
-    public void ResetRegistors() => _device.ClearRegisters();
+    public void ResetRegisters() => _device.ClearRegisters();
+    public void CopyRegisters(Span<ulong> destination) => _device.CopyRegisters(destination);
+    public ulong[]? GetRegistersSnapshot() => _device.GetRegistersSnapshot();
 }

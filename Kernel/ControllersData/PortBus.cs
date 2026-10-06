@@ -4,28 +4,39 @@ using Kernel.Contracts;
 namespace Kernel.ControllersData;
 
 
-public sealed class PortBus(SizePort ports, SizePortOnDevice portsOnDev)
+public sealed class PortBus
 {
-    private readonly ulong _totalPorts = 1UL << (byte)ports;
-    private readonly uint _portsOnDevice = 1U << (byte)portsOnDev;
+    private readonly ulong _totalPorts;
+    private readonly uint _portsOnDevice;
 
-    private readonly uint _sectorCount = 1U << ((byte)ports - (byte)portsOnDev);
-    private readonly IPortUse[] _devices = new IPortUse[1U << ((byte)ports - (byte)portsOnDev)];
-    //private readonly ulong[] _faultsData = new ulong[1U << ((byte)ports - (byte)portsOnDev)];
+    private readonly uint _sectorCount;
+    private readonly IPortUse[] _devices;
 
-    private readonly byte _deviceShift = (byte)portsOnDev;
-    private readonly ulong _offsetMask = (1U << (byte)portsOnDev) - 1U;
+    private readonly byte _deviceShift;
+    private readonly ulong _offsetMask;
+
+    public PortBus(PortSize ports, DevicePortSize portsOnDev)
+    {
+        if (!ports.IsValid)
+            throw new ArgumentException("Uninitialized PortSize.", nameof(ports));
+        if (!portsOnDev.IsValid)
+            throw new ArgumentException("Uninitialized DevicePortSize.", nameof(portsOnDev));
+        if (ports.Log2 < portsOnDev.Log2)
+            throw new ArgumentException(
+                $"{nameof(portsOnDev)} ({portsOnDev}) exceeds {nameof(ports)} ({ports}).",
+                nameof(portsOnDev));
+
+        _deviceShift = portsOnDev.Log2;
+        _totalPorts = 1UL << ports.Log2;
+        _portsOnDevice = 1U << portsOnDev.Log2;
+        _sectorCount = 1U << (ports.Log2 - portsOnDev.Log2);
+        _offsetMask = (1UL << portsOnDev.Log2) - 1UL;
+        _devices = new IPortUse[_sectorCount];
+    }
 
     public uint SectorCount => _sectorCount;
     public uint PortsOnDevice => _portsOnDevice;
     public ulong TotalPorts => _totalPorts;
-
-    public int AllocateFreeSector()
-    {
-        for (int i = 0; i < _sectorCount; i++)
-            if (_devices[i] == null) return i;
-        return -1;
-    }
 
     public bool IsFreeSector(uint sector) => sector < _sectorCount && _devices[sector] == null;
 
@@ -88,8 +99,6 @@ public sealed class PortBus(SizePort ports, SizePortOnDevice portsOnDev)
         }
         return false;
     }
-
-    public IPortUse? GetDevice(uint sector) => _devices[sector];
 }
 
 public record struct ReadPortResult(byte Data, BiosStatus Status = BiosStatus.Success);

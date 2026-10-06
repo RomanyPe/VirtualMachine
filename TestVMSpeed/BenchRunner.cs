@@ -1,4 +1,5 @@
 ﻿using Kernel.Common;
+using Kernel.Contracts;
 using VMApplication;
 using VMApplication.Emulator;
 using VMApplication.Project;
@@ -15,7 +16,6 @@ public class BenchRunner(VMHost host, int deviceId, BenchCase benchCase, IFileSe
     private readonly List<long> _stepsLogs = [];
     private readonly IFileService _fileService = fileService;
 
-    public LaunchModeDevice? LaunchMode { get; private set; }
     public BenchCase Case => _case;
     public IReadOnlyList<double> MipsLogs => _mipsLogs;
     public IReadOnlyList<double> ElapsedSecondsLog => _elapsedSecondsLogs;
@@ -52,10 +52,8 @@ public class BenchRunner(VMHost host, int deviceId, BenchCase benchCase, IFileSe
         }
         var ctx = _host.Emulator.GetDeviceContext(_deviceId)!;
         Program = res.Program;
-        var launchModeMath = ctx.TryFastLoadProgram(res.Program, 0, out string? errorMath);
-        LaunchMode = launchModeMath;
 
-        if (launchModeMath == null)
+        if (!ctx.TryFastLoadProgram(res.Program, 0, out string? errorMath))
         {
             Console.WriteLine($"Ошибка при загрузке программы для метрики блока {_case.Name}");
             Console.WriteLine(errorMath);
@@ -76,25 +74,32 @@ public class BenchRunner(VMHost host, int deviceId, BenchCase benchCase, IFileSe
         steps.Add(res.Steps);
     }
 
-    public void RunOnce() => Launch(_mipsLogs, _elapsedSecondsLogs, _stepsLogs, LaunchMode);
-    public void Warmup() => Launch([], [], [], LaunchMode);
+    public void RunOnce() => Launch(_mipsLogs, _elapsedSecondsLogs, _stepsLogs, _host.Emulator.GetDeviceContext(_deviceId));
+    public void Warmup() => Launch([], [], [], _host.Emulator.GetDeviceContext(_deviceId));
 
     public static void Launch(
-        List<double> log, List<double> logTime, List<long> logSteps, LaunchModeDevice? launchMode) =>
-        launchMode?.Launch(
-            showTimer: true,
-            onEnd: (ctx, res) =>
-            {
-                if (res != null) Metric(res, logTime, log, logSteps);
-            });
+        List<double> log, List<double> logTime, List<long> logSteps, DeviceContext? launchMode)
+    {
+        var opt = new LaunchOptions(ShowTimer: true,OnEnd: GetOnEnd(log, logTime, logSteps));
+        launchMode?.Launch(opt);
+    }
+    private static Action<IDeviceLoggerContext, ISimulationResult?>?
+        GetOnEnd(List<double> log, List<double> logTime, List<long> logSteps)
+    {
+        return (ctx, res) => Metric(res!, logTime, log, logSteps);
+        
+    }
 }
 
 file static class ListExtensions
 {
-    public static double ComputeVariance(this IReadOnlyList<double> v)
+    extension(IReadOnlyList<double> v)
     {
-        if (v.Count < 2) return 0;
-        double avg = v.Average();
-        return v.Sum(x => (x - avg) * (x - avg)) / (v.Count - 1);
+        public double ComputeVariance()
+        {
+            if (v.Count < 2) return 0;
+            double avg = v.Average();
+            return v.Sum(x => (x - avg) * (x - avg)) / (v.Count - 1);
+        }
     }
 }

@@ -90,7 +90,7 @@ public sealed class Processor(MemoryBus ram,
 
         _registers[RegType.rFL.Int] = 0;
 
-        ulong stackTop = _ram.RamSize;
+        ulong stackTop = _ram.Length;
         stackTop &= ~0x7UL;
 
         _stackBase = stackTop;

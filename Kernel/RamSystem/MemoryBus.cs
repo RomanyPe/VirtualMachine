@@ -1,26 +1,16 @@
 ﻿using Kernel.Common;
+using Kernel.Contracts;
 using System.Buffers.Binary;
 using System.Net;
 
 namespace Kernel.RamSystem;
 
-public class MemoryBus : IDisposable
+public class MemoryBus(RamSize size) : IDisposable
 {
-    private NativeMemoryBuffer _memory;
+    private NativeMemoryBuffer _memory = new(size);
 
-    public bool HaveBios => _memory.HaveBios;
-    public ulong RamSize => _memory.LengthRam;
-
-    public MemoryBus(RamSize size, byte[] biosRom = null!, RamSize sizeBios = Common.RamSize.Size128KB)
-    {
-        _memory = new(size, sizeBios);
-        _memory.SetBios(biosRom.AsSpan());
-    }
-
-    public Memory<byte> Memory => _memory.AsMemory();
-    public Memory<byte> AsMemory(int start, int length) => _memory.AsMemory(start, length);
-
-    public ReadOnlyMemory<byte> ReadOnlyMemory => _memory.AsMemory();
+    public ulong Length => _memory.Length;
+    public INativeReadOnlyBuffer NativeReadOnlyBuffer => _memory.NativeReadOnlyBuffer;
 
     private ulong _faultData = 0;
     private BiosStatus _lastStatus = BiosStatus.Success;
@@ -38,6 +28,11 @@ public class MemoryBus : IDisposable
         _lastStatus = status;
         _faultData = data;
         return 0;
+    }
+
+    public void LoadProgram(ReadOnlySpan<byte> prog, ulong startAdresProg)
+    {
+        _memory.LoadProgram(prog, startAdresProg);
     }
     /// <summary>
     /// Метод для чтения 8 битового целого числа (Int8)
@@ -205,8 +200,6 @@ public class MemoryBus : IDisposable
     /// </summary>
     public void ClearMemory() => _memory.Clear();
 
-    public void SetBios(byte[] bios) => _memory.SetBios(bios.AsSpan());
-
     private int _disposed;
 
 
@@ -217,7 +210,6 @@ public class MemoryBus : IDisposable
 
         if (_memory != null)
         {
-            ClearMemory();
             _memory.Dispose();
             _memory = null!;
         }
