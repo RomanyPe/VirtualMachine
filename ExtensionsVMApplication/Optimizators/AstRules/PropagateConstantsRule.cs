@@ -1,12 +1,13 @@
-﻿using Kernel.Common;
+﻿using Compiller.C;
+using Compiller.C.Optimizators;
 using Kernel.Contracts;
 using System.Text;
 
-namespace Compiller.C.Optimizators.Rules;
+namespace ExtensionsVMApplication.Optimizators.AstRules;
 
 public class PropagateConstantsRule : IAstOptimizationRule
 {
-    public TypeOptimization Type => TypeOptimization.ASTNodeConstPropagate;
+    public OptimizationId Type => AstOptimizerExtension.ConstantPropagated;
 
     public IReadOnlyLogOptimization Optimize(ProgramNode program)
     {

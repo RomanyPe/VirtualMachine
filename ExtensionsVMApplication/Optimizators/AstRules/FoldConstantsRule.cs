@@ -1,13 +1,14 @@
-﻿using Compiller.C.CodeGenerator;
-using Kernel.Common;
+﻿using Compiller.C;
+using Compiller.C.CodeGenerator;
+using Compiller.C.Optimizators;
 using Kernel.Contracts;
 using System.Text;
 
-namespace Compiller.C.Optimizators.Rules;
+namespace ExtensionsVMApplication.Optimizators.AstRules;
 
 public class FoldConstantsRule : IAstOptimizationRule
 {
-    public TypeOptimization Type => TypeOptimization.ASTNodeConstFold;
+    public OptimizationId Type => AstOptimizerExtension.ConstantFolded;
 
     public IReadOnlyLogOptimization Optimize(ProgramNode program)
     {

@@ -26,7 +26,7 @@ public class DeviceContext : IDisposable
 
     public void Stop() => _device.Stop();
 
-    public void LoadProgram(byte[] program, ulong loadAddress = ProjectBuilder.BaseAdressProgram)
+    public void LoadProgram(byte[] program, ulong loadAddress = ProjectBuilder.ZeroAdressProgram)
     {
         ThrowIfRunning(IsRunning, "Cannot load program while device is running. Call Stop() first.");
         _device.LoadProgram(program, loadAddress);
@@ -54,7 +54,6 @@ public class DeviceContext : IDisposable
 
         opt ??= LaunchOptions.Default;
         _device.RunSimulation(opt.StartAddress,
-            opt.Debug,
             opt.DelayMs,
             opt.ShowTimer,
             opt.OnLaunch,
@@ -63,7 +62,7 @@ public class DeviceContext : IDisposable
     }
 
     public void SetStepMode(
-        ulong startAddress = ProjectBuilder.BaseAdressProgram,
+        ulong startAddress = ProjectBuilder.ZeroAdressProgram,
         Action<IDeviceLoggerContext>? titleAct = null)
     {
         ThrowIfRunning(IsRunning);
@@ -78,8 +77,8 @@ public class DeviceContext : IDisposable
             throw new InvalidOperationException(msg);
 
     }
-    public void SingleStep(bool debug = false) => _device.NextStepProcessor(debug);
-    public void MultiStep(bool debug = false, int count = 5) => _device.NextStepProcessorCount(count, debug);
+    public void SingleStep() => _device.NextStepProcessor();
+    public void MultiStep(int count = 5) => _device.NextStepProcessorCount(count);
 
     public void Dispose()
     {

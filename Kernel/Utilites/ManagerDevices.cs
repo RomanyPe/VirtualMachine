@@ -57,16 +57,6 @@ public class ManagerDevices(PortBus portBus) : IDisposable
         return null;
     }
 
-    public DeviceInfo? GetDeviceInfo(int id)
-    {
-        var e = FindValid(id);
-        if (e == null) return null;
-
-        return new(e.Id, e.Sector, e.Name);
-    }
-
-    public readonly record struct DeviceInfo(int Id, uint Sector, string? Name);
-
     public IEnumerable<DeviceInfo> GetAllDevices()
     {
         for (int i = 0; i < _devices.Count; i++)

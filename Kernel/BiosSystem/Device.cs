@@ -4,6 +4,7 @@ using Kernel.ControllersData;
 using Kernel.ProcessorSystem;
 using Kernel.RamSystem;
 using System.Diagnostics;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 
 namespace Kernel.BiosSystem;
@@ -45,14 +46,11 @@ public sealed class Device : IPortController
 
     public void CopyRegisters(Span<ulong> destination)
     {
-        if (!_processor.IsRunning)
-        {
-            _processor.CopyRegisters(destination);
-        }
+        _processor.CopyRegisters(destination);   
     }
-    public ulong[]? GetRegistersSnapshot()
+    public ulong[] GetRegistersSnapshot()
     {
-        return _processor.IsRunning ? null : _processor.GetRegistersSnapshot();
+        return _processor.GetRegistersSnapshot();
     }
 
     public void LoadProgram(byte[] program, ulong loadAddress)
@@ -86,7 +84,6 @@ public sealed class Device : IPortController
     }
 
     public void RunSimulation(ulong? start,
-                             bool isDebug,
                              int delay,
                              bool snowTimer,
                              Action<IDeviceLoggerContext>? onLaunch,
@@ -99,7 +96,7 @@ public sealed class Device : IPortController
         ulong startIndex = start ?? _ram.Length;
         stepCounter = 0;
 
-        RunSimulationLoop(startIndex, isDebug, delay, snowTimer, onStart, onEnd);
+        RunSimulationLoop(startIndex, delay, snowTimer, onStart, onEnd);
     }
 
 
@@ -113,14 +110,13 @@ public sealed class Device : IPortController
         _processor.LaunchProgramm(startIndex);
     }
 
-    private void RequestStop()
+
+    public void Stop()
     {
         _processor.EnqueueBiosStatus(BiosStatus.EndProgramm);
         _processor.EnqueueExternalCommand((uint)OpCode.WAKE);
         _wakeSignal.Set();
     }
-
-    public void Stop() => RequestStop();
 
     private void InitHeap(ulong loadAddress, ulong length)
     {
@@ -130,7 +126,6 @@ public sealed class Device : IPortController
     }
 
     private void RunSimulationLoop(ulong start,
-                               bool isDebug,
                                int delay,
                                bool launchTimer,
                                Action<IDeviceLoggerContext>? startAct,
@@ -145,8 +140,8 @@ public sealed class Device : IPortController
         Volatile.Write(ref _running, _processor.IsRunning);
 
         // Выбор пути один раз
-        if (isDebug || useSleepMode)
-            RunSimulationLoopSlow(isDebug, delay, useSleepMode);
+        if (useSleepMode)
+            RunSimulationLoopSlow(delay, useSleepMode);
         else
             RunSimulationLoopFast();
 
@@ -180,7 +175,7 @@ public sealed class Device : IPortController
         }
     }
 
-    private void RunSimulationLoopSlow(bool isDebug, int delay, bool useSleepMode)
+    private void RunSimulationLoopSlow(int delay, bool useSleepMode)
     {
         while (_processor.IsRunning)
         {
@@ -196,7 +191,6 @@ public sealed class Device : IPortController
                 stepCounter++;
             }
 
-            if (isDebug) DebugOutput();
             if (useSleepMode) Thread.Sleep(delay);
         }
     }
@@ -228,34 +222,36 @@ public sealed class Device : IPortController
         _processor.EnqueueExternalCommand(instruction);
         _wakeSignal.Set();
     }
-    public void NextStepProcessor(bool isDebug = false)
+    public void NextStepProcessor()
     {
         if (!_processor.IsRunning) return;
 
         _processor.Step();
-        stepCounter++;
-        if (isDebug) DebugOutput();
 
-    }
-
-    public void NextStepProcessorCount(int count = 5, bool isDebug = false)
-    {
-        if (!_processor.IsRunning) return;
-        for (int i = 0; i < count; i++)
+        if (!_processor.IsSleeping)
         {
-            _processor.Step();
             stepCounter++;
-            if (isDebug) DebugOutput();
         }
     }
 
-    [MethodImpl(MethodImplOptions.NoInlining)]
-    private void DebugOutput()
+    public void NextStepProcessorCount(int count = 5, Action<IProcessorReader>? OnStep = null)
     {
-        ulong currentIp = _processor.GetRegValue(RegType.rIP);
-        _deviceCtx.Log($"[Такт {stepCounter}] Выполнен IP: {currentIp} -> Следующий IP: {_processor.GetRegValue(RegType.rIP)}");
-        _deviceCtx.Log($"r0: {_processor.GetRegValue(RegType.r1)} | r1: {_processor.GetRegValue(RegType.r2)} | rFL: {_processor.GetRegValue(RegType.rFL)}");
+        if (!_processor.IsRunning) return;
+        bool needLog = OnStep != null;
+        for (int i = 0; i < count; i++)
+        {
+            _processor.Step();
+            if (needLog)
+            {
+                OnStep!.Invoke(_processor.GetCurrentProcessorReader());
+            }
+            if (!_processor.IsSleeping)
+            {
+                stepCounter++;
+            }
+        }
     }
+
 
     public void ResetMemoryRam() => _ram.ClearMemory();
 

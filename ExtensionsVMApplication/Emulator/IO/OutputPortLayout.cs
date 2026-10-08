@@ -1,4 +1,4 @@
-﻿namespace VMApplication.Project.IO;
+﻿namespace ExtensionsVMApplication.Emulator.IO;
 
 /// <summary>
 /// Раскладка портов устройства вывода. Устройство занимает 8 байт.

@@ -1,4 +1,4 @@
-﻿namespace VMApplication.Project.IO;
+﻿namespace ExtensionsVMApplication.Emulator.IO;
 
 /// <summary>
 /// Способ кодирования символов при записи в порт данных.

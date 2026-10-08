@@ -1,22 +1,13 @@
-﻿using Compiller.ASM.Optimizators.Rules;
-
-namespace Compiller.ASM.Optimizators;
+﻿namespace Compiller.ASM.Optimizators;
 
 
-public static class PeepholeOptimizer
+public class PeepholeOptimizer()
 {
-    private static readonly HashSet<IPeepholeRule> _rules = [
-        new RemoveNoopMovRule(),
-        new RemovePushPopPairRule(),
-        new RemoveSwapMovPairRule(),
-        new RemoveJumpToNextLabelRule(),
-        new ConstantFoldingRule(),
-        new RemoveMultiEndPairRule(),
-    ];
-    public static bool AddRule(IPeepholeRule rule) => _rules.Add(rule);
-    public static void RemoveRule(IPeepholeRule rule) => _rules.Remove(rule);
-    public static IReadOnlySet<IPeepholeRule> Rules => _rules;
-    public static string Optimize(List<AsmItem> items, PeepholeLog log, int maxPasses = 5)
+    private readonly List<IPeepholeRule> _rules = [];
+    public void AddRule(IPeepholeRule rule) => _rules.Add(rule);
+    public void RemoveRule(IPeepholeRule rule) => _rules.Remove(rule);
+    public IReadOnlyList<IPeepholeRule> Rules => _rules;
+    public string Optimize(List<AsmItem> items, PeepholeLog log, int maxPasses = 5)
     {
         bool changed;
         int passCount = 0;

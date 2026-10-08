@@ -2,10 +2,12 @@
 
 namespace VMApplication.Default;
 
-public sealed class DefaultFileService(string projectPath) : IFileService
+public sealed class DefaultFileService(string? projectPath = null) : IFileService
 {
 
-    public string ProjectPath { get; } = projectPath;
+    public string ProjectPath { get; } = string.IsNullOrEmpty(projectPath) 
+        ? AppDomain.CurrentDomain.BaseDirectory 
+        : projectPath;
 
     public IEnumerable<string> GetSourceFiles()
     {

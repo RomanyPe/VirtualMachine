@@ -1,10 +1,12 @@
-﻿using Kernel.Common;
+﻿using Compiller.ASM;
+using Compiller.ASM.Optimizators;
+using Kernel.Common;
 
-namespace Compiller.ASM.Optimizators.Rules;
+namespace ExtensionsVMApplication.Optimizators.IRAsmRules;
 
 public sealed class ReplaceSafeMemAccessWithUnsafeRule : IPeepholeRule
 {
-    public RamSize RamSize { get; set; }
+    public RamSize SizeRam { get; set; }
 
     public bool TryOptimize(List<AsmItem> items, int index, PeepholeLog log, out int newIndex)
     {
@@ -23,7 +25,7 @@ public sealed class ReplaceSafeMemAccessWithUnsafeRule : IPeepholeRule
         if (dataSize == 0)
             return false; // неизвестный размер – не трогаем
 
-        ulong address = (ulong)RamSize + 1;
+        ulong address = SizeRam.Bytes + 1;
         bool addressKnown = false;
 
         // Случай 1: LOAD/STORE с непосредственным адресом
@@ -52,7 +54,7 @@ public sealed class ReplaceSafeMemAccessWithUnsafeRule : IPeepholeRule
             return false;
 
         // Проверка границ и выравнивания
-        if (address + (ulong)dataSize > (ulong)RamSize)
+        if (address + (ulong)dataSize > SizeRam.Bytes)
             return false;
 
         if (address % (ulong)dataSize != 0)

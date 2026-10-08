@@ -8,17 +8,17 @@ using Kernel.Contracts;
 
 namespace VMApplication.Project;
 
-public class ProjectBuilder(IFileService? fileService, IProjectFilesConfig? path)
+public class ProjectBuilder(IFileService fileService, IProjectFilesConfig path)
 {
-    public const int BaseAdressProgram = 0x0;
+    public const int ZeroAdressProgram = 0x0;
 
     private static readonly string[] _defaultAsmExtensions = [".soe", ".asm"];
     private static readonly string[] _defaultMiniCExtensions = [".mic", ".c"];
 
-    private readonly IFileService? fileService = fileService;
-    private readonly IProjectFilesConfig? path = path;
+    private readonly IFileService _fileService = fileService;
+    private readonly IProjectFilesConfig _path = path;
 
-    internal IEnumerable<IReadOnlyLogOptimization> Build(IEnumerable<SourceFile> files, bool optimize, AssemblerBase assembler)
+    internal IEnumerable<IReadOnlyLogOptimization> Build(IEnumerable<SourceFile> files, bool optimize, AssemblerBase assembler, AstOptimizer astOptimizer)
     {
         var asmParser = new AssemblerParser();
 
@@ -43,7 +43,7 @@ public class ProjectBuilder(IFileService? fileService, IProjectFilesConfig? path
         }
 
         IEnumerable<IReadOnlyLogOptimization> resLog = 
-            optimize ? AstOptimizer.Optimize(combinedAst) 
+            optimize ? astOptimizer.Optimize(combinedAst) 
             : [];
 
 
@@ -82,43 +82,40 @@ public class ProjectBuilder(IFileService? fileService, IProjectFilesConfig? path
 
     private void AddInclude(IEnumerable<string> includes, AssemblerParser asmParser, AssemblerBase assembler)
     {
-        if (fileService == null || path == null) return;
         foreach (string inc in includes)
         {
-            string localPath = fileService.CombinePath(path.ProjectPath, inc);
-            string sharedPath = fileService.CombinePath(path.IncludePath, inc);
+            string localPath = _fileService.CombinePath(_path.ProjectPath, inc);
+            string sharedPath = _fileService.CombinePath(_path.IncludePath, inc);
 
             string? chosenPath = null;
-            if (fileService.Exist(localPath))
+            if (_fileService.Exist(localPath))
                 chosenPath = localPath;
-            else if (fileService.Exist(sharedPath))
+            else if (_fileService.Exist(sharedPath))
                 chosenPath = sharedPath;
 
             if (chosenPath == null)
-                throw new Exception($"Included file not found: '{inc}'. Searched in project folder and in '{path.IncludePath}'.");
+                throw new Exception($"Included file not found: '{inc}'. Searched in project folder and in '{_path.IncludePath}'.");
 
-            string asmCode = fileService.ReadFile(chosenPath);
+            string asmCode = _fileService.ReadFile(chosenPath);
             asmParser.Assemble(asmCode, assembler);
         }
     }
 
-    public IEnumerable<IReadOnlyLogOptimization> BuildProject(bool optimize, AssemblerBase assembler)
+    internal IEnumerable<IReadOnlyLogOptimization> BuildProject(bool optimize, AssemblerBase assembler, AstOptimizer astOptimizer)
     {
-        if (fileService == null || path == null) return [];
-
         var files = new List<SourceFile>();
 
-        foreach (string fileName in fileService.GetSourceFiles())
+        foreach (string fileName in _fileService.GetSourceFiles())
         {
-            SourceLanguage lang = FindLang(path, fileName);
+            SourceLanguage lang = FindLang(_path, fileName);
             if (lang == SourceLanguage.None) continue;
 
-            string source = fileService.ReadFile(fileName);
+            string source = _fileService.ReadFile(fileName);
 
             files.Add(new SourceFile(fileName, source, lang));
         }
 
-        return Build(files, optimize, assembler);
+        return Build(files, optimize, assembler, astOptimizer);
     }
 
     private static bool IsAsm(IProjectFilesConfig config, string name)

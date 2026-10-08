@@ -2,7 +2,7 @@
 using System.Text;
 using System.Threading.Channels;
 
-namespace VMApplication.Project.IO;
+namespace ExtensionsVMApplication.Emulator.IO;
 
 /// <summary>
 /// Асинхронный драйвер устройства вывода.

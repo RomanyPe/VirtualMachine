@@ -4,7 +4,7 @@ using VMApplication.Project;
 
 namespace VMApplication.Emulator;
 
-public record class LaunchOptions(ulong StartAddress = ProjectBuilder.BaseAdressProgram,
+public record class LaunchOptions(ulong StartAddress = ProjectBuilder.ZeroAdressProgram,
                              bool Debug = false,
                              int DelayMs = 0,
                              bool ShowTimer = false,

@@ -2,6 +2,6 @@
 
 public interface IReadOnlyLogOptimization
 {
-    TypeOptimization Id { get; }
+    OptimizationId Id { get; }
     string GetLogs();
 }

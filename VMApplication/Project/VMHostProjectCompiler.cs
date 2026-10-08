@@ -1,7 +1,7 @@
 ﻿using Compiller.ASM;
 using Compiller.ASM.Optimizators;
-using Compiller.ASM.Optimizators.Rules;
 using Compiller.C;
+using Compiller.C.Optimizators;
 using Kernel.Common;
 using System.Text.RegularExpressions;
 using VMApplication.Logger;
@@ -13,16 +13,10 @@ public sealed class VMHostProjectCompiler(
     VMHostLogger logger,
     IFileService fileService)
 {
-    private static readonly ReplaceSafeMemAccessWithUnsafeRule _rule;
+    private readonly AstOptimizer _astOptimizer = new();
+    private readonly PeepholeOptimizer _peepholeOptimizer = new();
     private readonly VMHostLogger _logger = logger;
     private readonly ProjectBuilder _projectBuilder = new(fileService, paths);
-
-    static VMHostProjectCompiler()
-    {
-        _rule = new();
-        PeepholeOptimizer.AddRule(_rule);
-
-    }
 
     public static Regex AsmMnemonics => AsmLanguageDefinition.GetMnemonicRegex();
     public static Regex AsmRegisters => AsmLanguageDefinition.GetRegisterRegex();
@@ -33,7 +27,7 @@ public sealed class VMHostProjectCompiler(
         try
         {
             IRAssembler assembler = new(baseAddress);
-            var resLog = _projectBuilder.BuildProject(optimize, assembler);
+            var resLog = _projectBuilder.BuildProject(optimize, assembler, _astOptimizer);
 
             OptimizationResultLog? res;
             if (optimize)
@@ -60,7 +54,7 @@ public sealed class VMHostProjectCompiler(
         try
         {
             AssemblerBase assembler = new Assembler(baseAddress);
-            var resLog = _projectBuilder.BuildProject(optimize,assembler);
+            var resLog = _projectBuilder.BuildProject(optimize,assembler, _astOptimizer);
 
             OptimizationResultLog? res;
             if (optimize)
@@ -98,7 +92,7 @@ public sealed class VMHostProjectCompiler(
         }
     }
 
-    public CompilationResult Compile(CompilationToILResult res, int peepholeOptimizationCount, RamSize size = RamSize.Size128KB)
+    public CompilationResult Compile(CompilationToILResult res, int peepholeOptimizationCount)
     {
         try
         {
@@ -107,8 +101,7 @@ public sealed class VMHostProjectCompiler(
             {
                 var log = new PeepholeLog();
                 var peep = asm.GetItems();
-                _rule.RamSize = size;
-                PeepholeOptimizer.Optimize(peep, log, peepholeOptimizationCount);
+                _peepholeOptimizer.Optimize(peep, log, peepholeOptimizationCount);
                 var peepholeLog = new PeepholeOptimizationLogs(log);
                 var logger = res.OptimizationResultLog;
                 logger ??= new();
@@ -131,7 +124,7 @@ public sealed class VMHostProjectCompiler(
         try
         {
             IRAssembler assembler = new(baseAddress);
-            var resLog = _projectBuilder.Build(files, optimize, assembler);
+            var resLog = _projectBuilder.Build(files, optimize, assembler, _astOptimizer);
 
             OptimizationResultLog? res = optimize ? new() : null;
             res?.AddLog(resLog);
@@ -150,7 +143,7 @@ public sealed class VMHostProjectCompiler(
         try
         {
             AssemblerBase assembler = new Assembler(baseAddress);
-            var resLog = _projectBuilder.Build(files, optimize, assembler);
+            var resLog = _projectBuilder.Build(files, optimize, assembler, _astOptimizer);
 
             OptimizationResultLog? res = optimize ? new() : null;
             res?.AddLog(resLog);

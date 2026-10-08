@@ -24,7 +24,6 @@ public class Emulator : IDisposable
         _manager = new ManagerDevices(_portBus);
     }
 
-    public DeviceInfo? GetDeviceInfo(int i) => _manager.GetDeviceInfo(i);
     public IEnumerable<DeviceInfo> AllDeviceInfo => _manager.GetAllDevices();
 
     public int AddDevice(

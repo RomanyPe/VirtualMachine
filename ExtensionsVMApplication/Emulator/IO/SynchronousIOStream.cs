@@ -1,7 +1,7 @@
 ﻿using Kernel.Contracts;
 using System.Text;
 
-namespace VMApplication.Project.IO;
+namespace ExtensionsVMApplication.Emulator.IO;
 
 public sealed class SynchronousIOStream : IPortController
 {

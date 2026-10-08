@@ -1,7 +1,7 @@
-﻿using Kernel.Common;
-using System.Text;
+﻿using Compiller.ASM.Optimizators;
+using Kernel.Common;
 
-namespace Compiller.ASM.Optimizators.Rules;
+namespace ExtensionsVMApplication.Optimizators.IRAsmRules;
 
 public sealed class RemoveJumpToNextLabelRule : IPeepholeRule
 {

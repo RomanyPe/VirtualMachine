@@ -1,13 +1,12 @@
-﻿using Compiller.C.Optimizators.Rules;
-using Kernel.Contracts;
+﻿using Kernel.Contracts;
 using System.Text;
 
 namespace Compiller.C.Optimizators;
 
 
-public class ASTNodesOptimization(StringBuilder logs, TypeOptimization type) : ILogOptimization
+public class ASTNodesOptimization(StringBuilder logs, OptimizationId type) : ILogOptimization
 {
-    public TypeOptimization Id => type;
+    public OptimizationId Id => type;
 
     public void Append(string text) => logs.Append(text);
 
@@ -27,7 +26,7 @@ public interface ILogOptimization : IReadOnlyLogOptimization
 
 public interface IAstOptimizationRule
 {
-    TypeOptimization Type { get; }
+    OptimizationId Type { get; }
     /// <summary>
     /// Применяет оптимизацию к программе.
     /// Возвращает true, если были внесены изменения.
@@ -36,27 +35,18 @@ public interface IAstOptimizationRule
 }
 
 
-public static class AstOptimizer
+public class AstOptimizer
 {
-    private static readonly List<IAstOptimizationRule> _rules =
-        [
-            new PropagateConstantsRule(),
-            new FoldConstantsRule(),
-            new RemoveUnusedVariablesRule(),
-            new RemoveUnreachableCodeRuleBeforeInline(),
-            new InlineSmallVoidFunctionsRule(),
-            new RemoveUnreachableCodeRuleAfterInline()
-        ];
+    private readonly List<IAstOptimizationRule> _rules = [];
 
-    //public static int Count => _rules.Count;
-    //public static void Insert(int index, IAstOptimizationRule item) => _rules.Insert(index, item);
-    //public static void Remove(IAstOptimizationRule item) => _rules.Remove(item);
-    //public static void RemoveAt(int index) => _rules.RemoveAt(index);
-    //public static TypeOptimization GetType(int i) => _rules[i].Type;
-    //public static TypeOptimization GetType(IAstOptimizationRule rule) => _rules.FirstOrDefault(rule).Type;
+    public IReadOnlyList<IAstOptimizationRule> Rules => _rules;
+    public int Count => _rules.Count;
+    public void Add(IAstOptimizationRule rule) => _rules.Add(rule);
+    public void Insert(int index, IAstOptimizationRule item) => _rules.Insert(index, item);
+    public void Remove(IAstOptimizationRule item) => _rules.Remove(item);
+    public void RemoveAt(int index) => _rules.RemoveAt(index);
+    public OptimizationId GetType(int i) => _rules[i].Type;
 
-    public static IEnumerable<IReadOnlyLogOptimization> Optimize(ProgramNode program)
-    {
-        return [.. _rules.Select(rule => rule.Optimize(program))];
-    }
+    public IEnumerable<IReadOnlyLogOptimization> Optimize(ProgramNode program)
+        => _rules.Select(rule => rule.Optimize(program));
 }

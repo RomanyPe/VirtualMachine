@@ -6,6 +6,6 @@ namespace VMApplication.Project;
 
 public class PeepholeOptimizationLogs(PeepholeLog log) : IReadOnlyLogOptimization
 {
-    public TypeOptimization Id => TypeOptimization.Peephole;
+    public OptimizationId Id => OptimizationId.Peephole;
     public string GetLogs() => log.ToString();
 }

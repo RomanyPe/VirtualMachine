@@ -1,25 +1,13 @@
-﻿using Kernel.Common;
+﻿using Compiller.C;
+using Compiller.C.Optimizators;
 using Kernel.Contracts;
 using System.Text;
 
-namespace Compiller.C.Optimizators.Rules;
+namespace ExtensionsVMApplication.Optimizators.AstRules;
 
-public class RemoveUnreachableCodeRuleAfterInline : IAstOptimizationRule
+public class RemoveUnreachableCodeRule : IAstOptimizationRule
 {
-    public TypeOptimization Type => TypeOptimization.ASTNodeRemovedAfterInline;
-
-    public IReadOnlyLogOptimization Optimize(ProgramNode program)
-    {
-        var sb = new StringBuilder();
-        var log = new ASTNodesOptimization(sb, Type);
-        RemoveUnreachableCodeRuleBeforeInline.RemoveUnreachableCode(program, log);
-        return log;
-    }
-
-}
-public class RemoveUnreachableCodeRuleBeforeInline : IAstOptimizationRule
-{
-    public TypeOptimization Type => TypeOptimization.ASTNodeRemovedBeforeInline;
+    public OptimizationId Type => AstOptimizerExtension.NodeRemoved;
 
     public IReadOnlyLogOptimization Optimize(ProgramNode program)
     {

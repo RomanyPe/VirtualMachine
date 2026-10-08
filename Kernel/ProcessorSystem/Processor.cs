@@ -1,4 +1,5 @@
-﻿using Kernel.Common;
+﻿using Kernel.BiosSystem;
+using Kernel.Common;
 using Kernel.Contracts;
 using Kernel.ControllersData;
 using Kernel.RamSystem;
@@ -35,8 +36,8 @@ public sealed class Processor(MemoryBus ram,
     private bool _isRunning = false;
     private bool _hasSimulationStatus = false;
     private bool _hasExternalCommand = false;
-    private bool _sleeping = false;
-    public bool IsSleeping => _sleeping;
+    private bool _isSleeping = false;
+    public bool IsSleeping => _isSleeping;
     public bool IsRunning => _isRunning;
     private bool _hasCommand = false;
     private ulong _lastFaultData = 0;
@@ -84,7 +85,7 @@ public sealed class Processor(MemoryBus ram,
 
     public void LaunchProgramm(ulong startAddress)
     {
-        _sleeping = false;
+        _isSleeping = false;
         _registers[RegType.rIP.Int] = startAddress;
         _isRunning = true;
 
@@ -138,7 +139,7 @@ public sealed class Processor(MemoryBus ram,
 
             _hasCommand = false;
 
-            if (!_isRunning | _sleeping) return;
+            if (!_isRunning | _isSleeping) return;
         }
 
         ulong ip = _registers[RegType.rIP.Int];        
@@ -267,7 +268,7 @@ public sealed class Processor(MemoryBus ram,
 
     private BiosStatus InstructionHALT()
     {
-        Volatile.Write(ref _sleeping, true);
+        Volatile.Write(ref _isSleeping, true);
         Volatile.Write(ref _hasCommand, true);
         return BiosStatus.Success;
     }
@@ -757,7 +758,7 @@ public sealed class Processor(MemoryBus ram,
     {
         _lastFaultData = 0;
         _isRunning = false;
-        _sleeping = false;
+        _isSleeping = false;
         ClearRegs();
         while (_externalCommands.TryDequeue(out _));
         while (_statusFromSimulation.TryDequeue(out _));
@@ -787,10 +788,41 @@ public sealed class Processor(MemoryBus ram,
         switch (opCode)
         {
             case OpCode.END: _isRunning = false; return;
-            case OpCode.HALT: _sleeping = true; return;
-            case OpCode.WAKE: _sleeping = false; return;
+            case OpCode.HALT: _isSleeping = true; return;
+            case OpCode.WAKE: _isSleeping = false; return;
 
             default: return;
+        }
+    }
+
+    private readonly ProcessorReader _processorReader = new();
+    public IProcessorReader GetCurrentProcessorReader()
+    {
+        _processorReader.Update(_isRunning, _isSleeping, _registers);
+        return _processorReader;
+    }
+
+    private sealed class ProcessorReader : IProcessorReader
+    {
+        private bool _isRunning;
+        private bool _isSleeping;
+        private ArrayRegisters _registers;
+
+        public bool IsRunning => _isRunning;
+        public bool IsSleeping => _isSleeping;
+
+        public void Update(bool running, bool sleeping, ArrayRegisters regs)
+        {
+            _isRunning = running;
+            _isSleeping = sleeping;
+            _registers = regs;
+        }
+
+        public ulong GetRegister(RegType regType)
+        {
+            if ((uint)regType >= CountReg)
+                throw new ArgumentOutOfRangeException(nameof(regType));
+            return _registers[regType.Int];
         }
     }
 }

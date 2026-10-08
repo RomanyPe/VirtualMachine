@@ -1,12 +1,13 @@
-﻿using Kernel.Common;
+﻿using Compiller.C;
+using Compiller.C.Optimizators;
 using Kernel.Contracts;
 using System.Text;
 
-namespace Compiller.C.Optimizators.Rules;
+namespace ExtensionsVMApplication.Optimizators.AstRules;
 
 public class RemoveUnusedVariablesRule : IAstOptimizationRule
 {
-    public TypeOptimization Type => TypeOptimization.ASTNodeRemovedBeforeInline;
+    public OptimizationId Type => AstOptimizerExtension.VariableRemoved;
 
     public IReadOnlyLogOptimization Optimize(ProgramNode program)
     {

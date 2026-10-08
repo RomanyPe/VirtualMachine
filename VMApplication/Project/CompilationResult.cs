@@ -13,9 +13,9 @@ public readonly struct CompilationResult(byte[]? program, ulong startAdress, IRe
     public bool Success => Errors == null || Errors.Count == 0;
 }
 
-public class OptimizationResultLog()
+public class OptimizationResultLog
 {
-    public Dictionary<TypeOptimization, IReadOnlyLogOptimization> Logs { get; private set; } = [];
+    public Dictionary<OptimizationId, IReadOnlyLogOptimization> Logs { get; private set; } = [];
 
     public bool AddLog(IReadOnlyLogOptimization log) => Logs.TryAdd(log.Id, log);
     public void AddLog(IEnumerable<IReadOnlyLogOptimization> log)

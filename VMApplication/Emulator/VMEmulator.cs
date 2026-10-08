@@ -19,8 +19,8 @@ public sealed class VMEmulator(Kernel.Utilites.Emulator emulator, VMHostLogger o
 
     public bool ChangeDeviceSector(int id, uint newSector) => _emulator.ChangeDeviceSector(id, newSector);
 
-    public IReadOnlyCollection<DeviceView> GetAllDevices()
-        => [.. _emulator.AllDeviceInfo.Select(VMHostHelper.ConvertDeviceInfo)];
+    public IReadOnlyCollection<DeviceInfo> GetAllDevices()
+        => [.. _emulator.AllDeviceInfo];
 
 
     public int AddDevice(IPortController device,

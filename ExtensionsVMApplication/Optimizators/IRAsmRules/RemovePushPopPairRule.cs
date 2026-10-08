@@ -1,6 +1,7 @@
-﻿using Kernel.Common;
+﻿using Compiller.ASM.Optimizators;
+using Kernel.Common;
 
-namespace Compiller.ASM.Optimizators.Rules;
+namespace ExtensionsVMApplication.Optimizators.IRAsmRules;
 
 public sealed class RemovePushPopPairRule : IPeepholeRule
 {
