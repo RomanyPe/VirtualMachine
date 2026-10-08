@@ -1,14 +1,14 @@
-﻿using Compiller.C.Optimizators;
-using ExtensionsVMApplication.Optimizators.AstRules;
+﻿using ExtensionsVMApplication.Optimizators.AstRules;
 using Kernel.Contracts;
+using VMApplication.Project;
 
 namespace ExtensionsVMApplication.Optimizators;
 
 public static class AstOptimizerExtension
 {
-    extension(AstOptimizer optimizer)
+    extension(VMAstOptimizer optimizer)
     {
-        public AstOptimizer AddStdRules()
+        public VMAstOptimizer AddStdRules()
         {
             optimizer.Add(new PropagateConstantsRule());
             optimizer.Add(new FoldConstantsRule());
@@ -19,6 +19,7 @@ public static class AstOptimizerExtension
             return optimizer;
         }
     }
+
 
     public static readonly OptimizationId FunctionInlined = new("inline.func");
     public static readonly OptimizationId ConstantPropagated = new("const.propagate");

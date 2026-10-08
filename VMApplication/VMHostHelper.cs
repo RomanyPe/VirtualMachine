@@ -1,14 +1,13 @@
 ﻿using Compiller.ASM;
-using Compiller.ASM.Optimizators;
-using Compiller.C;
 using Compiller.C.Optimizators;
 using Kernel.BiosSystem;
 using Kernel.Common;
 using Kernel.Contracts;
+using Kernel.ControllersData;
 using VMApplication.Default;
 using VMApplication.Emulator;
+using VMApplication.Logger;
 using VMApplication.Project;
-using static Kernel.Utilites.ManagerDevices;
 
 namespace VMApplication;
 
@@ -46,30 +45,42 @@ public static class VMHostHelper
 
     public static ResultSimulation RunIsolated(
         string source,
-        SourceLanguage lang, 
+        SourceLanguage lang,
         IFileService? fileService = null,
         IProjectFilesConfig? projectFilesConfig = null,
+        IOutputView? outputView = null,
         bool optimize = false,
         RamSize? ram = null)
     {
         ram ??= RamSize.MB16;
-        ProjectBuilder projectBuilder = new(
+        outputView ??= new ConsoleOutputView();
+        try
+        {
+            ProjectBuilder projectBuilder = new(
             fileService ?? new DefaultFileService(),
             projectFilesConfig ?? new DefaultProjectFilesConfig());
 
-        IRAssembler assembler = new(0);
-        AstOptimizer astOptimizer = new();
-        projectBuilder.Build([new("sourse", source, lang)], optimize, assembler, astOptimizer);
-        var resCompile = assembler.Build();
-        
-        using Device device = new(null!, ram.Value, new DeviceLoggerSingleObj(), null);
-        if (resCompile != null && device.TryLoadProgramFast(resCompile, 0))
+            Assembler assembler = new(ProjectBuilder.ZeroAdressProgram);
+            AstOptimizer astOptimizer = new();
+            projectBuilder.Build([new("source", source, lang)], optimize, assembler, astOptimizer);
+            var resCompile = assembler.Build();
+
+            PortBus portBus = new(PortSize.B64, DevicePortSize.B8);
+            using Device device = new(portBus, ram.Value, new DeviceLoggerSingleObj(), null);
+            portBus.RegisterDevice(device, 0);
+            if (resCompile != null && device.TryLoadProgramFast(resCompile, 0))
+            {
+                device.RunSimulation(0, 0, false, null, null, null);
+                var sp = device.GetRegistersSnapshot();
+                long steps = device.StepCount;
+                device.Dispose();
+                return new(sp, resCompile, steps, true);
+            }
+            device.Dispose();
+        }
+        catch (Exception ex)
         {
-            device.RunSimulation(0, 0, false, null, null, null);
-            Span<ulong> sp = stackalloc ulong[32];
-            device.CopyRegisters(sp);
-            long steps = device.StepCount;
-            return new(sp.ToArray(), resCompile, steps, true);
+            outputView.AppendLine(ex.Message);
         }
         return new();
     }

@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\ExtensionsVMApplication\ExtensionsVMApplication.csproj" />
     <ProjectReference Include="..\VMApplication\VMApplication.csproj" />
   </ItemGroup>
 

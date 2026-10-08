@@ -1,4 +1,5 @@
-﻿using Kernel.Contracts;
+﻿using Compiller.ASM.Optimizators;
+using Kernel.Contracts;
 using System.Text;
 
 namespace Compiller.C.Optimizators;
@@ -38,13 +39,12 @@ public interface IAstOptimizationRule
 public class AstOptimizer
 {
     private readonly List<IAstOptimizationRule> _rules = [];
-
-    public IReadOnlyList<IAstOptimizationRule> Rules => _rules;
-    public int Count => _rules.Count;
     public void Add(IAstOptimizationRule rule) => _rules.Add(rule);
     public void Insert(int index, IAstOptimizationRule item) => _rules.Insert(index, item);
     public void Remove(IAstOptimizationRule item) => _rules.Remove(item);
     public void RemoveAt(int index) => _rules.RemoveAt(index);
+    public int Count => _rules.Count;
+
     public OptimizationId GetType(int i) => _rules[i].Type;
 
     public IEnumerable<IReadOnlyLogOptimization> Optimize(ProgramNode program)

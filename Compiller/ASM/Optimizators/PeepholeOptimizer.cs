@@ -1,12 +1,15 @@
 ﻿namespace Compiller.ASM.Optimizators;
 
 
-public class PeepholeOptimizer()
+public class PeepholeOptimizer
 {
     private readonly List<IPeepholeRule> _rules = [];
-    public void AddRule(IPeepholeRule rule) => _rules.Add(rule);
-    public void RemoveRule(IPeepholeRule rule) => _rules.Remove(rule);
-    public IReadOnlyList<IPeepholeRule> Rules => _rules;
+    public void Add(IPeepholeRule rule) => _rules.Add(rule);
+    public void Insert(int index, IPeepholeRule item) => _rules.Insert(index, item);
+    public void Remove(IPeepholeRule item) => _rules.Remove(item);
+    public void RemoveAt(int index) => _rules.RemoveAt(index);
+    public int Count => _rules.Count;
+
     public string Optimize(List<AsmItem> items, PeepholeLog log, int maxPasses = 5)
     {
         bool changed;

@@ -1,8 +1,8 @@
 ﻿using Compiller.ASM;
 using Compiller.ASM.Optimizators;
 using Compiller.C;
-using Compiller.C.Optimizators;
 using Kernel.Common;
+using System.Data;
 using System.Text.RegularExpressions;
 using VMApplication.Logger;
 
@@ -13,8 +13,7 @@ public sealed class VMHostProjectCompiler(
     VMHostLogger logger,
     IFileService fileService)
 {
-    private readonly AstOptimizer _astOptimizer = new();
-    private readonly PeepholeOptimizer _peepholeOptimizer = new();
+    private readonly VMCompilerOptimizator _optimizator = new();
     private readonly VMHostLogger _logger = logger;
     private readonly ProjectBuilder _projectBuilder = new(fileService, paths);
 
@@ -22,12 +21,14 @@ public sealed class VMHostProjectCompiler(
     public static Regex AsmRegisters => AsmLanguageDefinition.GetRegisterRegex();
     public static Regex MiniCMnemonics => MiniCLanguageDefinition.GetKeywordRegex();
 
+    public VMCompilerOptimizator Optimizator => _optimizator;
+
     public CompilationToILResult CompileToIL(ulong baseAddress, bool optimize)
     {
         try
         {
             IRAssembler assembler = new(baseAddress);
-            var resLog = _projectBuilder.BuildProject(optimize, assembler, _astOptimizer);
+            var resLog = _projectBuilder.BuildProject(optimize, assembler, _optimizator.AstOptimizer);
 
             OptimizationResultLog? res;
             if (optimize)
@@ -54,7 +55,7 @@ public sealed class VMHostProjectCompiler(
         try
         {
             AssemblerBase assembler = new Assembler(baseAddress);
-            var resLog = _projectBuilder.BuildProject(optimize,assembler, _astOptimizer);
+            var resLog = _projectBuilder.BuildProject(optimize,assembler, _optimizator.AstOptimizer);
 
             OptimizationResultLog? res;
             if (optimize)
@@ -101,7 +102,7 @@ public sealed class VMHostProjectCompiler(
             {
                 var log = new PeepholeLog();
                 var peep = asm.GetItems();
-                _peepholeOptimizer.Optimize(peep, log, peepholeOptimizationCount);
+                _optimizator.PeepholeOptimizer.Optimize(peep, log, peepholeOptimizationCount);
                 var peepholeLog = new PeepholeOptimizationLogs(log);
                 var logger = res.OptimizationResultLog;
                 logger ??= new();
@@ -124,7 +125,7 @@ public sealed class VMHostProjectCompiler(
         try
         {
             IRAssembler assembler = new(baseAddress);
-            var resLog = _projectBuilder.Build(files, optimize, assembler, _astOptimizer);
+            var resLog = _projectBuilder.Build(files, optimize, assembler, _optimizator.AstOptimizer);
 
             OptimizationResultLog? res = optimize ? new() : null;
             res?.AddLog(resLog);
@@ -143,7 +144,7 @@ public sealed class VMHostProjectCompiler(
         try
         {
             AssemblerBase assembler = new Assembler(baseAddress);
-            var resLog = _projectBuilder.Build(files, optimize, assembler, _astOptimizer);
+            var resLog = _projectBuilder.Build(files, optimize, assembler, _optimizator.AstOptimizer);
 
             OptimizationResultLog? res = optimize ? new() : null;
             res?.AddLog(resLog);

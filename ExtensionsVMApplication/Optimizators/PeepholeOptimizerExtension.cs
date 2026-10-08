@@ -1,20 +1,21 @@
 ﻿using Compiller.ASM.Optimizators;
 using ExtensionsVMApplication.Optimizators.IRAsmRules;
+using VMApplication.Project;
 
 namespace ExtensionsVMApplication.Optimizators;
 
 public static class PeepholeOptimizerExtension
 {
-    extension(PeepholeOptimizer peephole)
+    extension(VMPeepholeOptimizer peephole)
     {
-        public PeepholeOptimizer AddStd()
+        public VMPeepholeOptimizer AddStdRules()
         {
-            peephole.AddRule(new RemoveNoopMovRule());
-            peephole.AddRule(new RemovePushPopPairRule());
-            peephole.AddRule(new RemoveSwapMovPairRule());
-            peephole.AddRule(new RemoveJumpToNextLabelRule());
-            peephole.AddRule(new ConstantFoldingRule());
-            peephole.AddRule(new RemoveMultiEndPairRule());
+            peephole.Add(new RemoveNoopMovRule());
+            peephole.Add(new RemovePushPopPairRule());
+            peephole.Add(new RemoveSwapMovPairRule());
+            peephole.Add(new RemoveJumpToNextLabelRule());
+            peephole.Add(new ConstantFoldingRule());
+            peephole.Add(new RemoveMultiEndPairRule());
             return peephole;
         }
     }
