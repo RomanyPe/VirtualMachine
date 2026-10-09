@@ -57,11 +57,7 @@ public sealed class VMEmulator(Kernel.Utilites.Emulator emulator, VMHostLogger o
         return new DeviceContext(device, name);
     }
 
-    public bool RemoveDevice(int id)
-    {
-        bool removed = _emulator.RemoveDevice(id);
-        return removed;
-    }
+    public bool RemoveDevice(int id) => _emulator.RemoveDevice(id);
 
     public void Dispose() => _emulator.Dispose();
 }

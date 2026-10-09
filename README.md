@@ -1,620 +1,267 @@
-# VM64 — Виртуальная машина, компилятор MiniC и ассемблер
+# VMA — Virtual Machine & Emulator Platform
 
-Учебно-исследовательский проект: собственная **64-битная виртуальная машина** (CPU + RAM + порты ввода-вывода), **ассемблер**, **компилятор языка MiniC** (упрощённый C) и набор **оптимизаторов** (AST и peephole).
+!ВАЖНО! Статус: платформа/тулкит, не фреймворк. API не гарантирует semver.
 
-Проект демонстрирует полный цикл компиляции: исходный код → лексер → парсер → AST → оптимизации → генерация машинного кода → исполнение на эмуляторе.
+Платформа для сборки, компиляции и исполнения виртуальных машин с собственным байт-кодом,
+компилятором C-подобного языка (MiniC) и ассемблером (VMA), плюс секторно-адресуемая шина
+портов для IO и меж-устройственного взаимодействия.
 
----
-
-## Содержание
-
-- [Возможности](#возможности)
-- [Архитектура](#архитектура)
-- [Требования](#требования)
-- [Быстрый старт](#быстрый-старт)
-  - [Пример 1: ассемблерная программа](#пример-1-ассемблерная-программа)
-  - [Пример 2: программа на MiniC](#пример-2-программа-на-minic)
-  - [Пример 3: устройство вывода (Console)](#пример-3-устройство-вывода-console)
-- [Система команд (ISA)](#система-команд-isa)
-- [Регистры](#регистры)
-- [Модель памяти](#модель-памяти)
-- [Порты ввода-вывода](#порты-ввода-вывода)
-- [Язык MiniC](#язык-minic)
-- [Оптимизации](#оптимизации)
-- [Структура решения](#структура-решения)
-- [Сборка и запуск](#сборка-и-запуск)
-- [Лицензия](#лицензия)
+Название «Kernel» в проектах `Kernel.*` — историческое. По сути это **общие (публичные)
+контракты и примитивы** платформы, а не ядро. Настоящее ядро-исполнитель живёт в проекте
+`Kernel` и наружу не выставляется.
 
 ---
 
-## Возможности
-
-### Виртуальная машина
-- 64-битная архитектура с 32 регистрами (`r0`–`r23`, `rZ`, `rSP`, `rHP`, `rIP`, `rFL`, `rCL`, `rCD`, `rTB`).
-- 4-байтные инструкции фиксированной длины + 64-битные операнды (с выравниванием по 8 байт).
-- Поддержка стековых операций, вызовов функций (`CALL`/`RET`) с сохранением адреса возврата через `rCL`/`rCD`.
-- Программные прерывания (`INT`/`IRET`) с таблицей векторов.
-- Порты ввода-вывода (Port-mapped I/O), устройства (Device, Console, QueuedIOStream).
-- Безопасный (`LOAD`/`STORE`) и небезопасный (`LOAD_UNSAFE`/`STORE_UNSAFE`) доступ к памяти.
-- Опциональная политика обработки процессорных сбоев (`IProcessorFaultPolicy`).
-
-### Компилятор MiniC
-- Лексер с поддержкой Unicode-идентификаторов, hex-чисел, char-литералов и escape-последовательностей.
-- Парсер рекурсивного спуска (выражения с правильным приоритетом операторов).
-- AST с типами-узлами (`VariableNode`, `IfNode`, `WhileNode`, `ForNode`, `FunctionCallNode`, `MemberAccessNode` и др.).
-- Поддержка структур (`struct`), указателей, массивов, `new[]`, `&`, `*`.
-- Генератор кода с распределением регистров (граф интерференции + жадная раскраска).
-- Inline-asm (`asm { ... }`).
-
-### Оптимизаторы
-**AST-уровень** (`IAstOptimizationRule`):
-- Распространение констант (`PropagateConstantsRule`).
-- Свёртка констант (`FoldConstantsRule`).
-- Удаление неиспользуемых переменных (`RemoveUnusedVariablesRule`).
-- Удаление недостижимого кода до и после инлайна (`RemoveUnreachableCodeRule*`).
-- Инлайн маленьких `void`-функций (`InlineSmallVoidFunctionsRule`).
-
-**Peephole-уровень** (`IPeepholeRule`):
-- Удаление `MOV r, r`.
-- Удаление пар `PUSH`/`POP` одного регистра.
-- Удаление `JMP` на следующую метку.
-- Свёртка `LDI, LDI, ADD` → `LDI`.
-- Замена безопасных инструкций на небезопасные, если адрес известен и корректен.
-
----
-
-## Архитектура
-
+# Слои:
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                          VMApplication                           │
-│   (VMHost, VMHostProject, VMEmulator, DeviceContext, логгеры)    │
-├──────────────────────────────────────────────────────────────────┤
-│                            Compiller                             │
-│  ┌───────────┐  ┌───────────┐  ┌──────────┐  ┌──────────────┐    │
-│  │  Lexer    │→ │  Parser   │→ │   AST    │→ │ Оптимизаторы │    │
-│  └───────────┘  └───────────┘  └──────────┘  └──────────────┘    │
-│                                       │                          │
-│                                       ▼                          │
-│                              ┌──────────────────┐                │
-│                              │ CodeGenerator    │                │
-│                              │ (Function/Stmt/  │                │
-│                              │  Expression)     │                │
-│                              └──────────────────┘                │
-│                                       │                          │
-│                                       ▼                          │
-│                              ┌──────────────────┐                │
-│                              │   Assembler      │                │
-│                              └──────────────────┘                │
-├──────────────────────────────────────────────────────────────────┤
-│                              Kernel                              │
-│  ┌─────────────┐  ┌──────────────┐  ┌────────────┐  ┌────────┐   │
-│  │  Processor  │←→│  MemoryBus   │  │  PortBus   │→ │ Device │   │
-│  │  (CPU)      │  │  (RAM+BIOS)  │  │  (Ports)   │  │        │   │
-│  └─────────────┘  └──────────────┘  └────────────┘  └────────┘   │
-├──────────────────────────────────────────────────────────────────┤
-│                        Kernel.Common                             │
-│   (OpCode, RegType, RamSize, SizePort, BiosStatus, ошибки...)    │
-└──────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────┐
+│  Хосты и тесты                                                     │
+│  ConsoleEmulatorForTests, TestVMSpeed                              │
+└────────────────────────────────────────────────────────────────────┘
+                              │
+┌────────────────────────────────────────────────────────────────────┐
+│  ExtensionsVMApplication                                           │
+│  Готовые peephole-правила, AST-правила, IO-устройства, host-helpers│
+└────────────────────────────────────────────────────────────────────┘
+                              │
+┌────────────────────────────────────────────────────────────────────┐
+│  VMApplication                                                     │
+│  VMHost, VMHostFactory, VMEmulator, DeviceContext, ProjectBuilder, │
+│  компилятор-фасад, оптимизатор-фасады, IFileService, IOutputView   │
+└────────────────────────────────────────────────────────────────────┘
+                              │
+┌────────────────────────────────────────────────────────────────────┐
+│  Kernel                       │  Compiller                         │
+│  Processor, Device,           │  Lexer, Parser, CodeGen,           │
+│  MemoryBus, PortBus,          │  Assembler, Disassembler,          │
+│  ManagerDevices, Emulator     │  AstOptimizer, PeepholeOptimizer   │
+└────────────────────────────────────────────────────────────────────┘
+                              │
+┌────────────────────────────────────────────────────────────────────┐
+│  Kernel.Common                │  Kernel.Contracts                  │
+│  RegType, OpCode, RamSize,    │  IPortController, IProcessorReader,│
+│  PortSize, BiosStatus,        │  IProcessorFaultPolicy,            │
+│  LogLevel, InstructionDecoder │  IDeviceLoggerContext,             │
+│                               │  ISimulationResult, OptimizationId │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
----
-
-## Требования
-
-- **.NET 10.0** (проект использует `net10.0`, `ImplicitUsings`, `Nullable`, C# 13 с `extension`-блоками).
-- ОС: Windows / Linux / macOS (x64 или arm64).
-- Опционально: `sudo` для повышения приоритета процесса в бенчмарках на Linux/macOS.
+`Kernel.Common` и `Kernel.Contracts` — публичные. Они специально выделены в отдельные проекты, чтобы истинное ядро (`Kernel`) не утекало наружу.
+Ссылаться на них — нормально.
 
 ---
 
-## Быстрый старт
-
-### Пример 1: ассемблерная программа
+# Бытсрый старт
 
 ```csharp
-using Kernel.Common;
 using VMApplication;
-using VMApplication.Emulator;
-using VMApplication.Project.IO;
+using VMApplication.Project;
 
-// 1. Создаём хост (компилятор + эмулятор + логгер)
-using var host = VMHostFactory.CreateDefault();
-
-// 2. Создаём устройство с RAM 128 МБ и BIOS 128 байт
-var device = host.Emulator.CreateDevice(
-    ramSize: RamSize.Size128MB,
-    biosSize: RamSize.Size128B,
-    name: "ConsoleVM"
-);
-
-// 3. Подключаем консольное устройство вывода в сектор 1
-var iostream = new QueuedIOStream(Console.Out, PortCharEncoding.Utf8);
-host.Emulator.AddDevice(device, 0);
-host.Emulator.AddDevice(iostream, "console", 1);
-
-// 4. Компилируем ассемблерный код
-const string asmSource = """
+const string source =
+"""
 main:
     LDI  r1, 0x41          // 'A'
     LDI  r2, 0x10          // адрес порта Data
     OUT  r1, r2
 
-    LDI  r1, 1             // команда Flush
-    LDI  r2, 0x12
+    LDI  r1, 1
+    LDI  r2, 0x12          // Flush
     OUT  r1, r2
+
     END
 """;
 
-var il = host.Project.Compiler.CompileToIL(asmSource, 0, optimize: true, SourceLanguage.Asm);
-var compiled = host.Project.Compiler.Compile(il);
+using var host = VMHostFactory.CreateDefault();
 
-// 5. Загружаем в устройство и запускаем
-if (compiled.Success)
+var il   = host.Project.Compiler.CompileToIL(source, 0, optimize: true, SourceLanguage.Asm);
+var comp = host.Project.Compiler.Compile(il);
+
+if (!comp.Success)
 {
-    var launchMode = device.TryFastLoadProgram(compiled.Program!, 0, out var error);
-    launchMode?.Launch(showTimer: true);
-}
-```
-
-### Пример 2: программа на MiniC
-
-```csharp
-const string cSource = """
-int add(int a, int b) {
-    return a + b;
+    foreach (var err in comp.Errors!) Console.WriteLine(err);
+    return;
 }
 
-int main() {
-    int x = 10;
-    int y = 32;
-    int z = add(x, y);
-    return 0;
-}
-""";
+int id  = host.Emulator.CreateAndAddDevice(RamSize.MB64, sector: 0, name: "vm");
+var ctx = host.Emulator.GetDeviceContext(id)!;
 
-var il = host.Project.Compiler.CompileToIL(cSource, 0, optimize: true, SourceLanguage.C);
-var compiled = host.Project.Compiler.Compile(il);
+ctx.TryFastLoadProgram(comp.Program!, 0, out var error);
+ctx.Run();
+// Dispose у host сам уберёт устройство.
 ```
 
-### Пример 3: устройство вывода (Console)
+# Работа платформы
 
-Устройство консоли занимает 3 порта (по смещениям):
+## Что такое `VMHost`
+`VMHost` — это фасад всей ВМ. Он объединяет три подсистемы:
 
-| Смещение | Имя      | Описание                                                     |
-|----------|----------|--------------------------------------------------------------|
-| `0x00`   | `Data`   | Запись одного байта в поток вывода                           |
-| `0x01`   | `Status` | `0` — очередь пуста, `1` — есть необработанные данные         |
-| `0x02`   | `Flush`  | Запись любого значения — дождаться опустошения очереди и flush|
+ - `VMHostProject` — компилятор (`CompileToIL`, `Compile`) и файловый сервис.
+ - `VMEmulator` — реестр устройств, `PortBus`, создание/удаление `Device`.
+ - `VMHostLogger` — единая точка логов.
 
-**Кодировки:** `BytePerChar` (Latin-1), `Utf8`, `Utf16`.
+## Управление жизненным циклом
 
-Доступны две реализации:
-- `SynchronousIOStream` — блокирующая запись (просто, но медленно).
-- `QueuedIOStream` — фоновая очередь (не блокирует CPU).
+- VMHost реализует IDisposable. При Dispose он сам убирает все устройства и освобождает их память.
+- Если хост и устройство живут одинаково долго — не нужно вызывать RemoveDevice вручную.
+- Не рекомендуется вызывать Dispose у DeviceContext вручную, если устройство принадлежит хосту. 
+Это приведёт либо к двойному Dispose (если ваш класс это не защищает), либо к попытке хоста убрать 
+уже освобождённое устройство.
 
-### Пример 4: бенчмарк (TestVMSpeed)
+### ВАЖНО!
+
+Метод `VMHostFactory.CreateDefault()` создает хоста с стандартными сервисами (они подходят для в основном только для простых задач), если нужно более точная настройка
+используйте билдеры.
+
+Этот метод показан как пример проверки работоспособности с минимальным возможным кодом. Но лучше использовать свои сервисы.
 
 ```csharp
-using var host = VMHostFactory.CreateDefault(fileService: fileService, outputView: console);
-int deviceId = host.Emulator.CreateAndAddDevice(
-    bios: [], ramSize: RamSize.Size128MB, biosSize: RamSize.Size128B,
-    sector: 0, name: "ConsoleVM"
-);
-
-var case_ = new BenchCase("Math", programText, Runs: 30, WarmupRuns: 10);
-var runner = new BenchRunner(host, deviceId, case_, fileService);
-
-runner.TryPrepare();
-runner.Warmup();
-for (int i = 0; i < case_.Runs; i++) runner.RunOnce();
-
-Console.WriteLine($"Peak MIPS: {runner.PeakMips:F2}");
-Console.WriteLine($"Steps/run: {runner.StepsOnce:N0}");
+using var host = VMHostFactory.CreateDefault();
+int id = host.Emulator.CreateAndAddDevice(RamSize.MB64, sector: 0);
+// ... работа ...
+// Dispose у host сделает всё сам.
 ```
+Если устройство нужно убрать раньше хоста — используйте `host.Emulator.RemoveDevice(id)`.
 
----
+## Компилятор
 
-## Система команд (ISA)
-
-Все инструкции — 4 байта. Операнды (64-бит) идут с выравниванием до 8 байт.
-
-### Формат инструкции (32 бита)
-
-| Биты      | Поле       | Описание                          |
-|-----------|------------|-----------------------------------|
-| 0–7       | `OpCode`   | Код операции (см. ниже)           |
-| 8–12      | `Reg1`     | Первый регистр (dst)              |
-| 13–17     | `Reg2`     | Второй регистр (src)              |
-| 18–19     | `Size`     | Размер данных (`S8`/`S16`/`S32`/`S64`) |
-| 20–31     | —          | Зарезервировано                   |
-
-### Основные группы
-
-| Группа           | Инструкции                                                                                  |
-|------------------|---------------------------------------------------------------------------------------------|
-| Системные        | `NOP`, `END`, `HALT`, `WAKE`, `WAKE_INT`, `RET`, `IRET`, `INT`                               |
-| Память           | `MOV`, `LDI`, `LOAD[.S8/16/32/64]`, `STORE[.S8/16/32/64]`, `LOAD_IND`, `STORE_IND`           |
-| Память (unsafe)  | `LOAD_UNSAFE`, `STORE_UNSAFE`, `LOAD_IND_UNSAFE`, `STORE_IND_UNSAFE`                        |
-| Арифметика       | `ADD`, `SUB`, `MULT_INT`, `DIV`, `SHR`, `INC`, `DEC`                                        |
-| Логика           | `AND`, `OR`, `XOR`, `NOT`, `CMP`, `TEST`                                                    |
-| Поток управления | `JMP`, `JZ`, `JNZ`, `JG`, `JL`                                                              |
-| Стек / вызовы    | `PUSH`, `POP`, `CALL`, `RET`                                                                |
-| Ввод-вывод       | `IN`, `OUT`, `PRINT_INT`                                                                    |
-| Память (heap)    | `ALLOC`                                                                                     |
-
-### Флаги (`rFL`)
-
-- бит 0 — `ZeroFlag` (ZF)
-- бит 1 — `NegativeFlag` (NF)
-
-Обновляются инструкциями `CMP`, `TEST`.
-
-### Условные переходы
-
-| Инструкция | Условие                    |
-|------------|----------------------------|
-| `JZ`       | `ZF == 1`                  |
-| `JNZ`      | `ZF == 0`                  |
-| `JL`       | `NF == 1`                  |
-| `JG`       | `NF == 0 && ZF == 0`       |
-
----
-
-## Регистры
-
-| Регистр  | Назначение                                        |
-|----------|---------------------------------------------------|
-| `r0`–`r3`| Временные (аргументы функций 1–4, возврат в `r0`) |
-| `r4`–`r23`| Регистры общего назначения (caller-saved)         |
-| `rZ`     | Нулевой регистр (всегда 0)                        |
-| `rSP`    | Stack Pointer                                     |
-| `rHP`    | Heap Pointer                                      |
-| `rIP`    | Instruction Pointer                               |
-| `rFL`    | Flags (ZF, NF)                                    |
-| `rCL`    | Call Link (адрес возврата текущего вызова)         |
-| `rCD`    | Call Depth (глубина вложенности вызовов)           |
-| `rTB`    | Table Base (база таблицы векторов прерываний)      |
-
----
-
-## Модель памяти
-
-- **RAM** + **BIOS** располагаются в едином непрерывном буфере.
-- BIOS находится в конце (`_ptrRam + _sizeRam`).
-- Начальный `rSP` = верх RAM (выровнен по 8).
-- Начальный `rHP` = конец загруженной программы (выровнен по 8).
-- **Стек растёт вниз**, **куча — вверх**. При коллизии — `SegmentationFault`.
-
-### Выравнивание
-
-Инструкции `LOAD`/`STORE` для `.S16`, `.S32`, `.S64` требуют выравнивания адреса соответственно на 2, 4, 8 байт. При невыровненном адресе — `AlignmentFault`.
-
-### Безопасный vs небезопасный доступ
-
-- Безопасный доступ проверяет границы памяти и выравнивание.
-- `*_UNSAFE` не проверяет ничего — быстрее, но можно выйти за пределы RAM и повредить BIOS.
-
----
-
-## Порты ввода-вывода
-
-Порты адресуются 64-битным адресом. Разбиение:
-
-```
-[ address >> log2(portsPerDevice) ] — сектор (индекс устройства)
-[ address &  (portsPerDevice - 1) ] — смещение внутри устройства
-```
-
-- `IN Rdest, Rport`  — читает байт из порта по адресу в `Rport`.
-- `OUT Rsrc, Rport`  — записывает младший байт `Rsrc` в порт.
-
-`PortBus` регистрирует устройства по секторам. Если устройство не найдено — `NullDeviceInput` / `NullDeviceOutput`.
-
----
-
-## Язык MiniC
-
-Поддерживаются:
-
-- **Типы:** `int` (S32), `char` (S16), `void`, `byte` (S8), `ushort` (S16), `ulong` (S64), пользовательские `struct`.
-- **Указатели:** `int* p`, `&x`, `*p`, `p->field`.
-- **Массивы:** `int a[10]`, доступ `a[i]`.
-- **Структуры:** `struct Point { int x; int y; };`, доступ `p.x`, `ptr->x`.
-- **Управление:** `if/else`, `while`, `for`.
-- **Функции:** до 4 аргументов через регистры `r0..r3`, остальные — через псевдоглобалы.
-- **Встроенный asm:** `asm { ... }`.
-- **Динамическая память:** `new int[n]`, `new Point()`.
-- **Препроцессор:** `#include "file"` (asм-файлы).
-
-### Пример
-
-```c
-struct Point {
-    int x;
-    int y;
-};
-
-int main() {
-    struct Point p;
-    p.x = 10;
-    p.y = 20;
-
-    int sum = 0;
-    for (int i = 0; i < 10; i++) {
-        sum = sum + i;
-    }
-    return 0;
-}
-```
-
----
-
-## Оптимизации
-
-### AST-оптимизации
-
-Правила применяются последовательно к `ProgramNode`:
-
-1. `PropagateConstantsRule` — подставляет значения константных переменных в выражения.
-2. `FoldConstantsRule` — сворачивает `2 + 3` в `5`.
-3. `RemoveUnusedVariablesRule` — удаляет объявления, чьи значения не используются.
-4. `RemoveUnreachableCodeRuleBeforeInline` — удаляет код после `return`, схлопывает `if (false)` / `if (true)`.
-5. `InlineSmallVoidFunctionsRule` — инлайнит `void`-функции размером ≤ 10 операторов (с переименованием параметров).
-6. `RemoveUnreachableCodeRuleAfterInline` — повторно удаляет недостижимый код.
-
-### Peephole-оптимизации
-
-Применяются к списку `AsmItem` (`IRAssembler`) в несколько проходов:
-
-- `RemoveNoopMovRule` — `MOV rX, rX`.
-- `RemovePushPopPairRule` — `PUSH rX; POP rX`.
-- `RemoveSwapMovPairRule` — `MOV rX, rY; MOV rY, rX`.
-- `RemoveJumpToNextLabelRule` — `JMP label` непосредственно перед `label:`.
-- `ConstantFoldingRule` — `LDI rX, A; LDI rY, B; ADD rX, rY` → `LDI rX, A+B`.
-- `RemoveMultiEndPairRule` — удаляет дублирующиеся `END`.
-- `ReplaceSafeMemAccessWithUnsafeRule` — заменяет `LOAD`/`STORE` на `*_UNSAFE` при известном корректном адресе.
-
----
-
-## Структура решения
-
-```
-├── Compiller/                    # Компилятор MiniC
-│   ├── ASTNode.cs                # Узлы AST
-│   ├── Lexer.cs                  # Лексер
-│   ├── Parser.cs                 # Парсер
-│   ├── MiniCLanguageDefinition.cs
-│   ├── StructLayout.cs
-│   ├── CodeGenerator/
-│   │   ├── CodeGenUtils.cs
-│   │   ├── ExpressionGenerator.cs
-│   │   ├── FunctionGenerator.cs
-│   │   ├── StatementGenerator.cs
-│   │   ├── FunctionContext.cs
-│   │   ├── VariableAccessor.cs
-│   │   ├── RegisterAllocator.cs
-│   │   ├── VarLocation.cs
-│   │   ├── GlobalInfo.cs
-│   │   └── GlobalMemoryManager.cs
-│   └── Optimizators/
-│       ├── AstOptimizer.cs
-│       └── Rules/
-│           ├── PropagateConstantsRule.cs
-│           ├── FoldConstantsRule.cs
-│           ├── RemoveUnusedVariablesRule.cs
-│           ├── RemoveUnreachableCodeRule.cs
-│           └── InlineSmallVoidFunctionsRule.cs
-│
-├── Controllers/ (Kernel)         # Эмулятор
-│   ├── BiosSystem/Device.cs
-│   ├── ProcessorSystem/Processor.cs
-│   ├── RamSystem/ (MemoryBus, NativeMemoryBuffer, RAMResultInt*)
-│   ├── ControllersData/PortBus.cs
-│   └── Utilites/ (Emulator, ManagerDevices)
-│
-├── Kernel.Common/                # Общие типы
-│   ├── OpCode.cs, RegType.cs, OpCodeSize.cs
-│   ├── RamSize.cs, SizePort.cs, BiosStatus.cs
-│   ├── InstructionDecoder.cs
-│   └── IReadOnlyLogOptimization.cs
-│
-├── Kernel.Diagnostics/           # Система ошибок
-│   ├── DefaultErrorMessageProvider.cs
-│   └── ThrowHelper.cs
-│
-├── Kernel/                       # BIOS-логика (низкоуровневая)
-│
-├── VMApplication/                # Высокоуровневый API
-│   ├── Project/ (VMHostProject, ProjectBuilder, IFileService)
-│   ├── Emulator/ (VMEmulator, DeviceContext, LaunchModeDevice)
-│   ├── Project/IO/ (SynchronousIOStream, QueuedIOStream)
-│   └── Logger/
-│
-├── TestVMSpeed/                  # Бенчмарки и профилирование
-├── ConsoleEmulatorForTests/      # Примеры использования API
-└── VM64.sln
-```
-
----
-
-## Сборка и запуск
-
-```bash
-# Клонировать репозиторий
-git clone https://github.com/<user>/<repo>.git
-cd <repo>
-
-# Собрать всё решение
-dotnet build VM64.sln -c Release
-
-# Запустить примеры использования API
-dotnet run --project ConsoleEmulatorForTests -c Release
-
-# Запустить бенчмарки
-dotnet run --project TestVMSpeed -c Release
-```
-
-### Результаты бенчмарка
-
-`TestVMSpeed` измеряет MIPS (миллионы инструкций в секунду), время, дисперсию и сохраняет отчёт в `logs/result_Benchmark_Logs_<timestamp>.txt`.
-
-Пример вывода:
-
-```
-Test 'Math':
-  Performance summary:
-      Instructions / run:  30 000 003
-      Peak MIPS:                 45.12   (TotalInstr / MinElapsed)
-      Stable MIPS (trim10):      43.88   (устойчиво к JIT/GC)
-      Median MIPS:               43.95
-      ns / instruction:           22.13
-      CV (MIPS):                  1.84%
-```
-
----
-
-## Расширенные сценарии
-
-### Точка входа и `main`
-
-`ProjectBuilder.Build` **автоматически** находит функцию `main` и эмитит `JMP func_main` в самое начало программы. Функции со всех C-файлов сливаются в один `ProgramNode` (порядок: сначала `main`, потом остальные). Если `main` не найдена — программа стартует с начала, что обычно приводит к `NotImplementedOpCode`.
-
-### Жизненный цикл `DeviceContext`
-
-`DeviceContext` — обёртка над `Device` с фиксацией режима загрузки:
+Компилятор встроен в `VMApplication` и вызывается через `host.Project.Compiler`:
 
 ```csharp
-var ctx = host.Emulator.CreateDevice(ramSize: RamSize.Size16MB);
-
-// Либо программа, либо BIOS. Смешивать нельзя — будет InvalidOperationException.
-var lm1 = ctx.LoadProgram(program, loadAddress: 0);       // обычная загрузка
-var lm2 = ctx.LoadBios(biosBytes);                       // BIOS-режим
-
-// Быстрая загрузка без проверки каждой ячейки (для больших программ):
-var lm3 = ctx.TryFastLoadProgram(program, 0, out var error);
-if (lm3 is null) Console.WriteLine(error);
+CompilationToILResult il = host.Project.Compiler.CompileToIL(source, 0, optimize: true, SourceLanguage.C);
+CompilationResult res = host.Project.Compiler.Compile(il);
 ```
 
-**Важно:** `ReadMemory` бросает исключение, если `IsRunning == true`. Останавливайте или используйте `LaunchModeDevice.StopAndReset()` перед чтением.
+### Поддерживается:
 
-### Чтение регистров после запуска
+- MiniC - C-подобный язык (`int`, `char`, `void`, `byte`, `ushort`, `ulong`, `struct`, `if`, `while`, `for`, `return`, `asm`, `extern`
+, указатели, массивы).
+- VMA — ассемблер (`LDI`, `MOV`, `ADD`, `LOAD`, `STORE`, `JMP`, `CALL`, `IN`, `OUT`, `HALT` и т.д.).
+- **Inline asm** через `asm { ... }`.
+
+### Важно про оптимизаторы
+
+Оптимизаторы не заложены «**в коробку**». Встроенный компилятор работает без них. Чтобы включить:
+
+- подключите `ExtensionsVMApplication` и вызовите `AddStdRules()` для AST- и peephole-оптимизаторов, либо
+- напишите свои правила (`IAstOptimizationRule`, `IPeepholeRule`).
 
 ```csharp
-var lm = ctx.TryFastLoadProgram(program, 0, out _)!;
-lm.Launch(showTimer: true);
+using ExtensionsVMApplication.Optimizators;
 
-Span<ulong> regs = stackalloc ulong[32];
-ctx.Device.CopyRegisters(regs);     // r0 = результат возврата функции
-Console.WriteLine($"r0 = {regs[(int)RegType.r0]}");
+host.Project.Compiler.Optimizator
+    .VMAstOptimizer.AddStdRules();
+
+host.Project.Compiler.Optimizator
+    .VMPeepholeOptimizer.AddStdRules();
 ```
 
-Или через `GetRegistersSnapshot()` — вернёт `null`, если CPU ещё работает.
+### Ограничения кодогенерации
 
-### Пошаговый режим (отладка)
+Кодогенератор сознательно простой и не претендует на качество промышленных компиляторов: 
+слабое распределение регистров, 
+консервативный inline, 
+ограниченная поддержка указателей и структур. 
+Если критична скорость готового байт-кода — либо пишите критичные участки на VMA напрямую, 
+либо используйте `optimize: true` если вы подключили расширения, в ином случае без расширений оптимизаций никаких не будет.
 
-```csharp
-var step = lm.StepMode(startAddress: 0);
-for (int i = 0; i < 50; i++)
+## IO и шина портов
+
+Ограничений на IO нет: реализуйте `IPortController` (или унаследуйтесь от `PortControlBase`) — и всё.
+
+### Рекомендация: `PortControlBase`, а не `IPortController`
+
+- Наследуйтесь от PortControlBase, если вам нужна защита от двойного Dispose — она уже реализована.
+- Реализуйте `IPortController` напрямую только если обязаны наследоваться от другого класса
+(C# не даёт множественного наследования).
+
+```
+using VMApplication.Emulator.Abstraction;
+
+public sealed class MyDevice : PortControlBase
 {
-    step.Step(debug: true);          // один такт
-    // или step.MultyStep(debug: true, count: 5);
+    public override byte ReadPort(ulong offset) => 0;
+    public override void WritePort(ulong offset, byte value) { /* ... */ }
+    public override void WakeProcessor() { /* ... */ }
+
+    // При необходимости:
+    protected override void OnDispose() { /* освободить ресурсы */ }
 }
 ```
 
-`debug: true` печатает `IP`, `r0`, `r1`, `rFL` через `IDeviceLoggerContext`.
+### Как работает `PortBus`
 
-### `Assembler` vs `IRAssembler` — почему два?
+`PortBus` — линейно-блочный (секторный) маршрутизатор портов. Адрес разбивается 
+на сектор (`address >> deviceShift`) и смещение внутри устройства (`address & offsetMask`). 
+Реализовано через битовые сдвиги и маски — размеры блоков всегда кратны степеням двойки, 
+это даёт предсказуемую и быструю адресацию.
 
-| | `Assembler` | `IRAssembler` |
-|---|---|---|
-| Запись | сразу байты в `MemoryStream` | список `AsmItem` |
-| Peephole | ❌ | ✅ |
-| Патч меток | после `Build()` | после `Build()` |
-| Когда использовать | бенчмарки без оптимизации, отладка | основной путь через `CompileToIL` |
+- Помимо связи CPU ↔ устройство, `PortBus` позволяет устройствам общаться друг с другом — регистрируйте 
+контроллеры в разных секторах и читайте/пишите в чужие адреса.
+- `PortSize` — размер всего адресного пространства портов (степень 2, от 64 B до 512 KiB).
+- `DevicePortSize` — размер блока одного устройства (степень 2, от 8 B до 128 B).
+Оба типа — публичные value-типы, `default(T)` невалиден.
 
-**Правило:** если хотите применить peephole — только `IRAssembler` + `PeepholeOptimizer.Optimize(items, log)`.
+## `Kernel` — прямой доступ к интерпретатору
 
-### Чтение логов оптимизации
-
-```csharp
-var il = host.Project.Compiler.CompileToIL(src, 0, optimize: true, SourceLanguage.C);
-var compiled = host.Project.Compiler.Compile(il, peepholeOptimizationCount: 5);
-
-if (compiled.OptimizationResultLog is { } logs)
-{
-    foreach (var (type, log) in logs.Logs)
-    {
-        Console.WriteLine($"=== {type} ===");
-        Console.WriteLine(log.GetLogs());
-    }
-}
+Проект `Kernel` — это минимальный возможный уровень работы с интерпретатором, памятью, IO и контрактами. 
+Он не предназначен для обычного использования. 
+Чтобы воспользоваться им напрямую, нужно явно указать:
+```
+using Kernel;
 ```
 
-⚠️ **Ключи `TypeOptimization` должны быть уникальными.** В текущей версии `RemoveUnusedVariablesRule` и `RemoveUnreachableCodeRuleBeforeInline` делят `ASTNodeRemovedBeforeInline`, поэтому один из логов будет потерян в `Dictionary.TryAdd`. Если правите правила — заводите новые значения `TypeOptimization`.
-Пока идет процесс рефакторинга ключи будут фиксированы на перечисление, когда дойдет дело до компилятора изменения будут на более универсальные
+### `Device` — интерпретатор
 
-### Политика обработки сбоев CPU
+Если быть точным то интерпритатор это именно `Processor`, а не сам `Device`, но вы не сможете использовать его без 
+`Device`, так что относительно правильно считать именно `Device` интерпритатором.
 
-```csharp
-public sealed class MyPolicy : IProcessorFaultPolicy
-{
-    public bool ShouldContinue(in ProcessorFault fault) => fault.Status switch
-    {
-        BiosStatus.Success        => true,
-        BiosStatus.NullDeviceOutput => true,   // не падать на незанятых портах
-        BiosStatus.DivOnZero      => true,     // продолжить, лог
-        _                         => false     // всё остальное — стоп
-    };
-}
+- Хорошая производительность; инструкции работы с памятью сравнимы по скорости с арифметикой.
+- Точные цифры на вашем железе — в проекте `TestVMSpeed` 
+(12 кейсов: `Memory`, `Math`, `ALU`, `Call`, `PushPop`, `BitOps`, `Mul`, `Branch`).
+- `Device` всегда выделяет нативную память под ОЗУ. Это позволяет создавать ВМ практически любого размера. 
+Сейчас разумный предел — ~2 GiB; расширение до 16 GiB технически возможно, 
+но редко осмысленно (не на каждой машине столько ОЗУ можно выделить только под эмулятор).
+- ОЗУ полностью инкапсулировано внутри `Device`.
+Даже `INativeReadOnlyBuffer` — это отдельный фасад-класс; 
+никакие приведения не дадут записать в ОЗУ в обход API.
 
-var dev = host.Emulator.CreateDevice(
-    ramSize: RamSize.Size16MB,
-    processorFaultPolicy: new MyPolicy());
-```
+### Безопасность
 
-Дефолт останавливает на всём, кроме `Success` и `NullDeviceOutput`.
-
-### Отключение / подмена вывода логов
-
-```csharp
-using var host = VMHostFactory.CreateDefault(
-    outputView: NullOutputView.Instance);    // полностью молча
-
-// или свой:
-public sealed class FileView : IOutputView
-{
-    private readonly StreamWriter _w;
-    public void AppendLine(string m, LogLevel l) => _w.WriteLine($"[{l}] {m}");
-    public void Clear() { }
-}
-```
-
-### Низкоуровневый путь — без `VMApplication`
-
-Если нужен только эмулятор (например, для unit-тестов), можно не поднимать `VMHost`:
-
-```csharp
-using Device device = new([], null!, RamSize.Size16MB, RamSize.Size128B,
-                         new NullLogger(), null);
-if (device.TryLoadProgramFast(bytes, 0))
-{
-    device.RunSimulation(0, isDebug: false, delay: 0, snowTimer: false,
-                         onLaunch: null, onStart: null, onEnd: null);
-    var steps = device.StepCount;
-}
-```
-
-См. `VMHostHelper.RunIsolated` в `VMApplication` — рабочий пример.
-
-### Кодировки вывода
-
-| `PortCharEncoding` | Что шлёт CPU | Когда использовать |
-|---|---|---|
-| `BytePerChar` | 1 байт = 1 символ (Latin-1) | ассемблерные демки, ASCII |
-| `Utf8` | 1–4 байта = 1 символ | кириллица, эмодзи, реальный вывод |
-| `Utf16` | 2 байта = 1 символ (LE) | работа с wide-char из языка |
-
-`SynchronousIOStream` — блокирует CPU на `WritePort`. `QueuedIOStream` — `Channel<byte>`, не блокирует, но `Flush` ждёт опустошения очереди **синхронно** (до 2 с) — это стоит помнить в горячих циклах.
+Использование `Kernel` напрямую — это небезопасный сценарий. 
+Вы работаете с низкоуровневой памятью, регистрами и портами без страховок, 
+которые даёт `VMApplication`. Для обычных задач используйте `VMApplication` + `ExtensionsVMApplication`.
 
 ---
+
+# Рекомендации
+
+1. Не вызывайте `Dispose` у `DeviceContext` вручную, если устройство принадлежит `VMHost`. Пусть хост сделает это сам.
+2. Наследуйтесь от `PortControlBase`, а не реализуйте `IPortController` вручную — иначе сами отвечаете за идемпотентность Dispose.
+3. Не забывайте подключать оптимизаторы — иначе соберёте медленный байт-код, хотя AST/peephole-пассы готовы в `ExtensionsVMApplication`.
+4. Критичные по скорости участки пишите сразу на VMA или инлайните через `asm { }` — кодогенератор слабоват.
+5. Размеры портов (`PortSize`, `DevicePortSize`) — только из статических фабрик (`PortSize.KB64`, `DevicePortSize.B16`); `default` невалиден.
+6. Файловый сервис (`IFileService`) и конфиг путей (`IProjectFilesConfig`) — подменяемые; удобно для тестов и `in-memory` сборок (`RamFileService` в комплекте).
+7. Логи идут через `VMHostLogger` → `IOutputView`. Для «тихой» работы используйте `NullOutputView.Instance`.
+
+## Проекты решения
+
+| Проект | Назначение |
+|-------------|-------------|
+| `Kernel.Common` | Публичные примитивы: `RegType`, `OpCode`, `OpCodeSize`, `RamSize`, `PortSize`, `DevicePortSize`, `BiosStatus`, `LogLevel`, `InstructionDecoder`, `AlignmentExtensions`.|
+| `Kernel.Contracts` | Публичные контракты: `IPortController`/`IPortUse`, `IPortController`, `IProcessorReader`, `IProcessorFaultPolicy`, `IDeviceLoggerContext`, `INativeReadOnlyBuffer`, `ISimulationResult`, `OptimizationId`, `IReadOnlyLogOptimization`.|
+| `Kernel` | Реализация: `Processor`, `Device`, `MemoryBus`, `NativeMemoryBuffer`, `PortBus`, `ManagerDevices`, `Emulator`. Небезопасный, прямой доступ. |
+| `Kernel.Diagnostics` | `ErrorCode`, `IErrorMessageProvider`, `DefaultErrorMessageProvider`, `ThrowHelper`, `CodeExpection`. |
+| `Compiller` | Лексер, парсер, AST, кодогенератор, ассемблер/дизассемблер, платформенных оптимизаторов. |
+| `VMApplication` | Фасад: `VMHost`, `VMHostFactory`, `VMEmulator`, `DeviceContext`, `ProjectBuilder`, `VMHostProjectCompiler`, `IFileService`, `IOutputView`, билдеры. |
+| `ExtensionsVMApplication` | Готовые AST- и peephole-правила, `PortControlBase`-совместимые IO-устройства (`QueuedIOStream`, `SynchronousIOStream`), host-helpers (`RunAndKeep`, `RunOnce`, `RunAndCleanup`). |
+| `ConsoleEmulatorForTests` | Консольный пример запуска. |
+| `TestVMSpeed` | Бенчмарк интерпретатора (warmup + прогоны, статистика, дизассемблер). |
+
+---
+
+## Известные ограничения
+
+- Кодогенератор MiniC: базовое распределение регистров, ограниченная поддержка указателей/структур в параметрах функций.
+- Оптимизаторы нужно подключать вручную.
+- `TestVMSpeed` и `ExtensionsVMApplication` таргетят net10.0; `Compiller` и `Kernel.`* — net8.0; `VMApplication` — net8.0;net10.0.
+- Прямое использование `Kernel` небезопасно и не рекомендуется без веской причины.
