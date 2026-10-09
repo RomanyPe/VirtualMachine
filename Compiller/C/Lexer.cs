@@ -32,7 +32,8 @@ public class Lexer(string source)
     private int _column = 1;
     private readonly List<Token> _tokens = [];
 
-    private static readonly FrozenSet<char> Punctuation = ['(', ')', '{', '}', '[', ']', ';', ',', '.', ':'];
+    private static readonly FrozenSet<char> Punctuation = new HashSet<char>()
+        { '(', ')', '{', '}', '[', ']', ';', ',', '.', ':' }.ToFrozenSet();
     public List<Token> Tokenize()
     {
         while (_position < _source.Length)

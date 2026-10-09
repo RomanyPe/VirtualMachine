@@ -1,5 +1,6 @@
 ﻿using Kernel.BiosSystem;
 using Kernel.Contracts;
+using System.Diagnostics.CodeAnalysis;
 using VMApplication.Project;
 
 namespace VMApplication.Emulator;
@@ -32,7 +33,7 @@ public class DeviceContext : IDisposable
         _device.LoadProgram(program, loadAddress);
     }
 
-    public bool TryFastLoadProgram(ReadOnlySpan<byte> program, ulong loadAddress, out string? error)
+    public bool TryFastLoadProgram(ReadOnlySpan<byte> program, ulong loadAddress,[NotNullWhen(false)] out string? error)
     {
         if (IsRunning)
         {
@@ -48,7 +49,7 @@ public class DeviceContext : IDisposable
         error = $"Не удалось загрузить программу: выход за границы памяти (loadAddress + {program.Length} > RAM) или другая не инициализированная причина";
         return false;
     }
-    public void Launch(LaunchOptions? opt = null)
+    public void Run(LaunchOptions? opt = null)
     {
         ThrowIfRunning(IsRunning);
 

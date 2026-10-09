@@ -11,7 +11,7 @@ public static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    public static void ThrowMiniC(ErrorCode code, params ReadOnlySpan<object> args)
+    public static void ThrowMiniC(ErrorCode code, params object[] args)
     {
         var message = ErrorMessageProvider.GetMessage(code, args);
         throw new CodeExpection(code, message);
@@ -19,7 +19,7 @@ public static class ThrowHelper
 
     [DoesNotReturn]
     [MethodImpl(MethodImplOptions.NoInlining)]
-    public static T ThrowMiniC<T>(ErrorCode code, params ReadOnlySpan<object> args)
+    public static T ThrowMiniC<T>(ErrorCode code, params object[] args)
     {
         var message = ErrorMessageProvider.GetMessage(code, args);
         throw new CodeExpection(code, message);
@@ -34,17 +34,15 @@ public static class ThrowHelper
         }
     }
 
-    extension(IReadOnlyDictionary<ErrorCode, string> templates)
+    public static bool TryValidateAllCodesCovered(this IReadOnlyDictionary<ErrorCode, string> templates, out ErrorCode code)
     {
-        public bool TryValidateAllCodesCovered(out ErrorCode code)
+        if (_errorCodesValidateTable.Any(code => !templates.ContainsKey(code)))
         {
-            if (_errorCodesValidateTable.Any(code => !templates.ContainsKey(code)))
-            {
-                code = _errorCodesValidateTable.First(code => !templates.ContainsKey(code));
-                return false;
-            }
-            code = default;
-            return true;
+            code = _errorCodesValidateTable.First(code => !templates.ContainsKey(code));
+            return false;
         }
+        code = default;
+        return true;
     }
+    
 }

@@ -1,20 +1,16 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+	  <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+	<ImplicitUsings>enable</ImplicitUsings>
+	<Nullable>enable</Nullable>
+	<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Compiller\Compiller.csproj" />
-    <ProjectReference Include="..\Kernel.Common\Kernel.Common.csproj" />
-    <ProjectReference Include="..\Kernel\Kernel.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Service Include="{508349b6-6b84-4df5-91f0-309beebad82d}" />
+	<ProjectReference Include="..\Compiller\Compiller.csproj" />
+	<ProjectReference Include="..\Kernel.Common\Kernel.Common.csproj" />
+	<ProjectReference Include="..\Kernel\Kernel.csproj" />
   </ItemGroup>
 
 </Project>

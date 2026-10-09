@@ -30,12 +30,12 @@ public class PeepholeLog
         {
             var sb = new StringBuilder();
             sb.Append(DeleteText);
-            string opName = inst.OpCode.OpName;
+            string opName = inst.OpCode.OpName();
             sb.Append(opName);
 
             // Суффикс размера для инструкций работы с памятью
             if (inst.OpCode is OpCode.LOAD or OpCode.STORE or OpCode.LOAD_IND or OpCode.STORE_IND)
-                sb.Append('.').Append(inst.Size.SizeName);
+                sb.Append('.').Append(inst.Size.SizeName());
 
             sb.Append(' ');
 

@@ -112,7 +112,7 @@ public class IRAssembler(ulong baseAddress = 0) : AssemblerBase(baseAddress)
                     {
                         // Кодируем заголовок обратно в uint
                         uint raw = InstructionEncoder.Encode(
-                            instr.OpCode.Uint,
+                            instr.OpCode.ToUint(),
                             (uint)instr.FirstReg,
                             (uint)instr.SecondReg,
                             (uint)instr.Size);

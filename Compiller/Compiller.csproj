@@ -1,15 +1,15 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
+	<TargetFrameworks>net8.0</TargetFrameworks>
+	<ImplicitUsings>enable</ImplicitUsings>
+	<Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ASM gen\Kernel.Contracts\Kernel.Contracts.csproj" />
-    <ProjectReference Include="..\Kernel.Common\Kernel.Common.csproj" />
-    <ProjectReference Include="..\Kernel.Diagnostics\Kernel.Diagnostics.csproj" />
+	<ProjectReference Include="..\ASM gen\Kernel.Contracts\Kernel.Contracts.csproj" />
+	<ProjectReference Include="..\Kernel.Common\Kernel.Common.csproj" />
+	<ProjectReference Include="..\Kernel.Diagnostics\Kernel.Diagnostics.csproj" />
   </ItemGroup>
 
 </Project>

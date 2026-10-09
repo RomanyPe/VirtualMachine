@@ -6,7 +6,7 @@ using VMApplication.Project;
 namespace ExtensionsVMApplication.Host;
 
 public sealed record RunOutcome(
-    DeviceContext Device,
+    DeviceContext? Device,
     int DeviceId,
     CompilationResult Compilation,
     long StepCount,
@@ -17,6 +17,8 @@ public sealed record RunOutcome(
 
 public static class VMHostRunExtensions
 {
+    public const int FaultID = -1;
+
     extension(VMHost host)
     {
         /// Запускает и оставляет device живым — можно читать память, регистры, порты.
@@ -32,7 +34,7 @@ public static class VMHostRunExtensions
             var comp = host.Project.Compile(il);
 
             if (!comp.Success)
-                return new(null!, -1, comp, 0, false, comp.Errors ?? []);
+                return new(null!, FaultID, comp, 0, false, comp.Errors ?? []);
             // device пока не создавали — возвращать нечего
 
             int id = host.Emulator.CreateAndAddDevice(ram.Value, sector: 0, name: deviceName);
@@ -41,10 +43,10 @@ public static class VMHostRunExtensions
             if (!ctx.TryFastLoadProgram(comp.Program!, 0, out var err))
             {
                 host.Emulator.RemoveDevice(id);
-                return new(null!, -1, comp, 0, false, [err!]);
+                return new(null!, FaultID, comp, 0, false, [err]);
             }
 
-            ctx.Launch(new LaunchOptions(StartAddress: 0));
+            ctx.Run(new LaunchOptions(StartAddress: 0));
             return new(ctx, id, comp, ctx.StepCount, true, []);
         }
 

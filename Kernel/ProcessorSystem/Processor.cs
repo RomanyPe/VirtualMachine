@@ -43,12 +43,12 @@ public sealed class Processor(MemoryBus ram,
     private ulong _lastFaultData = 0;
 
 
-    private bool ZeroFlagSet => (_registers[RegType.rFL.Int] & 1UL) != 0UL;
-    private bool NegativeFlagSet => (_registers[RegType.rFL.Int] & 2UL) != 0UL;
+    private bool ZeroFlagSet => (_registers[RegType.rFL.Int()] & 1UL) != 0UL;
+    private bool NegativeFlagSet => (_registers[RegType.rFL.Int()] & 2UL) != 0UL;
 
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ulong GetRegValue(RegType reg) => _registers[reg.Int];
+    public ulong GetRegValue(RegType reg) => _registers[reg.Int()];
 
     public void EnqueueBiosStatus(BiosStatus status)
     {
@@ -75,27 +75,27 @@ public sealed class Processor(MemoryBus ram,
 
     private ulong Get64IntData()
     {
-        ulong ip = _registers[RegType.rIP.Int];
+        ulong ip = _registers[RegType.rIP.Int()];
         ip = (ip + 7) & ~7UL;
         ulong data = _ram.ReadInt64LEUnSafe(ip);
         ip += 8;
-        _registers[RegType.rIP.Int] = ip;
+        _registers[RegType.rIP.Int()] = ip;
         return data;
     }
 
     public void LaunchProgramm(ulong startAddress)
     {
         _isSleeping = false;
-        _registers[RegType.rIP.Int] = startAddress;
+        _registers[RegType.rIP.Int()] = startAddress;
         _isRunning = true;
 
-        _registers[RegType.rFL.Int] = 0;
+        _registers[RegType.rFL.Int()] = 0;
 
         ulong stackTop = _ram.Length;
         stackTop &= ~0x7UL;
 
         _stackBase = stackTop;
-        _registers[RegType.rSP.Int] = stackTop;
+        _registers[RegType.rSP.Int()] = stackTop;
     }
 
 
@@ -117,7 +117,7 @@ public sealed class Processor(MemoryBus ram,
         {
             if (result != BiosStatus.Success)
             {
-                ProcessorFault fault = new(result, _lastFaultData, _registers[RegType.rIP.Int], 0);
+                ProcessorFault fault = new(result, _lastFaultData, _registers[RegType.rIP.Int()], 0);
                 Volatile.Write(ref _isRunning, _processorFaultPolicy.ShouldContinue(fault));
                 return;
             }
@@ -142,14 +142,14 @@ public sealed class Processor(MemoryBus ram,
             if (!_isRunning | _isSleeping) return;
         }
 
-        ulong ip = _registers[RegType.rIP.Int];        
+        ulong ip = _registers[RegType.rIP.Int()];        
 
         uint rawInst = _ram.ReadInt32LEUnSafe(ip);
         OpCode opCode = GetOpCode(rawInst);
 
         ip += 4;
 
-        _registers[RegType.rIP.Int] = ip;
+        _registers[RegType.rIP.Int()] = ip;
 
         BiosStatus dat = opCode switch
         {
@@ -222,33 +222,33 @@ public sealed class Processor(MemoryBus ram,
 
     private BiosStatus InstructionJMP_IND(RegType r)
     {
-        _registers[RegType.rIP.Int] = _registers[r.Int];
+        _registers[RegType.rIP.Int()] = _registers[r.Int()];
         return BiosStatus.Success;
     }
 
     private BiosStatus InstructionCALL_IND(RegType r)
     {
-        return InstructionCALL(_registers[r.Int]);
+        return InstructionCALL(_registers[r.Int()]);
     }
 
     private BiosStatus InstructionCMP(RegType r1, RegType r2)
     {
-        ulong res = _registers[r1.Int] - _registers[r2.Int];
+        ulong res = _registers[r1.Int()] - _registers[r2.Int()];
 
         ulong zeroFlag = 1UL ^ ((res | (0UL - res)) >> 63);
         ulong negativeFlag = res >> 63;
 
-        _registers[RegType.rFL.Int] = zeroFlag | (negativeFlag << 1);
+        _registers[RegType.rFL.Int()] = zeroFlag | (negativeFlag << 1);
         return BiosStatus.Success;
     }
 
     private BiosStatus InstructionTEST(RegType r1, RegType r2)
     {
-        ulong res = _registers[r1.Int] & _registers[r2.Int];
+        ulong res = _registers[r1.Int()] & _registers[r2.Int()];
         ulong zeroFlag = 1UL ^ ((res | (0UL - res)) >> 63);
         ulong negativeFlag = res >> 63;
 
-        _registers[RegType.rFL.Int] = zeroFlag | (negativeFlag << 1);
+        _registers[RegType.rFL.Int()] = zeroFlag | (negativeFlag << 1);
         return BiosStatus.Success;
     }
 
@@ -275,10 +275,10 @@ public sealed class Processor(MemoryBus ram,
 
     private BiosStatus InstructionWAKE_INT(RegType reg1)
     {
-        ulong regV = _registers[reg1.Int];
+        ulong regV = _registers[reg1.Int()];
         if (!_portBus.WakeProcessor(regV))
         {
-            ulong ip = _registers[RegType.rIP.Int];
+            ulong ip = _registers[RegType.rIP.Int()];
             _lastFaultData = ip;
             return BiosStatus.NullDeviceOutput;
         }
@@ -288,34 +288,34 @@ public sealed class Processor(MemoryBus ram,
 
     private BiosStatus InstructionDIV(RegType reg1, RegType reg2)
     {
-        ulong divisor = _registers[reg2.Int];
+        ulong divisor = _registers[reg2.Int()];
         if (divisor == 0)
         {
-            ulong ip = _registers[RegType.rIP.Int];
+            ulong ip = _registers[RegType.rIP.Int()];
             _lastFaultData = ip;
             return BiosStatus.DivOnZero;
         }
-        ulong dividend = _registers[reg1.Int];
+        ulong dividend = _registers[reg1.Int()];
         ulong res = dividend / divisor;
-        _registers[reg1.Int] = res;
+        _registers[reg1.Int()] = res;
         return BiosStatus.Success;
     }
 
     private BiosStatus InstructionSHR(RegType reg1, RegType reg2)
     {
-        ulong regv1 = _registers[reg1.Int];
-        byte regv2 = (byte)_registers[reg2.Int];
+        ulong regv1 = _registers[reg1.Int()];
+        byte regv2 = (byte)_registers[reg2.Int()];
         ulong res = regv1 >> regv2;
-        _registers[reg1.Int] = res;
+        _registers[reg1.Int()] = res;
         return BiosStatus.Success;
     }
 
     private BiosStatus InstructionMULT_INT(RegType reg1, RegType reg2)
     {
-        ulong regv1 = _registers[reg1.Int];
-        ulong regv2 = _registers[reg2.Int];
+        ulong regv1 = _registers[reg1.Int()];
+        ulong regv2 = _registers[reg2.Int()];
         ulong res = regv1 * regv2;
-        _registers[reg1.Int] = res;
+        _registers[reg1.Int()] = res;
         return BiosStatus.Success;
     }
 
@@ -328,7 +328,7 @@ public sealed class Processor(MemoryBus ram,
 
     private BiosStatus InstructionMOV(RegType reg1, RegType reg2)
     {
-        _registers[reg1.Int] = _registers[reg2.Int];
+        _registers[reg1.Int()] = _registers[reg2.Int()];
         return BiosStatus.Success;
     }
     private BiosStatus InstructionLOAD(OpCodeSize sizeT, RegType reg, ulong adress)
@@ -344,7 +344,7 @@ public sealed class Processor(MemoryBus ram,
                     _lastFaultData = _ram.FaultData;
                     return status;
                 }
-                _registers[reg.Int] = data8;
+                _registers[reg.Int()] = data8;
                 return status;
 
 
@@ -356,7 +356,7 @@ public sealed class Processor(MemoryBus ram,
                     _lastFaultData = _ram.FaultData;
                     return status;
                 }
-                _registers[reg.Int] = data16;
+                _registers[reg.Int()] = data16;
 
                 return BiosStatus.Success;
 
@@ -368,7 +368,7 @@ public sealed class Processor(MemoryBus ram,
                     _lastFaultData = _ram.FaultData;
                     return status;
                 }
-                _registers[reg.Int] = data32;
+                _registers[reg.Int()] = data32;
                 return BiosStatus.Success;
 
             case OpCodeSize.S64:
@@ -379,7 +379,7 @@ public sealed class Processor(MemoryBus ram,
                     _lastFaultData = _ram.FaultData;
                     return status;
                 }
-                _registers[reg.Int] = data64;
+                _registers[reg.Int()] = data64;
                 return BiosStatus.Success;
 
             default:
@@ -397,7 +397,7 @@ public sealed class Processor(MemoryBus ram,
         switch (sizeT)
         {
             case OpCodeSize.S8:
-                _ram.WriteInt8LE(adress, (byte)_registers[reg.Int]);
+                _ram.WriteInt8LE(adress, (byte)_registers[reg.Int()]);
                 status = _ram.UpdateAndReadStatus();
                 if (status != BiosStatus.Success)
                 {
@@ -407,7 +407,7 @@ public sealed class Processor(MemoryBus ram,
                 return status;
 
             case OpCodeSize.S16:
-                _ram.WriteInt16LE(adress, (ushort)_registers[reg.Int]);
+                _ram.WriteInt16LE(adress, (ushort)_registers[reg.Int()]);
                 status = _ram.UpdateAndReadStatus();
                 if (status != BiosStatus.Success)
                 {
@@ -418,7 +418,7 @@ public sealed class Processor(MemoryBus ram,
 
 
             case OpCodeSize.S32:
-                _ram.WriteInt32LE(adress, (uint)_registers[reg.Int]);
+                _ram.WriteInt32LE(adress, (uint)_registers[reg.Int()]);
                 status = _ram.UpdateAndReadStatus();
                 if (status != BiosStatus.Success)
                 {
@@ -429,7 +429,7 @@ public sealed class Processor(MemoryBus ram,
 
 
             case OpCodeSize.S64:
-                _ram.WriteInt64LE(adress, _registers[reg.Int]);
+                _ram.WriteInt64LE(adress, _registers[reg.Int()]);
                 status = _ram.UpdateAndReadStatus();
                 if (status != BiosStatus.Success)
                 {
@@ -447,12 +447,12 @@ public sealed class Processor(MemoryBus ram,
 
     private BiosStatus InstructionLOAD_IND(OpCodeSize sizeT, RegType reg1, RegType reg2)
     {
-        return InstructionLOAD(sizeT, reg1, _registers[reg2.Int]);
+        return InstructionLOAD(sizeT, reg1, _registers[reg2.Int()]);
     }
 
     private BiosStatus InstructionSTORE_IND(OpCodeSize sizeT, RegType reg1, RegType reg2)
     {
-        return InstructionSTORE(sizeT, reg1, _registers[reg2.Int]);
+        return InstructionSTORE(sizeT, reg1, _registers[reg2.Int()]);
     }
     private BiosStatus InstructionLOAD_UNSAFE(OpCodeSize sizeT, RegType reg, ulong adress)
     {
@@ -461,27 +461,27 @@ public sealed class Processor(MemoryBus ram,
         {
             case OpCodeSize.S8:
                 var data8 = _ram.ReadInt8LEUnSafe(adress);
-                _registers[reg.Int] = data8;
+                _registers[reg.Int()] = data8;
                 return BiosStatus.Success;
 
 
             case OpCodeSize.S16:
                 var data16 = _ram.ReadInt16LEUnSafe(adress);
-                _registers[reg.Int] = data16;
+                _registers[reg.Int()] = data16;
                 return BiosStatus.Success;
 
 
             case OpCodeSize.S32:
                 var data32 = _ram.ReadInt32LEUnSafe(adress);
                 
-                _registers[reg.Int] = data32;
+                _registers[reg.Int()] = data32;
 
                 return BiosStatus.Success;
 
 
             case OpCodeSize.S64:
                 var data64 = _ram.ReadInt64LEUnSafe(adress);
-                _registers[reg.Int] = data64;
+                _registers[reg.Int()] = data64;
 
                 return BiosStatus.Success;
         }
@@ -495,24 +495,24 @@ public sealed class Processor(MemoryBus ram,
         switch (sizeT)
         {
             case OpCodeSize.S8:
-                var data8 = (byte)_registers[reg.Int];
+                var data8 = (byte)_registers[reg.Int()];
                 _ram.WriteInt8LEUnSafe(adress, data8);
                 return BiosStatus.Success;
 
             case OpCodeSize.S16:
-                var data16 = (ushort)_registers[reg.Int];
+                var data16 = (ushort)_registers[reg.Int()];
                 _ram.WriteInt16LEUnSafe(adress, data16);
                 return BiosStatus.Success;
 
 
             case OpCodeSize.S32:
-                var data32 = (uint)_registers[reg.Int];
+                var data32 = (uint)_registers[reg.Int()];
                 _ram.WriteInt32LEUnSafe(adress, data32);
                 return BiosStatus.Success;
 
 
             case OpCodeSize.S64:
-                var data64 = _registers[reg.Int];
+                var data64 = _registers[reg.Int()];
                 _ram.WriteInt64LEUnSafe(adress, data64);
                 return BiosStatus.Success;
         }
@@ -522,127 +522,127 @@ public sealed class Processor(MemoryBus ram,
 
     private BiosStatus InstructionLOAD_IND_UNSAFE(OpCodeSize sizeT, RegType reg1, RegType reg2)
     {
-        return InstructionLOAD_UNSAFE(sizeT, reg1, _registers[reg2.Int]);
+        return InstructionLOAD_UNSAFE(sizeT, reg1, _registers[reg2.Int()]);
     }
 
     private BiosStatus InstructionSTORE_IND_UNSAFE(OpCodeSize sizeT, RegType reg1, RegType reg2)
     {
-        return InstructionSTORE_UNSAFE(sizeT, reg1, _registers[reg2.Int]);
+        return InstructionSTORE_UNSAFE(sizeT, reg1, _registers[reg2.Int()]);
     }
 
     private BiosStatus InstructionLDI(RegType reg, ulong value)
     {
-        _registers[reg.Int] = value;
+        _registers[reg.Int()] = value;
         return BiosStatus.Success;
     }
 
     private BiosStatus InstructionADD(RegType reg1, RegType reg2)
     {
-        ulong value1 = _registers[reg1.Int];
-        ulong value2 = _registers[reg2.Int];
+        ulong value1 = _registers[reg1.Int()];
+        ulong value2 = _registers[reg2.Int()];
         ulong res = value1 + value2;
-        _registers[reg1.Int] = res;
+        _registers[reg1.Int()] = res;
 
         return BiosStatus.Success;
     }
 
     private BiosStatus InstructionSUB(RegType reg1, RegType reg2)
     {
-        ulong value1 = _registers[reg1.Int];
-        ulong value2 = _registers[reg2.Int];
+        ulong value1 = _registers[reg1.Int()];
+        ulong value2 = _registers[reg2.Int()];
         ulong res = value1 - value2;
-        _registers[reg1.Int] = res;
+        _registers[reg1.Int()] = res;
 
         return BiosStatus.Success;
     }
 
     private BiosStatus InstructionINC(RegType reg)
     {
-        ulong value1 = _registers[reg.Int];
+        ulong value1 = _registers[reg.Int()];
         ulong res = value1 + 1;
-        _registers[reg.Int] = res;
+        _registers[reg.Int()] = res;
 
         return BiosStatus.Success;
     }
 
     private BiosStatus InstructionDEC(RegType reg)
     {
-        ulong value1 = _registers[reg.Int];
+        ulong value1 = _registers[reg.Int()];
         ulong res = value1 - 1;
-        _registers[reg.Int] = res;
+        _registers[reg.Int()] = res;
 
         return BiosStatus.Success;
     }
 
     private BiosStatus InstructionAND(RegType reg1, RegType reg2)
     {
-        ulong value1 = _registers[reg1.Int];
-        ulong value2 = _registers[reg2.Int];
+        ulong value1 = _registers[reg1.Int()];
+        ulong value2 = _registers[reg2.Int()];
         ulong res = value1 & value2;
-        _registers[reg1.Int] = res;
+        _registers[reg1.Int()] = res;
 
         return BiosStatus.Success;
     }
 
     private BiosStatus InstructionOR(RegType reg1, RegType reg2)
     {
-        ulong value1 = _registers[reg1.Int];
-        ulong value2 = _registers[reg2.Int];
+        ulong value1 = _registers[reg1.Int()];
+        ulong value2 = _registers[reg2.Int()];
         ulong res = value1 | value2;
-        _registers[reg1.Int] = res;
+        _registers[reg1.Int()] = res;
 
         return BiosStatus.Success;
     }
 
     private BiosStatus InstructionXOR(RegType reg1, RegType reg2)
     {
-        ulong value1 = _registers[reg1.Int];
-        ulong value2 = _registers[reg2.Int];
+        ulong value1 = _registers[reg1.Int()];
+        ulong value2 = _registers[reg2.Int()];
         ulong res = value1 ^ value2;
-        _registers[reg1.Int] = res;
+        _registers[reg1.Int()] = res;
 
         return BiosStatus.Success;
     }
 
     private BiosStatus InstructionNOT(RegType reg)
     {
-        ulong value = _registers[reg.Int];
+        ulong value = _registers[reg.Int()];
         ulong res = ~value;
-        _registers[reg.Int] = res;
+        _registers[reg.Int()] = res;
 
         return BiosStatus.Success;
     }
     private BiosStatus InstructionJMP(ulong targetAddress)
     {
-        _registers[RegType.rIP.Int] = targetAddress;
+        _registers[RegType.rIP.Int()] = targetAddress;
         return BiosStatus.Success;
     }
 
     private BiosStatus InstructionJZ(ulong t) 
     { 
-        if (ZeroFlagSet) _registers[RegType.rIP.Int] = t; 
+        if (ZeroFlagSet) _registers[RegType.rIP.Int()] = t; 
         return BiosStatus.Success; 
     }
     private BiosStatus InstructionJNZ(ulong t) 
     { 
-        if (!ZeroFlagSet) _registers[RegType.rIP.Int] = t;
+        if (!ZeroFlagSet) _registers[RegType.rIP.Int()] = t;
         return BiosStatus.Success; 
     }
     private BiosStatus InstructionJL(ulong t) 
     { 
-        if (NegativeFlagSet) _registers[RegType.rIP.Int] = t;
+        if (NegativeFlagSet) _registers[RegType.rIP.Int()] = t;
         return BiosStatus.Success; 
     }
     private BiosStatus InstructionJG(ulong t) 
     { 
-        if (!NegativeFlagSet & !ZeroFlagSet) _registers[RegType.rIP.Int] = t;
+        if (!NegativeFlagSet & !ZeroFlagSet) _registers[RegType.rIP.Int()] = t;
         return BiosStatus.Success; 
     }
 
     private BiosStatus InstructionPUSH(RegType reg)
     {
-        ulong value = _registers[reg.Int];
-        ulong sp = _registers[RegType.rSP.Int];
+        ulong value = _registers[reg.Int()];
+        ulong sp = _registers[RegType.rSP.Int()];
 
         sp -= 8;
 
@@ -654,19 +654,19 @@ public sealed class Processor(MemoryBus ram,
             return status;
         }
 
-        if (_registers[RegType.rHP.Int] >= sp)   // коллизия с стеком
+        if (_registers[RegType.rHP.Int()] >= sp)   // коллизия с стеком
         {
             _lastFaultData = sp;
             return BiosStatus.SegmentationFault;
         }
 
-        _registers[RegType.rSP.Int] = sp;
+        _registers[RegType.rSP.Int()] = sp;
         return BiosStatus.Success;
     }
 
     private BiosStatus InstructionPOP(RegType reg)
     {
-        ulong sp = _registers[RegType.rSP.Int];
+        ulong sp = _registers[RegType.rSP.Int()];
 
         var readResult = _ram.ReadInt64LE(sp);
 
@@ -679,8 +679,8 @@ public sealed class Processor(MemoryBus ram,
 
         sp += 8;
 
-        _registers[reg.Int] = readResult;
-        _registers[RegType.rSP.Int] = sp;
+        _registers[reg.Int()] = readResult;
+        _registers[RegType.rSP.Int()] = sp;
 
         return BiosStatus.Success;
     }
@@ -688,20 +688,20 @@ public sealed class Processor(MemoryBus ram,
 
     private BiosStatus InstructionCALL(ulong targetAddress)
     {
-        ulong oldSp = _registers[RegType.rSP.Int];
+        ulong oldSp = _registers[RegType.rSP.Int()];
 
         if (oldSp < 8)
             return BiosStatus.SegmentationFault;
 
         ulong sp = oldSp - 8;
 
-        if (_registers[RegType.rHP.Int] >= sp) // коллизия с heap
+        if (_registers[RegType.rHP.Int()] >= sp) // коллизия с heap
             return BiosStatus.SegmentationFault;
 
-        _ram.WriteInt64LEUnSafe(sp, _registers[RegType.rIP.Int]);
+        _ram.WriteInt64LEUnSafe(sp, _registers[RegType.rIP.Int()]);
 
-        _registers[RegType.rSP.Int] = sp;
-        _registers[RegType.rIP.Int] = targetAddress;
+        _registers[RegType.rSP.Int()] = sp;
+        _registers[RegType.rIP.Int()] = targetAddress;
 
         return BiosStatus.Success;
     }
@@ -709,18 +709,18 @@ public sealed class Processor(MemoryBus ram,
 
     private BiosStatus InstructionRET()
     {
-        ulong sp = _registers[RegType.rSP.Int];
+        ulong sp = _registers[RegType.rSP.Int()];
 
         if (sp >= _stackBase)
         {
-            _lastFaultData = _registers[RegType.rIP.Int];
+            _lastFaultData = _registers[RegType.rIP.Int()];
             return BiosStatus.StackUnderflow;
         }
 
         ulong returnAddress = _ram.ReadInt64LEUnSafe(sp);
 
-        _registers[RegType.rSP.Int] = sp + 8;
-        _registers[RegType.rIP.Int] = returnAddress;
+        _registers[RegType.rSP.Int()] = sp + 8;
+        _registers[RegType.rIP.Int()] = returnAddress;
 
         return BiosStatus.Success;
     }
@@ -728,7 +728,7 @@ public sealed class Processor(MemoryBus ram,
 
     private BiosStatus InstructionIN(RegType regDest, RegType regPort)
     {
-        ulong portAddress = _registers[regPort.Int];
+        ulong portAddress = _registers[regPort.Int()];
         var result = _portBus.ReadPort(portAddress);
         if (result.Status != BiosStatus.Success)
         {
@@ -736,14 +736,14 @@ public sealed class Processor(MemoryBus ram,
             return result.Status;
         }
 
-        _registers[regDest.Int] = result.Data;
+        _registers[regDest.Int()] = result.Data;
         return BiosStatus.Success;
     }
 
     private BiosStatus InstructionOUT(RegType regSrc, RegType regPort)
     {
-        ulong portAddress = _registers[regPort.Int];
-        byte value = (byte)(_registers[regSrc.Int] & 0xFF);
+        ulong portAddress = _registers[regPort.Int()];
+        byte value = (byte)(_registers[regSrc.Int()] & 0xFF);
         var status = _portBus.WritePort(portAddress, value);
         if (status != BiosStatus.Success)
         {
@@ -772,7 +772,7 @@ public sealed class Processor(MemoryBus ram,
         for (int i = 0; i < CountReg; i++) _registers[i] = 0UL;
     }
 
-    public void InitRegHP(ulong hpInit) => _registers[RegType.rHP.Int] = hpInit;
+    public void InitRegHP(ulong hpInit) => _registers[RegType.rHP.Int()] = hpInit;
 
     public void EnqueueExternalCommand(uint instruction)
     {
@@ -822,7 +822,7 @@ public sealed class Processor(MemoryBus ram,
         {
             if ((uint)regType >= CountReg)
                 throw new ArgumentOutOfRangeException(nameof(regType));
-            return _registers[regType.Int];
+            return _registers[regType.Int()];
         }
     }
 }

@@ -85,11 +85,6 @@ public readonly struct OptimizationId : IEquatable<OptimizationId>, IComparable<
     // ---------------------------------------------------------------------
 
     public static readonly OptimizationId Peephole = new("peephole");
-    public static readonly OptimizationId FunctionInlined = new("inline.func");
-    public static readonly OptimizationId ConstantPropagated = new("const.propagate");
-    public static readonly OptimizationId ConstantFolded = new("const.fold");
-    public static readonly OptimizationId NodeRemovedBeforeInline = new("node.removed.before-inline");
-    public static readonly OptimizationId NodeRemovedAfterInline = new("node.removed.after-inline");
 
     // ---------------------------------------------------------------------
     // Equality / comparison / formatting

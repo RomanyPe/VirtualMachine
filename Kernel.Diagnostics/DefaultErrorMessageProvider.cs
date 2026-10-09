@@ -44,7 +44,7 @@ public class DefaultErrorMessageProvider : IErrorMessageProvider
         { ErrorCode.Lexer_UnterminatedString, "Unterminated string starting at {0}:{1}" }
     }.ToFrozenDictionary();
 
-    public string GetMessage(ErrorCode code, params ReadOnlySpan<object> args)
+    public string GetMessage(ErrorCode code, params object[] args)
     {
         if (!_templates.TryGetValue(code, out var template))
             throw new InvalidOperationException($"No message template for error code {code}");

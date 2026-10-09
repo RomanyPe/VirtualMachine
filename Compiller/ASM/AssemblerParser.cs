@@ -279,7 +279,7 @@ public partial class AssemblerParser
         if (tokens.Length < 2)
             ThrowHelper.ThrowMiniC(ErrorCode.Asm_InvalidInstruction, baseMnemonic);
         string target = tokens[1];
-        uint jmpOpcode = InstructionEncoder.EncodeJ(opCode.Uint);
+        uint jmpOpcode = InstructionEncoder.EncodeJ(opCode.ToUint());
         if (IsNumber(target))
         {
             ulong absTarget = ParseNumber(target);
@@ -297,7 +297,7 @@ public partial class AssemblerParser
             ThrowHelper.ThrowMiniC(ErrorCode.Asm_InvalidInstruction, baseMnemonic);
         RegType rInd1 = ParseReg(tokens[1]);
         RegType rInd2 = ParseReg(tokens[2]);
-        _asm.EmitInstruction(InstructionEncoder.EncodeRS(opCode.Uint, (uint)rInd1, (uint)rInd2, size.Uint));
+        _asm.EmitInstruction(InstructionEncoder.EncodeRS(opCode.ToUint(), (uint)rInd1, (uint)rInd2, size.ToUint()));
     }
 
     private void FormatLOAD__STORE(string[] tokens, OpCodeSize size, string baseMnemonic)
@@ -307,8 +307,8 @@ public partial class AssemblerParser
         RegType rMem = ParseReg(tokens[1]);
         ulong addr = ParseNumber(tokens[2]);
         uint encoded = baseMnemonic == "LOAD"
-            ? InstructionEncoder.EncodeLOAD((uint)rMem, size.Uint)
-            : InstructionEncoder.EncodeSTORE((uint)rMem, size.Uint);
+            ? InstructionEncoder.EncodeLOAD((uint)rMem, size.ToUint())
+            : InstructionEncoder.EncodeSTORE((uint)rMem, size.ToUint());
         _asm.EmitInstruction64(encoded, addr);
     }
 
@@ -335,7 +335,7 @@ public partial class AssemblerParser
         if (tokens.Length < 2)
             ThrowHelper.ThrowMiniC(ErrorCode.Asm_InvalidInstruction, baseMnemonic);
         RegType rU = ParseReg(tokens[1]);
-        _asm.EmitInstruction(InstructionEncoder.EncodeU(opCode.Uint, (uint)rU));
+        _asm.EmitInstruction(InstructionEncoder.EncodeU(opCode.ToUint(), (uint)rU));
     }
 
     private void FormatR(string[] tokens, string baseMnemonic, OpCode opCode)
@@ -344,7 +344,7 @@ public partial class AssemblerParser
             ThrowHelper.ThrowMiniC(ErrorCode.Asm_InvalidInstruction, baseMnemonic);
         RegType r1 = ParseReg(tokens[1]);
         RegType r2 = ParseReg(tokens[2]);
-        _asm.EmitInstruction(InstructionEncoder.EncodeR(opCode.Uint, (uint)r1, (uint)r2));
+        _asm.EmitInstruction(InstructionEncoder.EncodeR(opCode.ToUint(), (uint)r1, (uint)r2));
     }
 
     private RegType ParseReg(string s)
@@ -385,8 +385,7 @@ public static class AsmLanguageDefinition
 
     static AsmLanguageDefinition()
     {
-        Mnemonics =
-        [
+        Mnemonics = new HashSet<string>() {
             "NOP", "END", "RET", "PRINT", "MOV", "ADD", "SUB", "AND", "OR", "XOR",
             "INC", "DEC", "NOT", "PUSH", "POP",
             "LDI", "LOAD", "STORE",
@@ -395,13 +394,13 @@ public static class AsmLanguageDefinition
             "PRINT_INT", "ALLOC",
             "IN", "OUT", "INT", "IRET", "SHR", "MULT_INT", "DIV", "HALT", "WAKE", "WAKE_INT",
             "JMP_IND", "CALL_IND"
-        ];
-        Registers =
-        [
+        }.ToFrozenSet();
+
+        Registers = new HashSet<string>() {
             "rZ", "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8", "r9",
             "r10", "r11", "r12", "r13", "r14", "r15", "r16", "r17", "r18", "r19",
             "r20", "r21","r22", "r23", "r24", "rCD", "rFL",  "rCL",  "rSP", "rHP", "rIP"
-        ];
+        }.ToFrozenSet();
 
         _mnemonicsRegex = new(GetMnemonicsPattern(), RegexOptions.IgnoreCase);
         regex = new(GetRegistersPattern(), RegexOptions.IgnoreCase);

@@ -2,5 +2,5 @@
 
 public interface IErrorMessageProvider
 {
-    string GetMessage(ErrorCode code, params ReadOnlySpan<object> args);
+    string GetMessage(ErrorCode code, params object[] args);
 }

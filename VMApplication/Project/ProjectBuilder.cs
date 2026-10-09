@@ -62,7 +62,7 @@ public class ProjectBuilder(IFileService fileService, IProjectFilesConfig path)
 
         if (combinedAst.FunctionNodes.Any(f => f.Name == "main"))
         {
-            assembler.EmitJump(InstructionEncoder.EncodeJ(OpCode.JMP.Uint), "func_main");
+            assembler.EmitJump(InstructionEncoder.EncodeJ(OpCode.JMP.ToUint()), "func_main");
         }
 
         AddInclude(includes, asmParser, assembler);

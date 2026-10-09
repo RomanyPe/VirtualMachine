@@ -81,7 +81,7 @@ public class BenchRunner(VMHost host, int deviceId, BenchCase benchCase, IFileSe
         List<double> log, List<double> logTime, List<long> logSteps, DeviceContext? launchMode)
     {
         var opt = new LaunchOptions(ShowTimer: true,OnEnd: GetOnEnd(log, logTime, logSteps));
-        launchMode?.Launch(opt);
+        launchMode?.Run(opt);
     }
     private static Action<IDeviceLoggerContext, ISimulationResult?>?
         GetOnEnd(List<double> log, List<double> logTime, List<long> logSteps)

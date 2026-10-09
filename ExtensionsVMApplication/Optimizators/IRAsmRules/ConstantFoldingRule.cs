@@ -44,7 +44,7 @@ public sealed class ConstantFoldingRule : IPeepholeRule
 
         // Создаём новую LDI с результатом (регистр назначения = opInstr.FirstReg)
         uint newRaw = InstructionEncoder.Encode(
-            OpCode.LDI.Uint,
+            OpCode.LDI.ToUint(),
             (uint)opInstr.FirstReg,
             0, // второй регистр не используется
             (uint)opInstr.Size);

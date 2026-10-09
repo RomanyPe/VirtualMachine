@@ -13,13 +13,9 @@ namespace VMApplication;
 
 public static class VMHostHelper
 {
-
-    extension(DeviceInfo d)
-    {
-        public DeviceView ConvertDeviceInfo() => new(d.Id,
+    public static DeviceView ConvertDeviceInfo(this DeviceInfo d) => new(d.Id,
                                                      d.Sector,
                                                      d.Name);
-    }
 
     public static ResultDeCompilation DisassemblCode(ReadOnlySpan<byte> prog, ulong baseAddress = 0UL)
     {

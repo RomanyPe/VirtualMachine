@@ -4,8 +4,6 @@ using Kernel.ControllersData;
 using Kernel.ProcessorSystem;
 using Kernel.RamSystem;
 using System.Diagnostics;
-using System.Numerics;
-using System.Runtime.CompilerServices;
 
 namespace Kernel.BiosSystem;
 
@@ -222,12 +220,12 @@ public sealed class Device : IPortController
         _processor.EnqueueExternalCommand(instruction);
         _wakeSignal.Set();
     }
-    public void NextStepProcessor()
+    public void NextStepProcessor(Action<IProcessorReader>? OnStep = null)
     {
         if (!_processor.IsRunning) return;
 
         _processor.Step();
-
+        OnStep?.Invoke(_processor.GetCurrentProcessorReader());
         if (!_processor.IsSleeping)
         {
             stepCounter++;

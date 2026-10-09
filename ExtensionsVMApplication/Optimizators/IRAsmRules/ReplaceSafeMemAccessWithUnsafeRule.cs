@@ -109,32 +109,32 @@ public sealed class ReplaceSafeMemAccessWithUnsafeRule : IPeepholeRule
         {
             case OpCode.LOAD_UNSAFE:
                 raw = InstructionEncoder.EncodeI(
-                    OpCode.LOAD_UNSAFE.Uint,
-                    original.FirstReg.Uint,
-                    original.Size.Uint);
+                    OpCode.LOAD_UNSAFE.ToUint(),
+                    original.FirstReg.ToUint(),
+                    original.Size.ToUint());
                 return new AsmInstruction(raw, original.Immediate!.Value);
 
             case OpCode.STORE_UNSAFE:
                 raw = InstructionEncoder.EncodeI(
-                    OpCode.STORE_UNSAFE.Uint,
-                    original.FirstReg.Uint,
-                    original.Size.Uint);
+                    OpCode.STORE_UNSAFE.ToUint(),
+                    original.FirstReg.ToUint(),
+                    original.Size.ToUint());
                 return new AsmInstruction(raw, original.Immediate!.Value);
 
             case OpCode.LOAD_IND_UNSAFE:
                 raw = InstructionEncoder.EncodeRS(
-                    OpCode.LOAD_IND_UNSAFE.Uint,
-                    original.FirstReg.Uint,
-                    original.SecondReg.Uint,
-                    original.Size.Uint);
+                    OpCode.LOAD_IND_UNSAFE.ToUint(),
+                    original.FirstReg.ToUint(),
+                    original.SecondReg.ToUint(),
+                    original.Size.ToUint());
                 return new AsmInstruction(raw);
 
             case OpCode.STORE_IND_UNSAFE:
                 raw = InstructionEncoder.EncodeRS(
-                    OpCode.STORE_IND_UNSAFE.Uint,
-                    original.FirstReg.Uint,
-                    original.SecondReg.Uint,
-                    original.Size.Uint);
+                    OpCode.STORE_IND_UNSAFE.ToUint(),
+                    original.FirstReg.ToUint(),
+                    original.SecondReg.ToUint(),
+                    original.Size.ToUint());
                 return new AsmInstruction(raw);
 
             default:

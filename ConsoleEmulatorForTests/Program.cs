@@ -22,13 +22,13 @@ const string source =
 using var host = VMHostFactory.CreateDefault();
 var lfPolicy = new LoggingFaultPolicy(Console.Out);
 
-var device = host.Emulator.CreateDevice(
+using var device = host.Emulator.CreateDevice(
     ramSize: RamSize.MB128,
     processorFaultPolicy: lfPolicy,
     name: "ConsoleVM"
 );
 
-var iostream = new QueuedIOStream(Console.Out, PortCharEncoding.Utf8);
+using var iostream = new QueuedIOStream(Console.Out, PortCharEncoding.Utf8);
 host.Emulator.AddDevice(device, 0);
 host.Emulator.AddDevice(iostream, "console", 1);
 
@@ -41,15 +41,12 @@ if (!resCompile.Success)
     {
         Console.WriteLine(err);
     }
-    device.Dispose();
     return;
 }
 
 if (!device.TryFastLoadProgram(resCompile.Program, 0, out var error))
 {
     Console.WriteLine(error!);
-    device.Dispose();
     return;
 }
-device.Launch();
-device.Dispose();
+device.Run();

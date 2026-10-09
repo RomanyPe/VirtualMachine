@@ -95,7 +95,7 @@ public class FunctionGenerator(AssemblerBase asm, Dictionary<string, StructLayou
                 exprGen.GenerateExpression(global.Initializer);
                 OpCodeSize opSize = global.IsPointer ? OpCodeSize.S64 : CodeGenUtils.GetSizeForType(global.Type);
                 string label = GlobalMemoryManager.GetLabel(global.Name);
-                _asm.EmitInstruction64WithLabel(InstructionEncoder.EncodeSTORE(RegType.r1.Uint, opSize.Uint), label);
+                _asm.EmitInstruction64WithLabel(InstructionEncoder.EncodeSTORE(RegType.r1.ToUint(), opSize.ToUint()), label);
             }
         }
     }
@@ -122,7 +122,7 @@ public class FunctionGenerator(AssemblerBase asm, Dictionary<string, StructLayou
         if (!isMain)
         {
             foreach (var reg in funcCtx.UsedRegisters.OrderBy(r => (int)r))
-                _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.PUSH.Uint, (uint)reg));
+                _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.PUSH.ToUint(), (uint)reg));
 
             // Вместо загрузки из псевдоглобалов:
             for (int i = 0; i < func.Parameters.Count; i++)
@@ -139,14 +139,14 @@ public class FunctionGenerator(AssemblerBase asm, Dictionary<string, StructLayou
                     {
                         // Перемещаем в выделенный регистр
                         if (loc.Register != incomingReg)
-                            _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.Uint, loc.Register.Uint, incomingReg.Uint));
+                            _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.MOV.ToUint(), loc.Register.ToUint(), incomingReg.ToUint()));
                     }
                     else
                     {
                         // Сохраняем в стек
                         _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(CodeGenUtils.TMP_REG), (ulong)loc.StackOffset);
-                        _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, CodeGenUtils.TMP_REG, RegType.rSP.Uint));
-                        _asm.EmitInstruction(InstructionEncoder.EncodeSTORE_IND(incomingReg.Uint, CodeGenUtils.TMP_REG, loc.TypeSize.Uint));
+                        _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.ToUint(), CodeGenUtils.TMP_REG, RegType.rSP.ToUint()));
+                        _asm.EmitInstruction(InstructionEncoder.EncodeSTORE_IND(incomingReg.ToUint(), CodeGenUtils.TMP_REG, loc.TypeSize.ToUint()));
                     }
                 }
                 else
@@ -157,14 +157,14 @@ public class FunctionGenerator(AssemblerBase asm, Dictionary<string, StructLayou
                     string globalName = $"__param_{func.Name}_{param.Name}";
                     var addr = _globalMem.GetInfo(globalName)!.Value.Address;
                     OpCodeSize size = param.IsPointer ? OpCodeSize.S64 : CodeGenUtils.GetSizeForType(param.Type);
-                    _asm.EmitInstruction64(InstructionEncoder.EncodeLOAD(loc.Register.Uint, size.Uint), addr);
+                    _asm.EmitInstruction64(InstructionEncoder.EncodeLOAD(loc.Register.ToUint(), size.ToUint()), addr);
                 }
             }
 
             if (funcCtx.TotalLocalSize > 0)
             {
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(CodeGenUtils.TMP_REG), (ulong)funcCtx.TotalLocalSize);
-                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.SUB.Uint, (uint)RegType.rSP, CodeGenUtils.TMP_REG));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.SUB.ToUint(), (uint)RegType.rSP, CodeGenUtils.TMP_REG));
             }
         }
         else
@@ -172,7 +172,7 @@ public class FunctionGenerator(AssemblerBase asm, Dictionary<string, StructLayou
             if (funcCtx.TotalLocalSize > 0)
             {
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(CodeGenUtils.TMP_REG), (ulong)funcCtx.TotalLocalSize);
-                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.SUB.Uint, (uint)RegType.rSP, CodeGenUtils.TMP_REG));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.SUB.ToUint(), (uint)RegType.rSP, CodeGenUtils.TMP_REG));
             }
         }
 
@@ -190,10 +190,10 @@ public class FunctionGenerator(AssemblerBase asm, Dictionary<string, StructLayou
             if (funcCtx.TotalLocalSize > 0)
             {
                 _asm.EmitInstruction64(InstructionEncoder.EncodeLDI(CodeGenUtils.TMP_REG), (ulong)funcCtx.TotalLocalSize);
-                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.Uint, (uint)RegType.rSP, CodeGenUtils.TMP_REG));
+                _asm.EmitInstruction(InstructionEncoder.EncodeR(OpCode.ADD.ToUint(), (uint)RegType.rSP, CodeGenUtils.TMP_REG));
             }
             for (int i = funcCtx.UsedRegisters.Count - 1; i >= 0; i--)
-                _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.POP.Uint, (uint)funcCtx.UsedRegisters[i]));
+                _asm.EmitInstruction(InstructionEncoder.EncodeU(OpCode.POP.ToUint(), (uint)funcCtx.UsedRegisters[i]));
             _asm.EmitInstruction(InstructionEncoder.EncodeRET());
         }
     }
