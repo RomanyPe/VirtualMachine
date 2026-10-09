@@ -1,6 +1,6 @@
-﻿using Kernel.Contracts;
-using System.Text;
+﻿using System.Text;
 using System.Threading.Channels;
+using VMApplication.Emulator.Abstraction;
 
 namespace ExtensionsVMApplication.Emulator.IO;
 
@@ -9,7 +9,7 @@ namespace ExtensionsVMApplication.Emulator.IO;
 /// WritePort кладёт байт в потокобезопасный канал и сразу возвращает
 /// управление CPU. Фоновой таск разгружает очередь.
 /// </summary>
-public sealed class QueuedIOStream : IPortController
+public sealed class QueuedIOStream : PortControlBase
 {
     private readonly TextWriter _writer;
     private readonly PortCharEncoding _encoding;
@@ -19,7 +19,6 @@ public sealed class QueuedIOStream : IPortController
 
     // Ручной счётчик: ChannelReader.Count у unbounded-каналов не поддерживается.
     private int _pendingCount;
-    private int _disposed;
 
     public QueuedIOStream(TextWriter writer, PortCharEncoding encoding)
     {
@@ -36,14 +35,14 @@ public sealed class QueuedIOStream : IPortController
         _drainTask = Task.Run(DrainAsync);
     }
 
-    public byte ReadPort(ulong offset) => offset switch
+    public override byte ReadPort(ulong offset) => offset switch
     {
         // 0 — очередь пуста, 1 — есть необработанные байты
         OutputPortLayout.Status => (byte)(Volatile.Read(ref _pendingCount) > 0 ? 1 : 0),
         _ => 0
     };
 
-    public void WritePort(ulong offset, byte value)
+    public override void WritePort(ulong offset, byte value)
     {
         ThrowIfDisposed();
         switch (offset)
@@ -68,7 +67,7 @@ public sealed class QueuedIOStream : IPortController
         _writer.Flush();
     }
 
-    public void WakeProcessor() => Flush();
+    public override void WakeProcessor() => Flush();
 
     private async Task DrainAsync()
     {
@@ -118,10 +117,8 @@ public sealed class QueuedIOStream : IPortController
         catch (OperationCanceledException) { /* нормальное завершение */ }
     }
 
-    public void Dispose()
+    protected override void OnDispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
-
         _channel.Writer.TryComplete();
         try { _drainTask.Wait(TimeSpan.FromSeconds(5)); }
         catch (AggregateException) { }
@@ -129,5 +126,5 @@ public sealed class QueuedIOStream : IPortController
         try { _writer.Flush(); } catch { }
         _cts.Dispose();
     }
-    private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed != 0, this);
+    private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(IsDisposed, this);
 }

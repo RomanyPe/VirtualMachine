@@ -22,13 +22,13 @@ const string source =
 using var host = VMHostFactory.CreateDefault();
 var lfPolicy = new LoggingFaultPolicy(Console.Out);
 
-using var device = host.Emulator.CreateDevice(
+var device = host.Emulator.CreateDevice(
     ramSize: RamSize.MB128,
     processorFaultPolicy: lfPolicy,
     name: "ConsoleVM"
 );
 
-using var iostream = new QueuedIOStream(Console.Out, PortCharEncoding.Utf8);
+var iostream = new QueuedIOStream(Console.Out, PortCharEncoding.Utf8);
 host.Emulator.AddDevice(device, 0);
 host.Emulator.AddDevice(iostream, "console", 1);
 
@@ -38,9 +38,7 @@ var resCompile = host.Project.Compiler.Compile(resIl);
 if (!resCompile.Success)
 {
     foreach (var err in resCompile.Errors!)
-    {
         Console.WriteLine(err);
-    }
     return;
 }
 

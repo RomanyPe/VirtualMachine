@@ -1,16 +1,15 @@
-﻿using Kernel.Contracts;
-using System.Text;
+﻿using System.Text;
+using VMApplication.Emulator.Abstraction;
 
 namespace ExtensionsVMApplication.Emulator.IO;
 
-public sealed class SynchronousIOStream : IPortController
+public sealed class SynchronousIOStream : PortControlBase
 {
     private readonly TextWriter _writer;
     private readonly PortCharEncoding _encoding;
     private readonly Decoder? _utf8Decoder;
     private readonly char[] _charBuffer = new char[4];
     private byte? _pendingLowByte;
-    private int _disposed;
 
     public SynchronousIOStream(TextWriter writer, PortCharEncoding encoding)
     {
@@ -21,9 +20,9 @@ public sealed class SynchronousIOStream : IPortController
             _utf8Decoder = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false).GetDecoder();
     }
 
-    public byte ReadPort(ulong offset) => 0;
+    public override byte ReadPort(ulong offset) => 0;
 
-    public void WritePort(ulong offset, byte value)
+    public override void WritePort(ulong offset, byte value)
     {
         ThrowIfDisposed();
         switch (offset)
@@ -38,7 +37,7 @@ public sealed class SynchronousIOStream : IPortController
         }
     }
 
-    public void WakeProcessor() => _writer.Flush();
+    public override void WakeProcessor() => _writer.Flush();
 
     private void EmitByte(byte value)
     {
@@ -73,11 +72,10 @@ public sealed class SynchronousIOStream : IPortController
         }
     }
 
-    public void Dispose()
+    protected override void OnDispose()
     {
-        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
-        try { _writer.Flush(); } catch { /* writer не наш — не закрываем */ }
+        try { _writer.Flush(); } catch { }
     }
 
-    private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed != 0, this);
+    private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(IsDisposed, this);
 }

@@ -7,7 +7,7 @@ namespace ExtensionsVMApplication.Host;
 
 public sealed record RunOutcome(
     DeviceContext? Device,
-    int DeviceId,
+    int? DeviceId,
     CompilationResult Compilation,
     long StepCount,
     bool Success,
@@ -17,7 +17,6 @@ public sealed record RunOutcome(
 
 public static class VMHostRunExtensions
 {
-    public const int FaultID = -1;
 
     extension(VMHost host)
     {
@@ -34,7 +33,7 @@ public static class VMHostRunExtensions
             var comp = host.Project.Compile(il);
 
             if (!comp.Success)
-                return new(null!, FaultID, comp, 0, false, comp.Errors ?? []);
+                return new(null, null, comp, 0, false, comp.Errors ?? []);
             // device пока не создавали — возвращать нечего
 
             int id = host.Emulator.CreateAndAddDevice(ram.Value, sector: 0, name: deviceName);
@@ -43,7 +42,7 @@ public static class VMHostRunExtensions
             if (!ctx.TryFastLoadProgram(comp.Program!, 0, out var err))
             {
                 host.Emulator.RemoveDevice(id);
-                return new(null!, FaultID, comp, 0, false, [err]);
+                return new(null, null, comp, 0, false, [err]);
             }
 
             ctx.Run(new LaunchOptions(StartAddress: 0));
@@ -60,8 +59,16 @@ public static class VMHostRunExtensions
             ram ??= RamSize.MB16;
 
             var res = host.RunAndKeep(source, lang, ram, optimize);
-            if (res.Device is not null) host.Emulator.RemoveDevice(res.DeviceId);
+            if (res.Device != null && res.DeviceId.HasValue) host.Emulator.RemoveDevice(res.DeviceId.Value);
             return res.Success;
+        }
+
+
+        public RunOutcome RunOnce(string source, SourceLanguage lang, RamSize? ram = null, bool optimize = false)
+        {
+            var res = host.RunAndKeep(source, lang, ram, optimize);
+            if (res.Device is not null) host.Emulator.RemoveDevice(res.DeviceId!.Value);
+            return res with { Device = null, DeviceId = null };
         }
     }
 }
